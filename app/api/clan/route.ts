@@ -7,8 +7,8 @@ export async function GET() {
     `https://api.clashofclans.com/v1/clans/${clanTag}`,
     {
       headers: {
-        Authorization: `Bearer {eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6IjU5ZTVkNTI5LTZmZWQtNDExMC1hZGQ5LTBkYzQ4NGJmZjgxZCIsImlhdCI6MTc4MjkzOTIyNSwic3ViIjoiZGV2ZWxvcGVyLzNmYjNlNWRjLTIzMWEtOGNmMy1mOTM0LTNkZmEwZDljM2JjZSIsInNjb3BlcyI6WyJjbGFzaCJdLCJsaW1pdHMiOlt7InRpZXIiOiJkZXZlbG9wZXIvc2lsdmVyIiwidHlwZSI6InRocm90dGxpbmcifSx7ImNpZHJzIjpbIjc3LjE2Ni4yMTguMjIiXSwidHlwZSI6ImNsaWVudCJ9XX0.nVWX_XXlsGF6k-f4-_hrmGMChEzqOdtvaXcIBFXeeUsFvNSVhfkTY-ACiX3SAdHYMBOM2kmbHE1EPfqnBnPqsA
-}`,
+        Authorization: `Bearer $
+      {process.env.CLASH_API_TOKEN}`,
       },
       cache: "no-store",
     }
