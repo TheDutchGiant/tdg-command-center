@@ -1,35 +1,49 @@
 import { NextResponse } from "next/server";
 
+const clans = [
+  { name: "Main", tag: "%2323JLLPVGUU" },
+  { name: "TDG II", tag: "%232CVVG00QQ" },
+  { name: "TDG Mini", tag: "%232CQ2LGQJ2" },
+  { name: "TDG Micro", tag: "%232CP8GPVG8" },
+];
+
 export async function GET() {
-  const clanTag = "%232JLLPVGUU";
+  try {
+    const results = await Promise.all(
+      clans.map(async (clan) => {
+        const response = await fetch(
+          `https://api.clashofclans.com/v1/clans/${clan.tag}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
+            },
+            cache: "no-store",
+          }
+        );
 
-  const response = await fetch(
-    `https://api.clashofclans.com/v1/clans/${clanTag}`,
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
-      },
-      cache: "no-store",
-    }
-  );
+        if (!response.ok) {
+          return {
+            name: clan.name,
+            members: 0,
+            error: await response.text(),
+          };
+        }
 
-  if (!response.ok) {
-    const errorText = await response.text();
+        const data = await response.json();
 
+        return {
+          name: clan.name,
+          members: data.members,
+          tag: data.tag,
+        };
+      })
+    );
+
+    return NextResponse.json(results);
+  } catch (error) {
     return NextResponse.json(
-      {
-        status: response.status,
-        error: errorText,
-      },
-      { status: response.status }
+      { error: "Server error", details: String(error) },
+      { status: 500 }
     );
   }
-
-  const data = await response.json();
-
-  return NextResponse.json({
-    members: data.members,
-    name: data.name,
-    tag: data.tag,
-  });
 }
