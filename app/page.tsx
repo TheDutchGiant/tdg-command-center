@@ -9,6 +9,7 @@ type Clan = {
 
 export default function Home() {
   const [clans, setClans] = useState<Clan[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadClans() {
@@ -20,9 +21,12 @@ export default function Home() {
         }
 
         const data = await response.json();
+        console.log("API DATA:", data);
         setClans(data);
       } catch (error) {
         console.error(error);
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -41,18 +45,22 @@ export default function Home() {
         </p>
 
         <div className="mt-10 grid gap-6 md:grid-cols-4">
-          {clans.map((clan, index) => (
-            <div
-              key={index}
-              className="rounded-xl bg-neutral-900 p-6 shadow-lg"
-            >
-              <h2 className="text-xl font-bold">{clan.name}</h2>
+          {loading ? (
+            <p>Laden...</p>
+          ) : (
+            clans.map((clan) => (
+              <div
+                key={clan.name}
+                className="rounded-xl bg-neutral-900 p-6 shadow-lg"
+              >
+                <h2 className="text-xl font-bold">{clan.name}</h2>
 
-              <p className="mt-2 text-3xl font-bold">
-                {clan.members} / 50
-              </p>
-            </div>
-          ))}
+                <p className="mt-2 text-3xl font-bold">
+                  {clan.members} / 50
+                </p>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </main>
