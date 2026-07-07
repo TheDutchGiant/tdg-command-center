@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from "react";
 
+type Clan = {
+  name: string;
+  members: number;
+};
+
 export default function Home() {
-  const [members, setMembers] = useState<number | null>(null);
+  const [clans, setClans] = useState<Clan[]>([]);
 
   useEffect(() => {
-    async function loadClan() {
+    async function loadClans() {
       try {
         const response = await fetch("/api/clan");
 
@@ -15,14 +20,13 @@ export default function Home() {
         }
 
         const data = await response.json();
-        setMembers(data.members);
+        setClans(data);
       } catch (error) {
         console.error(error);
-        alert(String(error));
       }
     }
 
-    loadClan();
+    loadClans();
   }, []);
 
   return (
@@ -37,11 +41,20 @@ export default function Home() {
         </p>
 
         <div className="mt-10 grid gap-6 md:grid-cols-4">
-          <div className="rounded-xl bg-neutral-900 p-6">
-            <h2 className="text-xl font-bold">🏆 Main</h2>
-            <p className="mt-2 text-3xl">
-              {members === null ? "Laden..." : `${members} / 50`}
-            </p>
-          </div>
+          {clans.map((clan, index) => (
+            <div
+              key={index}
+              className="rounded-xl bg-neutral-900 p-6 shadow-lg"
+            >
+              <h2 className="text-xl font-bold">{clan.name}</h2>
 
-          <div className="
+              <p className="mt-2 text-3xl font-bold">
+                {clan.members} / 50
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}
