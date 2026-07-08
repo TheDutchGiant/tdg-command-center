@@ -37,7 +37,7 @@ export default function Home() {
     <main className="min-h-screen bg-neutral-950 text-white">
       <div className="mx-auto max-w-7xl p-8">
         <h1 className="text-5xl font-bold text-yellow-400">
-          🏰 TDG Command Center
+          🏰 Test command center
         </h1>
 
         <p className="mt-2 text-neutral-400">
