@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const clans = [
-  { name: "Main", tag: "%2323JLLPVGUU" },
+  { name: "Main", tag: "%232JLLPVGUU" },
   { name: "TDG II", tag: "%232CVVG00QQ" },
   { name: "TDG Mini", tag: "%232CQ2LGQJ2" },
   { name: "TDG Micro", tag: "%232CP8GPVG8" },
