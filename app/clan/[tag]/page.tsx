@@ -5,15 +5,52 @@ export default async function ClanPage({
 }) {
   const { tag } = await params;
 
-  return (
-    <main className="min-h-screen bg-neutral-950 text-white p-8">
-      <h1 className="text-4xl font-bold text-yellow-400">
-        Clan: #{tag}
-      </h1>
+  const res = await fetch("http://localhost:3000/api/clan", {
+    cache: "no-store",
+  });
 
-      <p className="mt-4 text-neutral-400">
-        Hier komt straks alle informatie van de clan te staan.
-      </p>
+  const clans = await res.json();
+
+  const clan = clans.find(
+    (c: { tag: string }) => c.tag === `#${tag}`
+  );
+
+  if (!clan) {
+    return <div>Clan niet gevonden.</div>;
+  }
+
+  return (
+    <main className="p-8">
+      <h1 className="text-3xl font-bold">{clan.name}</h1>
+      <p className="text-gray-500">{clan.tag}</p>
+
+      <div className="mt-6">
+        <h2 className="text-xl font-semibold">
+          Leden ({clan.members.length})
+        </h2>
+
+        <ul className="mt-4 space-y-2">
+          {clan.members.map(
+            (member: {
+              tag: string;
+              name: string;
+              role: string;
+              townHallLevel: number;
+              trophies: number;
+            }) => (
+              <li
+                key={member.tag}
+                className="rounded border p-3"
+              >
+                <div className="font-semibold">{member.name}</div>
+                <div>TH {member.townHallLevel}</div>
+                <div>{member.role}</div>
+                <div>🏆 {member.trophies}</div>
+              </li>
+            )
+          )}
+        </ul>
+      </div>
     </main>
   );
 }
