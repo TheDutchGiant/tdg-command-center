@@ -43,11 +43,10 @@ export default function Home() {
         <div className="mt-10 grid gap-6 md:grid-cols-4">
           {clans.map((clan) => (
             <a
-            key={clan.name}
-            href={`/clan/$
-              {encodeURIComponent(clan.name)}`}
+              key={clan.name}
+              href={`/clan/${encodeURIComponent(clan.name)}`}
               className="block rounded-xl bg-neutral-900 p-6 shadow-lg hover:bg-neutral-800 transition"
-              >
+            >
               <h2 className="text-xl font-bold">{clan.name}</h2>
 
               <p className="mt-2 text-3xl font-bold">
@@ -56,6 +55,7 @@ export default function Home() {
             </a>
           ))}
         </div>
+      </div>
     </main>
   );
 }
