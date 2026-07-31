@@ -11,6 +11,8 @@ export default async function ClanPage({
 
   const clans = await res.json();
 
+  const clan = clans;
+
   if (clan.error) {
     return <div>Clan niet gevonden.</div>;
   }
