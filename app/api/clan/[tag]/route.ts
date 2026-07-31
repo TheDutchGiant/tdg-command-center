@@ -7,7 +7,7 @@ export async function GET(
   const { tag } = await params;
 
   const res = await fetch(
-    `https://api.clashofclans.com/v1/clans/${tag}`,
+    `https://api.clashofclans.com/v1/clans/%23${tag}`,
     {
       headers: {
         Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
