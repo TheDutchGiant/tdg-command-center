@@ -5,17 +5,13 @@ export default async function ClanPage({
 }) {
   const { tag } = await params;
 
-  const res = await fetch("http://localhost:3000/api/clan", {
+  const res = await fetch(`http://localhost:3000/api/clan/${tag}`, {
     cache: "no-store",
   });
 
   const clans = await res.json();
 
-  const clan = clans.find(
-    (c: { tag: string }) => c.tag === `#${tag}`
-  );
-
-  if (!clan) {
+  if (clan.error) {
     return <div>Clan niet gevonden.</div>;
   }
 
