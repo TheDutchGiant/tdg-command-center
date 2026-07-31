@@ -26,11 +26,11 @@ export default async function ClanPage({
 
       <div className="mt-6">
         <h2 className="text-xl font-semibold">
-          Leden ({clan.members.length})
+          Leden ({clan.memberList.length})
         </h2>
 
         <ul className="mt-4 space-y-2">
-          {clan.members.map(
+          {clan.memberList.map(
             (member: {
               tag: string;
               name: string;
