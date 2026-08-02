@@ -1,5 +1,6 @@
 import MemberGrid from "@/app/components/MemberGrid";
 import StatusCard from "@/app/components/StatusCard";
+import getClan from "@/app/lib/getClan";
 
 export default async function ClanPage({
   params,
@@ -8,21 +9,7 @@ export default async function ClanPage({
 }) {
   const { tag } = await params;
 
-  const res = await fetch(`http://localhost:3000/api/clan/${tag}`, {
-    cache: "no-store",
-  });
-
-  const clan = await res.json();
-
-  if (clan.error) {
-    return (
-      <section className="flex items-center justify-center py-20">
-        <h1 className="text-2xl font-bold">
-          Clan niet gevonden.
-        </h1>
-      </section>
-    );
-  }
+  const clan = await getClan(tag);
 
   return (
     <>
