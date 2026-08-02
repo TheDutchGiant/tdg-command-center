@@ -1,3 +1,5 @@
+import PhoenixTitle from "./PhoenixTitle";
+
 type ClanHeaderProps = {
   clan: {
     name: string;
@@ -15,72 +17,65 @@ type ClanHeaderProps = {
 
 export default function ClanHeader({ clan }: ClanHeaderProps) {
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-neutral-900 py-10 px-8 shadow-xl">
+    <div className="relative -mx-8 mb-10 overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-900 to-neutral-950 py-12">
 
-      {/* Gouden gloed */}
-      <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-500/20 blur-3xl" />
+      <div className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-400/20 blur-[110px]" />
 
-      {/* Clannaam */}
-      <h1 className="relative mb-8 text-center text-4xl font-bold text-white">
-        {clan.name}
-      </h1>
+      <PhoenixTitle text={clan.name} />
 
-      {/* Links - Badge - Rechts */}
-      <div className="relative grid grid-cols-3 items-center">
+      <div className="relative z-10 mt-8 grid grid-cols-3 items-center">
 
-        {/* Links */}
-        <div className="flex flex-col items-end gap-6 pr-8">
+        <div className="flex flex-col items-end gap-8 pr-6">
 
           <div className="text-right">
-            <div className="text-sm text-neutral-400">
+            <div className="text-sm uppercase tracking-widest text-neutral-500">
               Leden
             </div>
 
-            <div className="text-3xl font-bold">
+            <div className="mt-1 text-3xl font-bold">
               👥 {clan.members}/50
             </div>
           </div>
 
           <div className="text-right">
-            <div className="text-sm text-neutral-400">
+            <div className="text-sm uppercase tracking-widest text-neutral-500">
               Clan Level
             </div>
 
-            <div className="text-3xl font-bold">
+            <div className="mt-1 text-3xl font-bold">
               ⭐ {clan.clanLevel}
             </div>
           </div>
 
         </div>
-
-        {/* Badge */}
         <div className="flex justify-center">
+
           <img
             src={clan.badgeUrls.large}
             alt={clan.name}
-            className="h-40 w-40 drop-shadow-[0_0_40px_rgba(255,215,0,0.45)]"
+            className="h-44 w-44 drop-shadow-2xl"
           />
+
         </div>
 
-        {/* Rechts */}
-        <div className="flex flex-col gap-6 pl-8">
+        <div className="flex flex-col gap-8 pl-6">
 
           <div>
-            <div className="text-sm text-neutral-400">
+            <div className="text-sm uppercase tracking-widest text-neutral-500">
               War League
             </div>
 
-            <div className="text-2xl font-bold">
+            <div className="mt-1 text-2xl font-bold">
               ⚔️ {clan.warLeague.name}
             </div>
           </div>
 
           <div>
-            <div className="text-sm text-neutral-400">
+            <div className="text-sm uppercase tracking-widest text-neutral-500">
               Win Streak
             </div>
 
-            <div className="text-3xl font-bold">
+            <div className="mt-1 text-3xl font-bold">
               🔥 {clan.warWinStreak}
             </div>
           </div>
@@ -88,6 +83,8 @@ export default function ClanHeader({ clan }: ClanHeaderProps) {
         </div>
 
       </div>
+
+      <div className="absolute bottom-0 left-0 h-20 w-full bg-gradient-to-b from-transparent to-neutral-950" />
 
     </div>
   );

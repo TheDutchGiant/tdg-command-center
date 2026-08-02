@@ -1,4 +1,5 @@
 import ClanHeader from "@/app/components/ClanHeader";
+import PhoenixTitle from "@/app/components/PhoenixTitle";
 
 export default async function ClanPage({
   params,
