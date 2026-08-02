@@ -1,0 +1,78 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+type ClanNavigationProps = {
+  tag: string;
+};
+
+const menuItems = [
+  {
+    name: "🏠 Dashboard",
+    href: "",
+  },
+  {
+    name: "👥 Leden",
+    href: "members",
+  },
+  {
+    name: "🏆 CWL",
+    href: "cwl",
+  },
+  {
+    name: "⚔️ Wars",
+    href: "wars",
+  },
+  {
+    name: "🏰 Bases",
+    href: "bases",
+  },
+  {
+    name: "📊 Statistieken",
+    href: "stats",
+  },
+  {
+    name: "💬 Discord",
+    href: "discord",
+  },
+  {
+    name: "⚙️ Instellingen",
+    href: "settings",
+  },
+];
+
+export default function ClanNavigation({
+  tag,
+}: ClanNavigationProps) {
+  const pathname = usePathname();
+
+  return (
+    <nav className="sticky top-0 z-50 mb-8 mt-6 rounded-xl border border-neutral-800 bg-neutral-900/95 backdrop-blur">
+      <div className="flex flex-wrap items-center justify-center gap-2 p-3">
+        {menuItems.map((item) => {
+          const href =
+            item.href === ""
+              ? `/clan/${tag}`
+              : `/clan/${tag}/${item.href}`;
+
+          const active = pathname === href;
+
+          return (
+            <Link
+              key={item.name}
+              href={href}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                active
+                  ? "bg-yellow-500 text-black"
+                  : "text-neutral-300 hover:bg-neutral-800 hover:text-yellow-400"
+              }`}
+            >
+              {item.name}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
