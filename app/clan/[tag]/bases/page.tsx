@@ -1,8 +1,15 @@
 import AddBaseButton from "@/app/components/AddBaseButton";
 import BaseCard from "@/app/components/BaseCard";
+import { PrismaClient } from "@/app/generated/prisma/client";
 
-export default function BasesPage() {
-  const townHalls = [18, 17, 16, 15, 14, 13];
+const prisma = new PrismaClient();
+
+export default async function BasesPage() {
+  const bases = await prisma.base.findMany({
+    orderBy: {
+      townHall: "desc",
+    },
+  });
 
   return (
     <>
@@ -20,15 +27,21 @@ export default function BasesPage() {
         <AddBaseButton />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {townHalls.map((th) => (
-          <BaseCard
-            key={th}
-            townHall={th}
-            amount={0}
-          />
-        ))}
-      </div>
+      {bases.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-neutral-700 p-8 text-center text-neutral-400">
+          Er zijn nog geen bases toegevoegd.
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {bases.map((base) => (
+            <BaseCard
+              key={base.id}
+              townHall={base.townHall}
+              amount={1}
+            />
+          ))}
+        </div>
+      )}
     </>
   );
 }
