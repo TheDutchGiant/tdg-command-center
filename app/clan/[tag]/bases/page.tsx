@@ -1,6 +1,6 @@
 import AddBaseButton from "@/app/components/AddBaseButton";
 import BaseCard from "@/app/components/BaseCard";
-import { PrismaClient } from "@/app/generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
