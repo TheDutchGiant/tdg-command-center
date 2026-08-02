@@ -6,24 +6,34 @@ export async function GET(
 ) {
   const { tag } = await params;
 
-  const res = await fetch(
-    `https://api.clashofclans.com/v1/clans/%23${tag}`,
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
-      },
-      cache: "no-store",
-    }
-  );
+  try {
+    const response = await fetch(
+      `https://api.clashofclans.com/v1/clans/%23${tag}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
+        },
+        cache: "no-store",
+      }
+    );
 
-  if (!res.ok) {
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: "Clan niet gevonden." },
+        { status: response.status }
+      );
+    }
+
+    const clan = await response.json();
+
+    return NextResponse.json(clan);
+  } catch (error) {
     return NextResponse.json(
-      { error: "Clan niet gevonden" },
-      { status: res.status }
+      {
+        error: "Server error",
+        details: String(error),
+      },
+      { status: 500 }
     );
   }
-
-  const clan = await res.json();
-
-  return NextResponse.json(clan);
 }

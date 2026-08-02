@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Clan = {
   name: string;
   members: number;
+  tag: string;
 };
 
 export default function Home() {
@@ -42,9 +44,9 @@ export default function Home() {
 
         <div className="mt-10 grid gap-6 md:grid-cols-4">
           {clans.map((clan) => (
-            <a
+            <Link
               key={clan.name}
-              href={`/clan/${encodeURIComponent(clan.name)}`}
+              href={`/clan/${clan.tag.replace("#", "")}`}
               className="block rounded-xl bg-neutral-900 p-6 shadow-lg hover:bg-neutral-800 transition"
             >
               <h2 className="text-xl font-bold">{clan.name}</h2>
@@ -52,7 +54,7 @@ export default function Home() {
               <p className="mt-2 text-3xl font-bold">
                 {clan.members} / 50
               </p>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
