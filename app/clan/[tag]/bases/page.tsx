@@ -1,13 +1,11 @@
 import AddBaseButton from "@/app/components/AddBaseButton";
 import BaseCard from "@/app/components/BaseCard";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/app/lib/prisma";
 
 export default async function BasesPage() {
   const bases = await prisma.base.findMany({
     orderBy: {
-      townHall: "desc",
+      createdAt: "desc",
     },
   });
 
