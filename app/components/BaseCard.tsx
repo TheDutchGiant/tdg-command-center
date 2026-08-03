@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 type BaseCardProps = {
   townHall: number;
   amount: number;
@@ -17,9 +19,12 @@ export default function BaseCard({
         {amount} base{amount === 1 ? "" : "s"} beschikbaar
       </p>
 
-      <button className="mt-5 w-full rounded-lg bg-yellow-500 px-4 py-2 font-bold text-black transition hover:bg-yellow-400">
+      <Link
+        href={`/bases/th${townHall}`}
+        className="mt-5 block w-full rounded-lg bg-yellow-500 px-4 py-2 text-center font-bold text-black transition hover:bg-yellow-400"
+      >
         Open Base Library
-      </button>
+      </Link>
     </div>
   );
 }

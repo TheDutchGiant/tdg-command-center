@@ -17,3 +17,29 @@ export async function createBase(formData: FormData) {
 
   revalidatePath("/clan");
 }
+
+export async function deleteBase(id: number) {
+  await prisma.base.delete({
+    where: {
+      id,
+    },
+  });
+
+  revalidatePath("/clan");
+}
+
+export async function updateDescription(
+  id: number,
+  description: string
+) {
+  await prisma.base.update({
+    where: {
+      id,
+    },
+    data: {
+      description,
+    },
+  });
+
+  revalidatePath("/clan");
+}

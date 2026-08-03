@@ -17,3 +17,113 @@ model Base {
   createdBy   String
   createdAt   DateTime @default(now())
 }
+
+model Season {
+  id        Int      @id @default(autoincrement())
+  season    String   @unique
+  createdAt DateTime @default(now())
+
+  wars War[]
+}
+
+model War {
+  warTag                  String   @id
+  seasonId                Int
+  round                   Int
+
+  state                   String
+  teamSize                Int
+
+  preparationStartTime    DateTime
+  warStartTime            DateTime
+  warEndTime              DateTime
+
+  clanStars               Int
+  opponentStars           Int
+
+  clanDestruction         Float
+  opponentDestruction     Float
+
+  importedAt              DateTime @default(now())
+
+  season Season @relation(fields: [seasonId], references: [id])
+
+  attacks Attack[]
+}
+
+model Player {
+  playerTag    String   @id
+  currentName  String
+  createdAt    DateTime @default(now())
+
+  attacks Attack[]
+  events  CareerEvent[]
+}
+
+model Attack {
+  id Int @id @default(autoincrement())
+
+  warTag String
+
+  playerTag String
+
+  warDay Int
+
+  attackNumber Int
+
+  stars Int
+
+  destruction Int
+
+  duration Int
+
+  attackerTownHall Int
+
+  defenderTownHall Int
+
+  defenseStars Int
+
+  defenseDestruction Int
+
+  defenseAttackerTownHall Int
+
+  war War @relation(fields: [warTag], references: [warTag])
+
+  player Player @relation(fields: [playerTag], references: [playerTag])
+}
+
+model CareerEvent {
+  id Int @id @default(autoincrement())
+
+  playerTag String
+
+  date DateTime
+
+  type String
+
+  description String
+
+  createdBy String
+
+  player Player @relation(fields: [playerTag], references: [playerTag])
+}
+
+model ImportLog {
+  id Int @id @default(autoincrement())
+
+  season String
+
+  startedAt DateTime
+
+  finishedAt DateTime?
+
+  warsImported Int
+
+  attacksImported Int
+
+  success Boolean
+
+  error String?
+
+  createdAt DateTime @default(now())
+}
