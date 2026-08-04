@@ -1,41 +1,37 @@
 import { NextResponse } from "next/server";
 
-const CLAN_TAG = "2JLLPVGUU";
-const WAR_TAGS = [
-  "#8GRCVYLYY",
-  "#8GRCVY8LQ",
-  "#8GRCVY9JC",
-  "#8GRCVYY22",
-];
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
 
-export async function GET() {
-  try {
-    for (const warTag of WAR_TAGS) {
-      const response = await fetch(
-        `https://api.clashofclans.com/v1/clanwarleagues/wars/${encodeURIComponent(
-          warTag
-        )}`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
-          },
-          cache: "no-store",
-        }
-      );
+  const warTag = searchParams.get("tag");
 
-      const data = await response.json();
-
-      if (
-        data.clan?.tag === `#${CLAN_TAG}` ||
-        data.opponent?.tag === `#${CLAN_TAG}`
-      ) {
-        return NextResponse.json(data);
+  if (!warTag) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Geen warTag opgegeven.",
+      },
+      {
+        status: 400,
       }
-    }
+    );
+  }
 
-    return NextResponse.json({
-      success: false,
-      message: "Geen war gevonden voor The Dutch Giant.",
+  try {
+    const response = await fetch(
+      `https://api.clashofclans.com/v1/clanwarleagues/wars/%23${warTag.replace("#", "")}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
+        },
+        cache: "no-store",
+      }
+    );
+
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
     });
   } catch (error) {
     console.error(error);
@@ -43,7 +39,7 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        message: "Er ging iets mis tijdens het ophalen van de war.",
+        message: "War ophalen mislukt.",
       },
       {
         status: 500,

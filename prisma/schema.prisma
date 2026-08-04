@@ -45,6 +45,8 @@ model War {
   opponentDestruction     Float
 
   importedAt              DateTime @default(now())
+  lastSyncedAt DateTime @default(now())
+  isFinalized Boolean @default(false)
 
   season Season @relation(fields: [seasonId], references: [id])
 
@@ -64,27 +66,23 @@ model Attack {
   id Int @id @default(autoincrement())
 
   warTag String
-
   playerTag String
 
-  warDay Int
+  defenderTag String
+  defenderName String
 
+  warDay Int
   attackNumber Int
 
   stars Int
-
   destruction Int
-
   duration Int
 
   attackerTownHall Int
-
   defenderTownHall Int
 
   defenseStars Int
-
   defenseDestruction Int
-
   defenseAttackerTownHall Int
 
   war War @relation(fields: [warTag], references: [warTag])
@@ -126,4 +124,6 @@ model ImportLog {
   error String?
 
   createdAt DateTime @default(now())
+
+  successfulSync Boolean @default(false)
 }
