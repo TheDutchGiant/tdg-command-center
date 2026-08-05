@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { syncEngine } from "@/app/lib/syncEngine";
+import { PHOENIX } from "@/app/lib/config";
+import { importClan } from "@/app/lib/importClan";
 import { fetchClash } from "@/app/lib/clash";
 import {
   saveWar,
@@ -6,19 +9,31 @@ import {
   saveAttacks,
 } from "@/app/actions/cwlActions";
 
-const CLAN_TAG = "2JLLPVGUU";
+const PRIMARY_CLAN = PHOENIX.clans.find(
+  (clan) => clan.primary
+);
+
+if (!PRIMARY_CLAN) {
+  throw new Error("Geen primary clan ingesteld.");
+}
 
 export async function GET() {
   try {
-    const league = await fetchClash(
-      `/clans/%23${CLAN_TAG}/currentwar/leaguegroup`
-    );
+    await syncEngine();
+let importedWars = 0;
+let importedPlayers = 0;
+let importedAttacks = 0;
 
-    const season = league.season;
+for (const clan of PHOENIX.clans) {
+  const result = await importClan(clan.tag);
 
-    let importedWars = 0;
-    let importedPlayers = 0;
-    let importedAttacks = 0;
+  if (!result.active || !result.league) {
+    console.log(`😴 ${clan.name}: geen actieve CWL`);
+    continue;
+  }
+
+  const league = result.league;
+  const season = league.season;
 
     for (let round = 0; round < league.rounds.length; round++) {
       const currentRound = league.rounds[round];
@@ -32,11 +47,24 @@ export async function GET() {
           `/clanwarleagues/wars/%23${warTag.replace("#", "")}`
         );
 
-        const isOurClan =
-  war.clan.tag === "#2JLLPVGUU" ||
-  war.opponent.tag === "#2JLLPVGUU";
+const isOurClan = PHOENIX.clans.some(
+  (clan) =>
+    war.clan.tag === `#${clan.tag}` ||
+    war.opponent.tag === `#${clan.tag}`
+);
 
 if (!isOurClan) {
+  continue;
+}
+
+const ourClan =
+  PHOENIX.clans.find(
+    (clan) =>
+      `#${clan.tag}` === war.clan.tag ||
+      `#${clan.tag}` === war.opponent.tag
+  );
+
+if (!ourClan) {
   continue;
 }
 
@@ -44,17 +72,24 @@ await saveWar(
   warTag,
   season,
   round + 1,
-  war
+  war,
+  ourClan.tag,
+  ourClan.name
 );
 
-        importedPlayers += await savePlayers(war);
+        importedPlayers += await savePlayers(
+          war,
+          ourClan.tag
+        );
 
         importedAttacks += await saveAttacks(
           warTag,
-          war
+          war,
+          ourClan.tag
         );
 
-        importedWars++;
+                  importedWars++;
+        }
       }
     }
 

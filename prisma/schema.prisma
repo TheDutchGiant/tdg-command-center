@@ -18,17 +18,36 @@ model Base {
   createdAt   DateTime @default(now())
 }
 
-model Season {
+model Clan {
   id        Int      @id @default(autoincrement())
-  season    String   @unique
+  name      String
+  tag       String   @unique
+  primary   Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  seasons Season[]
+  wars    War[]
+}
+
+model Season {
+  id        Int      @id @default(autoincrement())
+
+  clanId    Int
+  season    String
+
+  createdAt DateTime @default(now())
+
+  clan Clan @relation(fields: [clanId], references: [id])
+
   wars War[]
+
+  @@unique([clanId, season])
 }
 
 model War {
   warTag                  String   @id
   seasonId                Int
+  clanId                  Int
   round                   Int
 
   state                   String
@@ -49,6 +68,7 @@ model War {
   isFinalized Boolean @default(false)
 
   season Season @relation(fields: [seasonId], references: [id])
+  clan   Clan   @relation(fields: [clanId], references: [id])
 
   attacks Attack[]
 }
@@ -126,4 +146,18 @@ model ImportLog {
   createdAt DateTime @default(now())
 
   successfulSync Boolean @default(false)
+}
+
+model SystemState {
+  id          Int      @id @default(1)
+
+  mode        String   @default("IDLE")
+
+  currentSeason String?
+
+  lastCheck   DateTime?
+
+  createdAt   DateTime @default(now())
+
+  updatedAt   DateTime @updatedAt
 }

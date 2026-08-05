@@ -1,49 +1,94 @@
 import { NextResponse } from "next/server";
-
-const clans = [
-  { name: "The Dutch Giant", tag: "%232JLLPVGUU" },
-  { name: "TDG II", tag: "%232CVVG00QQ" },
-  { name: "TDG Mini", tag: "%232CQ2LGQJ2" },
-  { name: "TDG Micro", tag: "%232CP8GPVG8" },
-];
+import { syncEngine } from "@/app/lib/syncEngine";
+import { PHOENIX } from "@/app/lib/config";
+import { importClan } from "@/app/lib/importClan";
+import { fetchClash } from "@/app/lib/clash";
+import {
+  saveWar,
+  savePlayers,
+  saveAttacks,
+} from "@/app/actions/cwlActions";
 
 export async function GET() {
   try {
-    const results = await Promise.all(
-      clans.map(async (clan) => {
-        const response = await fetch(
-          `https://api.clashofclans.com/v1/clans/${clan.tag}`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.CLASH_API_TOKEN}`,
-            },
-            cache: "no-store",
+    await syncEngine();
+
+    let importedWars = 0;
+    let importedPlayers = 0;
+    let importedAttacks = 0;
+
+    for (const clan of PHOENIX.clans) {
+      const result = await importClan(clan.tag);
+
+      if (!result.active || !result.league) {
+        console.log(`😴 ${clan.name}: geen actieve CWL`);
+        continue;
+      }
+
+      const league = result.league;
+      const season = league.season;
+
+      for (let round = 0; round < league.rounds.length; round++) {
+        const currentRound = league.rounds[round];
+
+        for (const warTag of currentRound.warTags) {
+          if (warTag === "#0") {
+            continue;
           }
-        );
 
-        if (!response.ok) {
-          return {
-            name: clan.name,
-            members: 0,
-            error: await response.text(),
-          };
+          const war = await fetchClash(
+            `/clanwarleagues/wars/%23${warTag.replace("#", "")}`
+          );
+
+          const ourClan = PHOENIX.clans.find(
+            (c) =>
+              war.clan.tag === `#${c.tag}` ||
+              war.opponent.tag === `#${c.tag}`
+          );
+
+          if (!ourClan) {
+            continue;
+          }
+
+          await saveWar(
+            warTag,
+            season,
+            round + 1,
+            war,
+            ourClan.tag,
+            ourClan.name
+          );
+
+          importedPlayers += await savePlayers(war);
+
+          importedAttacks += await saveAttacks(
+            warTag,
+            war
+          );
+
+          importedWars++;
         }
+      }
+    }
 
-        const data = await response.json();
+    return NextResponse.json({
+      success: true,
+      importedWars,
+      importedPlayers,
+      importedAttacks,
+    });
 
-        return {
-          name: clan.name,
-          members: data.members,
-          tag: data.tag,
-        };
-      })
-    );
+  } catch (error: any) {
+    console.error(error);
 
-    return NextResponse.json(results);
-  } catch (error) {
     return NextResponse.json(
-      { error: "Server error", details: String(error) },
-      { status: 500 }
+      {
+        success: false,
+        message: error.message,
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
