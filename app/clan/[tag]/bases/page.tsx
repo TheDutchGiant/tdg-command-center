@@ -9,6 +9,8 @@ export default async function BasesPage() {
     },
   });
 
+  type Base = (typeof bases)[number];
+
   return (
     <>
       <div className="mb-8 flex items-center justify-between">
@@ -31,7 +33,7 @@ export default async function BasesPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {bases.map((base) => (
+          {bases.map((base: Base) => (
             <BaseCard
               key={base.id}
               townHall={base.townHall}
