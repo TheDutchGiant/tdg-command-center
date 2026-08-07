@@ -4,9 +4,13 @@
 
 TDG Phoenix is het digitale geheugen van de volledige TDG Family.
 
-Het is GEEN Clash of Clans dashboard.
+Phoenix is geen Clash of Clans dashboard.
 
-Phoenix bewaart de geschiedenis van de clans zodat gegevens over maanden en jaren steeds waardevoller worden.
+Phoenix bewaart de complete geschiedenis van de TDG Family zodat iedere oorlog, ieder seizoen en iedere speler steeds waardevoller wordt naarmate de tijd verstrijkt.
+
+Vandaag is belangrijk.
+
+Maar over vijf jaar moet vandaag nog steeds terug te vinden zijn.
 
 ---
 
@@ -16,7 +20,7 @@ Phoenix bewaart de geschiedenis van de clans zodat gegevens over maanden en jare
 
 The Digital Memory of The Dutch Giant
 
-Live today. Remember forever.
+**Live Today. Remember Forever.**
 
 Powered by TDG Phoenix.
 
@@ -24,24 +28,29 @@ Powered by TDG Phoenix.
 
 # Missie
 
-Alles wat vandaag gebeurt moet over vijf jaar nog terug te vinden zijn.
+Phoenix bewaart niet alleen de huidige situatie.
 
-Phoenix bewaart daarom:
+Phoenix bewaart de volledige geschiedenis.
+
+Alles wat vandaag gebeurt moet over vijf jaar nog beschikbaar zijn.
+
+Phoenix bewaart onder andere:
 
 - CWL
 - Wars
-- Leden
+- Members
 - Bases
 - Records
 - Historische statistieken
 - Career Events
-- Discord meldingen
+- Discord gebeurtenissen
+- Legacy
 
 ---
 
-# TDG Family
+# De TDG Family
 
-De familie bestaat uit vier clans.
+Phoenix ondersteunt standaard de volledige TDG Family.
 
 ## 🟠 The Dutch Giant
 
@@ -93,75 +102,58 @@ Donkere kleuren.
 
 Subtiele glow.
 
-Geen drukke interface.
-
 Artwork vertelt het verhaal.
 
 Data vertelt de feiten.
 
----
-
-# Homepage
-
-De homepage is slechts een portal.
-
-Gebruikers blijven hier maar enkele seconden.
-
-Doel:
-
-Zo snel mogelijk naar hun clan.
-
-Homepage krijgt daarom:
-
-- Hero artwork
-- Vier clan cards
-- Live ledenaantallen
-
-Geen overbodige informatie.
+Iedere pagina moet aanvoelen als een onderdeel van één grote wereld.
 
 ---
 
-# Clan Cards
+# Legacy Hall
 
-Iedere clan heeft eigen artwork.
+De Legacy Hall vormt het hart van Phoenix.
 
-Iedere clan heeft eigen glowkleur.
+Iedere bezoeker begint hier.
 
-Opbouw:
+Vanuit de Legacy Hall kiest de bezoeker een clanarchief.
 
-Clannaam
+De Legacy Hall is geen dashboard.
 
-Artwork
-
-25 / 50
-
-View Clan →
-
-Het woord "Members" wordt bewust NIET gebruikt.
-
-Iedere Clash-speler begrijpt wat 25 / 50 betekent.
+Het is de toegangspoort tot de geschiedenis van de TDG Family.
 
 ---
 
-# Hero
+# Clan Experience
 
-De header wordt een epische afbeelding.
+Iedere clan beschikt over:
 
-Niet:
+- Eigen Hero artwork
+- Eigen Clan HUD
+- Live ledenaantal
+- Eigen navigatie
+- Eigen archief
+- Dezelfde gebruikerservaring
 
-Phoenix alleen.
+Iedere clan voelt uniek.
 
-Niet:
+Maar hoort duidelijk bij dezelfde familie.
 
-Giant alleen.
+---
 
-Maar:
+# Filosofie
 
-Phoenix tegenover een Clash Giant.
+Artwork vertelt het verhaal.
 
-Niet als gevecht.
+Data vertelt de geschiedenis.
 
-Maar als een legendarische ontmoeting.
+Rust is belangrijker dan veel informatie.
+
+Iedere tekst moet zichzelf verdedigen.
+
+Kan iets weg?
+
+Dan gaat het weg.
 
 ---
 
@@ -169,6 +161,12 @@ Maar als een legendarische ontmoeting.
 
 Phoenix moet uiteindelijk het complete digitale geheugen van de TDG Family worden.
 
-Niet alleen live informatie.
+Niet alleen een plek om live informatie te bekijken.
 
-Maar vooral geschiedenis.
+Maar een plek waar de volledige geschiedenis van de TDG Family bewaard blijft.
+
+Vandaag.
+
+Morgen.
+
+En over tien jaar.

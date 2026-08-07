@@ -1,6 +1,6 @@
 # 🚀 TDG Phoenix - Next Task
 
-Dit document vertelt een nieuwe ChatGPT precies waar verder gebouwd moet worden.
+Dit document vertelt een nieuwe ChatGPT precies waar direct verder gewerkt moet worden.
 
 Wanneer dit document bestaat, hoeft nooit gevraagd te worden:
 
@@ -8,104 +8,98 @@ Wanneer dit document bestaat, hoeft nooit gevraagd te worden:
 
 ---
 
-# Huidige taak
+# 🎯 Huidige taak
 
-Homepage afronden.
+## Project Phoenix v1.0 Release
 
-Nog open:
+De volledige applicatie is functioneel afgerond.
 
-☐ Clan cards definitief afwerken
+De lokale production build (`npm run build`) is succesvol.
 
-- Clannaam in clankleur
-- Artwork nog groter
-- Ledenaantal onder artwork
-- View Clan subtiel onderaan
+Nog één blocker staat een officiële release in de weg.
 
-☐ Hero artwork
+### 🟨 Vercel Deployment
 
-Phoenix tegenover Clash Giant.
+Doel:
 
-Niet als gevecht.
+De Vercel deployment succesvol afronden zodat Project Phoenix officieel live kan.
 
-Maar als legendarische ontmoeting.
+Onderzoeken waarom de Vercel-build afwijkt van de lokale production build.
 
----
-
-# Daarna
-
-Family Navigation
-
-Boven iedere clanpagina.
-
-Home
-
-The Dutch Giant
-
-TDG II
-
-TDG Mini
-
-TDG Micro
-
-Hiermee kan direct tussen clans worden gewisseld.
+Pas wanneer de deployment succesvol is, wordt de website vrijgegeven.
 
 ---
 
-# Daarna
+# Na een succesvolle deployment
 
-Records
+Voer een korte eindcontrole uit.
 
-Persoonlijke records.
+Controleer:
 
-Clanrecords.
+- Homepage
+- Legacy Hall
+- Clanpagina's
+- Members
+- CWL
+- Base Library
+- Navigatie
+- API's
 
-Historische records.
+Wanneer alles correct werkt:
+
+✅ Project Phoenix v1.0 officieel live zetten.
 
 ---
 
-# Daarna
+# Eerstvolgende ontwikkelfase
 
-Career Events
+Na de release start Phase 3:
 
-Automatisch opslaan.
+## Clan Experience
 
-Automatisch naar Discord.
+Prioriteit:
 
----
+1. Members uitbreiden
 
-# Daarna
+2. CWL History
 
-Phoenix Intelligence
+3. Wars
 
-Records herkennen.
+4. Base Library uitbreiden
 
-Mijlpalen herkennen.
+5. Statistics
 
-Automatische analyses.
+6. Discord
+
+7. Settings
 
 ---
 
 # Laatste status
 
-Homepage functioneert.
+✅ Legacy Hall voltooid
 
-Clanpagina's functioneren.
+✅ Homepage voltooid
 
-CWL import functioneert.
+✅ Hero artwork voltooid
 
-Database functioneert.
+✅ Clan Experience basis voltooid
 
-Project bevindt zich in BUILD fase.
+✅ Multi-clan architectuur actief
 
-Niet meer repareren.
+✅ Database functioneert
 
-Vanaf nu uitbreiden.
+✅ CWL import functioneert
+
+✅ Lokale production build succesvol
+
+🟨 Vercel deployment is de enige resterende blocker.
 
 ---
 
 # Opmerking voor nieuwe ChatGPT
 
-Lees eerst:
+Lees altijd eerst:
 
 00_Working_With_Maarten.md
 
@@ -121,4 +115,4 @@ Daarna:
 
 05_Decisions.md
 
-Pas daarna verder bouwen.
+Pas daarna verder bouwen aan Project Phoenix.

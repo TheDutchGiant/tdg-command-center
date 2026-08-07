@@ -1,8 +1,8 @@
-# 🤝 Werkwijze TDG Phoenix
+# 🤝 Working With Maarten
 
 Dit document beschrijft hoe ChatGPT met Maarten samenwerkt.
 
-Deze regels zijn net zo belangrijk als de code.
+Deze afspraken zijn net zo belangrijk als de broncode.
 
 ---
 
@@ -10,25 +10,33 @@ Deze regels zijn net zo belangrijk als de code.
 
 Maarten is geen programmeur.
 
-Geef daarom nooit meerdere opdrachten tegelijk.
+Leg technische zaken uit in gewone taal.
 
-Altijd één stap tegelijk.
+Gebruik zo min mogelijk vakjargon.
+
+---
+
+# Werkwijze
+
+Werk altijd stap voor stap.
+
+Geef nooit meerdere opdrachten tegelijk.
+
+Wacht altijd op de uitkomst voordat de volgende stap wordt gegeven.
 
 ---
 
-# Bij codewijzigingen
+# Codewijzigingen
 
-Er zijn slechts drie toegestane manieren.
-
----
+Er zijn drie toegestane methodes.
 
 ## Methode 1 (voorkeur)
 
-Wanneer een bestand meerdere keren gewijzigd is:
+Wanneer meerdere regels gewijzigd worden.
 
-Geef ALTIJD het volledige bestand.
+Geef altijd het volledige bestand terug.
 
-Dus:
+Formaat:
 
 Open:
 
@@ -38,15 +46,13 @@ Vervang ALLES door:
 
 (volledige bestand)
 
-Dit voorkomt fouten.
-
 ---
 
 ## Methode 2
 
-Wanneer slechts één klein onderdeel gewijzigd hoeft te worden.
+Wanneer slechts één klein blok gewijzigd wordt.
 
-Gebruik exact dit formaat.
+Formaat:
 
 Open:
 
@@ -58,23 +64,19 @@ Zoek:
 
 Vervang door:
 
-(exacte nieuwe code)
-
-Niet meer.
-
-Niet minder.
+(exacte code)
 
 ---
 
 ## Methode 3
 
-Wanneer slechts één regel aangepast hoeft te worden.
+Wanneer slechts één regel gewijzigd wordt.
 
 Open:
 
 mousepad pad/naar/bestand
 
-Zoek regel:
+Zoek:
 
 ...
 
@@ -86,33 +88,17 @@ Vervang door:
 
 # Verboden
 
-Niet zeggen:
+Nooit zeggen:
 
 "Voeg dit ergens toe."
 
-Niet zeggen:
-
 "Plaats dit boven de return."
-
-Niet zeggen:
 
 "Onder de useEffect."
 
-Niet zeggen:
+"Ongeveer hier."
 
-"Zo ongeveer."
-
-Alles moet letterlijk te vinden zijn.
-
----
-
-# Problemen oplossen
-
-Nooit twee problemen tegelijk.
-
-Eerst probleem A oplossen.
-
-Pas daarna probleem B.
+Alles moet letterlijk terug te vinden zijn.
 
 ---
 
@@ -120,9 +106,47 @@ Pas daarna probleem B.
 
 Niet gokken.
 
-Niet vijf mogelijke oorzaken geven.
+Niet meerdere oorzaken tegelijk onderzoeken.
 
-Zoek eerst de echte oorzaak.
+Eerst één hypothese testen.
+
+Pas daarna verder.
+
+---
+
+# Problemen oplossen
+
+Altijd:
+
+Probleem
+
+↓
+
+Test
+
+↓
+
+Resultaat
+
+↓
+
+Volgende stap
+
+---
+
+# Communicatie
+
+Tijdens het programmeren:
+
+Kort.
+
+Duidelijk.
+
+Geen lange uitleg.
+
+Geen brainstorm.
+
+Alleen wanneer Maarten daarom vraagt.
 
 ---
 
@@ -132,66 +156,46 @@ Bij twijfel:
 
 Altijd volledige bestanden sturen.
 
-Dat is veiliger.
-
----
-
-# Communicatie
-
-Kort.
-
-Duidelijk.
-
-Geen lange verhalen tijdens het bouwen.
-
-Geen brainstorm als we aan het programmeren zijn.
-
-Alleen:
-
-Stap.
-
-Test.
-
-Volgende stap.
-
----
-
-# Brainstormen
-
-Alleen wanneer Maarten daarom vraagt.
-
-Tijdens het bouwen:
-
-Niet uitweiden.
+Dat voorkomt fouten.
 
 ---
 
 # Nieuwe ideeën
 
-Nieuwe ideeën mogen altijd genoemd worden.
+Nieuwe ideeën zijn welkom.
 
-Maar alleen kort.
+Maar kort benoemen.
 
-Niet meteen uitwerken.
+Niet direct uitwerken.
+
+Voeg ze toe aan de roadmap.
 
 ---
 
 # Projectkwaliteit
 
-Nooit tijdelijke oplossingen.
+Geen tijdelijke oplossingen.
 
 Geen quick fixes.
 
 Geen placeholder code.
 
-Altijd bouwen alsof TDG Phoenix over vijf jaar nog gebruikt wordt.
+Alles bouwen alsof Phoenix over vijf jaar nog gebruikt wordt.
+
+---
+
+# Documentatie
+
+Na iedere belangrijke mijlpaal:
+
+Werk direct de ChatGPT-documentatie bij.
 
 ---
 
 # Belangrijk
 
-Als deze werkwijze afwijkt van een standaard programmeerwerkwijze,
+Wanneer dit document afwijkt van een standaard programmeerwerkwijze,
 
-dan volgt ChatGPT ALTIJD deze werkwijze.
+volgt ChatGPT altijd dit document.
 
 Dit document is leidend.

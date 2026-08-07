@@ -1,6 +1,6 @@
 # 🗺 TDG Phoenix Roadmap
 
-Dit document bevat de volledige roadmap.
+Dit document bevat de volledige roadmap van Project Phoenix.
 
 Voltooide onderdelen worden afgevinkt.
 
@@ -17,47 +17,69 @@ Foundation
 
 ✅ API
 
+✅ Database
+
+✅ GitHub
+
+✅ Vercel configuratie
+
+✅ Multi-clan architectuur
+
 ✅ Clan overzicht
 
-✅ Members
+✅ Members basis
 
 ✅ CWL import
-
-✅ Database
 
 ---
 
 # Phase 2
-Homepage
+Legacy Hall
 
 ✅ Nieuwe branding
 
 ✅ TDG Family
 
+✅ Legacy Hall
+
+✅ The Dutch Giant Family Archives
+
+✅ Hero artwork
+
 ✅ Clan artwork
+
+✅ Homepage redesign
 
 ✅ Live ledenaantallen
 
-⬜ Hero artwork (Phoenix vs Giant)
+✅ Clan Hero
 
-⬜ Homepage afronden
+✅ Live Clan HUD
+
+✅ Clan Navigation
+
+✅ Back to Legacy Hall
+
+🟨 Vercel deployment afronden
 
 ---
 
 # Phase 3
 Clan Experience
 
-⬜ Family Navigation
+⬜ Members uitbreiden
 
-⬜ Dashboard verbeteren
+⬜ CWL History
 
-⬜ CWL pagina verbeteren
+⬜ Wars
 
-⬜ Wars pagina
+⬜ Base Library uitbreiden
 
-⬜ Bases verbeteren
+⬜ Statistics
 
-⬜ Records knop
+⬜ Discord
+
+⬜ Settings
 
 ---
 
@@ -66,13 +88,15 @@ Records
 
 ⬜ Persoonlijke records
 
-⬜ Clan records
+⬜ Clanrecords
 
 ⬜ Historische records
 
 ⬜ Seizoensrecords
 
 ⬜ All-time records
+
+⬜ Hall of Fame
 
 ---
 
@@ -95,20 +119,28 @@ Career Events
 
 ⬜ Jubilea
 
+⬜ Complete spelersgeschiedenis
+
 ---
 
 # Phase 6
 Phoenix Intelligence
 
+⬜ Records automatisch herkennen
+
+⬜ Mijlpalen herkennen
+
 ⬜ Beste seizoen ooit
 
 ⬜ Slechtste seizoen
 
-⬜ Winstreek
+⬜ Winstreaks analyseren
 
-⬜ Records automatisch herkennen
+⬜ AI-aanbevelingen
 
-⬜ AI aanbevelingen
+⬜ Automatische inzichten
+
+⬜ Historische analyses
 
 ---
 
@@ -125,17 +157,60 @@ Discord
 
 ⬜ Phoenix meldingen
 
+⬜ Automatische rapportages
+
+⬜ Clan notificaties
+
 ---
 
 # Phase 8
-Toekomst
+Visual Experience
 
 ⬜ Hero animaties
 
+⬜ Troepen die de Legacy Hall bezoeken
+
+⬜ GSAP animaties
+
+⬜ Ambient effecten
+
+⬜ Parallax effecten
+
 ⬜ Phoenix loading screen
 
-⬜ Dark effects
+---
 
-⬜ Live statistieken
+# Phase 9
+TDG Legacy
 
 ⬜ Complete TDG geschiedenis
+
+⬜ Clan Timeline
+
+⬜ Seizoensarchief
+
+⬜ Historische statistieken
+
+⬜ Legacy Museum
+
+⬜ Zoekfunctie door de volledige geschiedenis
+
+---
+
+# Huidige focus
+
+🎯 Project Phoenix v1.0 Release
+
+Nog open:
+
+🟨 Vercel deployment succesvol afronden.
+
+Na een succesvolle deployment:
+
+✅ Website live zetten
+
+✅ Eindcontrole uitvoeren
+
+✅ Legacy Hall delen met de clan
+
+➡️ Start ontwikkeling van Phase 3 (Clan Experience)

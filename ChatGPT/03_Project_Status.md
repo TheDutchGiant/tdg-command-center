@@ -1,33 +1,75 @@
 # 📌 TDG Phoenix - Current Project Status
 
 Laatste update:
-06-08-2026
+07-08-2026
 
 ---
 
 # Projectfase
 
-STATUS:
+## 🚀 RELEASE CANDIDATE
 
-BUILD
+Project Phoenix v1.0 is functioneel afgerond.
 
-We zijn gestopt met repareren.
+De volledige applicatie draait lokaal succesvol.
 
-Vanaf nu bouwen we nieuwe functionaliteit.
+Er is nog één laatste blocker voordat de deuren van de Legacy Hall open kunnen:
+
+🟨 Vercel deployment succesvol afronden.
+
+Na een succesvolle deployment wordt Project Phoenix officieel vrijgegeven aan de TDG Family.
 
 ---
 
-# Werkende onderdelen
+# Voltooide onderdelen
 
-✅ Homepage
+## Foundation
 
-✅ Clan overzicht
+✅ Next.js
+
+✅ Prisma
+
+✅ Database
+
+✅ Multi-clan architectuur
+
+---
+
+## Legacy Hall
+
+✅ Nieuwe branding
+
+✅ Legacy Hall
+
+✅ The Dutch Giant Family Archives
+
+✅ Hero artwork
+
+✅ Vier clan-archieven
+
+---
+
+## Clan Experience
+
+✅ Clan Hero
+
+✅ Live Clan HUD
+
+✅ Clan Navigation
+
+✅ Back to Legacy Hall
 
 ✅ Live ledenaantallen
 
 ✅ Clanpagina's
 
+---
+
+## Functionaliteit
+
 ✅ Members pagina
+
+✅ Base Library
 
 ✅ CWL import
 
@@ -37,119 +79,115 @@ Vanaf nu bouwen we nieuwe functionaliteit.
 
 ✅ Attack import
 
-✅ Database
+---
 
-✅ Prisma
+# Legacy Hall
+
+De Legacy Hall vormt het centrale startpunt van Phoenix.
+
+Iedere clan beschikt over een eigen archief.
+
+Slogan:
+
+**Live Today. Remember Forever.**
 
 ---
 
-# Homepage
+# Clan Experience
 
-Nieuwe branding:
+Iedere clan beschikt over:
 
-TDG Family
+- Eigen Hero artwork
+- Live Clan HUD
+- Eigen clanbadge
+- Live ledenaantal
+- Eigen navigatie
+- Back to Legacy Hall
 
-The Digital Memory of The Dutch Giant
-
-Live today.
-Remember forever.
-
-Powered by TDG Phoenix.
-
----
-
-# Clan Cards
-
-Status:
-
-Bijna gereed.
-
-Artwork is geïmplementeerd.
-
-Iedere clan heeft:
-
-- eigen artwork
-- eigen glow
-- live ledenaantal
-
-Nog afronden:
-
-- artwork iets groter
-- clannaam kleur verbeteren
-- hero artwork bouwen
+The Dutch Giant toont daarnaast de Nederlandse ranking.
 
 ---
 
 # CWL
 
-Werkt.
+Functioneert.
 
-Importeert automatisch:
+Automatische import van:
 
-- wars
-- attacks
-- players
+- Seasons
+- Wars
+- Players
+- Attacks
 
-Bug opgelost:
-
-Stars werden verkeerd opgeslagen wanneer onze clan rechts in de Clash API stond.
+Belangrijke synchronisatieproblemen zijn opgelost tijdens de ontwikkeling.
 
 ---
 
 # Database
 
-Seasons worden opgeslagen.
+De database slaat momenteel op:
 
-Wars worden opgeslagen.
+- Seasons
+- Wars
+- Players
+- Attacks
+- Bases
 
-Players worden opgeslagen.
-
-Attacks worden opgeslagen.
+De structuur ondersteunt standaard alle vier de TDG-clans.
 
 ---
 
-# Volgende Feature
+# Huidige blocker
 
-Family Navigation
+## 🟨 Vercel Deployment
 
-Op iedere clanpagina.
+Status:
 
-Gebruikers moeten direct tussen de vier clans kunnen wisselen.
+✅ Lokale production build succesvol (`npm run build`)
 
-Niet eerst terug naar de homepage.
+🟨 Vercel deployment faalt nog.
+
+Onderzoek richt zich op het verschil tussen de lokale productieomgeving en de Vercel-build.
+
+Dit is momenteel de enige blocker voor de release.
+
+---
+
+# Eerstvolgende mijlpaal
+
+## 🎯 Project Phoenix v1.0 Release
+
+Na een succesvolle deployment:
+
+- Website live zetten
+- Eindcontrole uitvoeren
+- Legacy Hall delen met de clan
+- Start ontwikkeling van Phase 3 (Clan Experience)
 
 ---
 
 # Daarna
 
-Records
+Ontwikkeling gaat verder met:
 
-Persoonlijke records
-
-Clan records
-
-Career events
-
-Phoenix Intelligence
-
-Discord automation
+1. Members uitbreiden
+2. CWL History
+3. Wars
+4. Base Library
+5. Statistics
+6. Discord
+7. Settings
 
 ---
 
-# Laatste ontwerpbesluiten
+# Belangrijkste ontwerpbesluiten
 
-Homepage is slechts een portal.
-
-Artwork krijgt altijd prioriteit.
-
-Members tekst verwijderd.
-
-View Clan blijft subtiel.
-
-Geen tekst over artwork.
-
-Complete bestanden sturen.
-
-Geen snippets.
-
-Eén probleem tegelijk oplossen.
+- Legacy Hall vormt het hart van Phoenix.
+- Artwork vertelt het verhaal.
+- Hero is belangrijker dan interface.
+- HUD vormt één geheel met de Hero.
+- Phoenix ondersteunt standaard vier clans.
+- Eerst een stabiele release, daarna nieuwe functionaliteit.
+- Geen tijdelijke oplossingen.
+- Complete bestanden hebben altijd de voorkeur.
+- Eén probleem tegelijk oplossen.

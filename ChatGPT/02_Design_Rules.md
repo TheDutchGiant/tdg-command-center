@@ -10,29 +10,45 @@ Nieuwe chats mogen deze regels nooit opnieuw ter discussie stellen.
 
 Phoenix moet premium aanvoelen.
 
-Niet druk.
-
-Niet schreeuwerig.
-
 Rust.
 
-Glow.
+Historie.
 
 Artwork.
 
-Historie.
+Subtiele glow.
+
+Geen drukke interface.
+
+Iedere pagina moet voelen alsof hij onderdeel is van dezelfde wereld.
+
+---
+
+# Legacy Hall
+
+De Legacy Hall is het hart van Phoenix.
+
+Iedere bezoeker begint hier.
+
+De Legacy Hall is geen dashboard.
+
+Het is de toegangspoort tot de geschiedenis van de TDG Family.
 
 ---
 
 # Homepage
 
-Homepage is GEEN dashboard.
+De homepage is bewust rustig.
 
-Homepage is een portal.
+Geen dashboards.
 
-Gebruikers blijven hier slechts enkele seconden.
+Geen widgets.
 
-Geen onnodige informatie toevoegen.
+Geen overbodige informatie.
+
+De homepage heeft één doel:
+
+Bezoekers naar hun clanarchief brengen.
 
 ---
 
@@ -54,43 +70,53 @@ Artwork
 
 View Clan →
 
-Geen:
-
-Members
-
-Geen:
-
-grote knoppen
-
-Geen:
-
-tekst over de artwork
+Het woord "Members" wordt niet gebruikt.
 
 Artwork krijgt altijd de meeste aandacht.
+
+Er komt nooit tekst over de artwork.
 
 ---
 
 # Artwork
 
-Artwork is heilig.
-
-Er komt nooit tekst overheen.
+Artwork is belangrijker dan interface.
 
 Artwork vertelt het verhaal.
 
+Interface ondersteunt het artwork.
+
+Niet andersom.
+
 ---
 
-# Hero
+# Clan Hero
 
-Hero wordt een epische afbeelding.
+Iedere clanpagina begint met een grote Hero.
 
-Onderwerp:
+De Hero bepaalt de sfeer van de pagina.
 
-Phoenix tegenover Clash Giant.
+Daaronder bevindt zich direct de Clan HUD.
 
-Geen gevecht.
+Hero en HUD vormen visueel één geheel.
 
-Wel een legendarische ontmoeting.
+---
+
+# Clan HUD
+
+De HUD hoort bij de Hero.
+
+Niet bij de pagina.
+
+Eigenschappen:
+
+- afgeronde onderzijde
+- originele clanbadge centraal
+- live ledenaantal
+- war league
+- war winstreak
+
+Alleen The Dutch Giant toont daarnaast de Nederlandse ranking.
 
 ---
 
@@ -104,25 +130,21 @@ Kan een tekst weg?
 
 Dan gaat hij weg.
 
+Rust is belangrijker dan veel informatie.
+
 ---
 
 # Kleuren
 
-The Dutch Giant
+Iedere clan heeft een vaste accentkleur.
 
-Oranje
+🟠 The Dutch Giant
 
-TDG II
+🔵 TDG II
 
-Blauw
+🟢 TDG Mini
 
-TDG Mini
-
-Groen
-
-TDG Micro
-
-Paars
+🟣 TDG Micro
 
 Deze kleuren worden gebruikt voor:
 
@@ -130,15 +152,23 @@ Deze kleuren worden gebruikt voor:
 - titels
 - accenten
 
+Niet voor grote vlakken.
+
 ---
 
 # Navigatie
 
-Homepage
+Iedere clanpagina gebruikt dezelfde navigatie.
+
+Legacy Hall
 
 ↓
 
-Clan
+Clan Hero
+
+↓
+
+Clan HUD
 
 ↓
 
@@ -152,9 +182,39 @@ Wars
 
 Bases
 
-Records
+Statistics
 
-Iedere clanpagina krijgt straks een Family Navigation zodat direct tussen clans gewisseld kan worden.
+Discord
+
+Settings
+
+Navigatie is op iedere clan identiek.
+
+---
+
+# Animaties
+
+Animaties ondersteunen de sfeer.
+
+Nooit afleiden.
+
+Subtiel.
+
+Vloeiend.
+
+Premium.
+
+---
+
+# Projectkwaliteit
+
+Geen tijdelijke oplossingen.
+
+Geen placeholder code.
+
+Geen quick fixes.
+
+Bouw alsof Phoenix over vijf jaar nog gebruikt wordt.
 
 ---
 
@@ -162,16 +222,14 @@ Iedere clanpagina krijgt straks een Family Navigation zodat direct tussen clans 
 
 Bij codewijzigingen:
 
-ALTIJD complete bestanden sturen.
+Altijd complete bestanden sturen tenzij anders gevraagd.
 
-Geen snippets tenzij expliciet gevraagd.
+Eén probleem tegelijk oplossen.
 
-Nooit twee problemen tegelijk oplossen.
+Eerst de oorzaak vinden.
 
-Eerst bouwen.
+Daarna oplossen.
 
-Daarna polijsten.
+Definitieve ontwerpkeuzes worden niet opnieuw ter discussie gesteld.
 
-Niet opnieuw discussiëren over definitieve ontwerpkeuzes.
-
-Deze Design Rules zijn leidend.
+Dit document is leidend.

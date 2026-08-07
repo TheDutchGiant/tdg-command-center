@@ -1,24 +1,93 @@
 # 📜 TDG Phoenix - Decisions
 
-Dit document bevat ALLE definitieve beslissingen.
+Dit document bevat alle definitieve ontwerp- en projectbeslissingen.
 
-Nieuwe chats mogen deze beslissingen nooit opnieuw ter discussie stellen.
+Nieuwe chats mogen deze beslissingen niet opnieuw ter discussie stellen.
 
 Bij twijfel geldt:
 
-Dit document is leidend.
+**Dit document is leidend.**
 
 ---
 
-# Ontwerp
+# Projectvisie
 
-Homepage is een portal.
+Phoenix is geen Clash of Clans dashboard.
 
-Geen dashboard.
+Phoenix is het digitale geheugen van de TDG Family.
 
-Gebruikers klikken vrijwel direct door naar hun clan.
+Iedere nieuwe feature moet bijdragen aan deze visie.
 
-Er wordt daarom geen onnodige informatie toegevoegd.
+---
+
+# Legacy Hall
+
+Besloten op:
+07-08-2026
+
+De Legacy Hall vormt het hart van Phoenix.
+
+Iedere bezoeker begint hier.
+
+Vanuit de Legacy Hall kiest de gebruiker een clanarchief.
+
+De Legacy Hall blijft bewust rustig.
+
+---
+
+# Homepage
+
+De homepage is geen dashboard.
+
+Geen statistieken.
+
+Geen widgets.
+
+Geen overbodige informatie.
+
+Doel:
+
+De bezoeker zo snel mogelijk de Legacy Hall binnen laten stappen.
+
+---
+
+# Hero Artwork
+
+Artwork is belangrijker dan interface.
+
+Artwork vertelt het verhaal.
+
+Niet de tekst.
+
+Iedere Hero is een unieke illustratie.
+
+Standaard banners worden niet gebruikt.
+
+---
+
+# Clan Hero
+
+Iedere clanpagina begint met een grote Hero.
+
+De Hero bepaalt de sfeer van de pagina.
+
+Daaronder bevindt zich direct de Clan HUD.
+
+Hero en HUD vormen visueel één geheel.
+
+---
+
+# Clan HUD
+
+De HUD is onderdeel van de Hero.
+
+Geen losse kaart.
+
+De clanbadge staat centraal.
+
+Live informatie wordt compact weergegeven.
+
+Alleen The Dutch Giant toont daarnaast de Nederlandse ranking.
 
 ---
 
@@ -27,19 +96,15 @@ Er wordt daarom geen onnodige informatie toegevoegd.
 Besloten op:
 06-08-2026
 
-Definitieve layout:
+Definitieve opbouw:
 
 Clannaam
 
 Artwork
 
-25 / 50
+Ledenaantal
 
 View Clan →
-
-Het woord "Members" wordt niet gebruikt.
-
-Iedere Clash-speler begrijpt wat 25 / 50 betekent.
 
 Artwork krijgt altijd de meeste aandacht.
 
@@ -47,82 +112,103 @@ Er komt nooit tekst over de artwork.
 
 ---
 
-# Artwork
-
-Artwork is belangrijker dan interface.
-
-De artwork vertelt het verhaal.
-
-Niet de tekst.
-
----
-
-# Hero
-
-Hero wordt geen gewone banner.
-
-Hero wordt een unieke illustratie.
-
-Onderwerp:
-
-Phoenix tegenover een Clash Giant.
-
-Geen gevecht.
-
-Wel een legendarische ontmoeting.
-
----
-
-# Homepage
-
-Geen extra pagina's.
-
-Geen statistieken.
-
-Geen widgets.
-
-Homepage blijft bewust rustig.
-
----
-
 # Navigatie
 
-Iedere clanpagina krijgt Family Navigation.
+Iedere clanpagina gebruikt dezelfde navigatie.
 
-Gebruikers hoeven nooit meer via Home van clan te wisselen.
+Back to Legacy Hall
+
+Dashboard
+
+Members
+
+CWL
+
+Wars
+
+Bases
+
+Statistics
+
+Discord
+
+Settings
+
+Navigatie blijft voor iedere clan identiek.
+
+---
+
+# Multi-clan Architectuur
+
+Phoenix wordt volledig gebouwd voor meerdere clans.
+
+Nieuwe functionaliteit ondersteunt standaard:
+
+- The Dutch Giant
+- TDG II
+- TDG Mini
+- TDG Micro
+
+Single-clan oplossingen worden niet meer toegevoegd.
 
 ---
 
 # Ontwikkelmethode
 
-Altijd complete bestanden sturen.
+Complete bestanden hebben de voorkeur.
 
-Geen snippets tenzij daarom gevraagd wordt.
+Snippets alleen wanneer daar expliciet om gevraagd wordt.
 
 Eén probleem tegelijk oplossen.
 
-Eerst bouwen.
+Eerst de oorzaak vinden.
 
-Daarna polijsten.
+Daarna oplossen.
+
+---
+
+# Projectkwaliteit
+
+Geen tijdelijke oplossingen.
+
+Geen quick fixes.
+
+Geen placeholder code.
+
+Iedere oplossing moet geschikt zijn voor langdurig gebruik.
 
 ---
 
 # Filosofie
 
+Rust is belangrijker dan veel informatie.
+
+Artwork is belangrijker dan tekst.
+
 Iedere tekst moet zichzelf verdedigen.
 
-Kan een tekst weg?
+Kan iets weg?
 
-Dan gaat hij weg.
+Dan gaat het weg.
 
-Rust is belangrijker dan veel informatie.
+Gebruiksvriendelijkheid is belangrijker dan technische perfectie.
 
 ---
 
-# Project
+# Releasebeleid
 
-Phoenix is geen Clash Dashboard.
+Eerst een stabiele release.
 
-Phoenix is het digitale geheugen van de TDG Family.
+Daarna nieuwe functionaliteit.
 
-Dat is de kern van het project.
+Nieuwe features mogen nooit ten koste gaan van stabiliteit.
+
+---
+
+# Documentatie
+
+Na iedere belangrijke mijlpaal wordt de ChatGPT-documentatie bijgewerkt.
+
+De documentatie weerspiegelt altijd de actuele staat van Project Phoenix.
+
+Nieuwe gesprekken gebruiken deze documentatie als uitgangspunt.
