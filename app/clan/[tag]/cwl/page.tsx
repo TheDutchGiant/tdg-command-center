@@ -19,10 +19,9 @@ export default async function CWLPage({ params }: Props) {
       tag: tag,
   },
 },
-  orderBy: [
-    { season: { season: "desc" } },
-    { round: "asc" },
-  ],
+  orderBy: {
+  round: "asc",
+},
   include: {
     season: true,
     clan: true,
