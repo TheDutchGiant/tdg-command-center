@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/app/lib/prisma";
+import { saveSeason } from "@/app/actions/cwlActions";
 
 const CLAN_TAG = "2JLLPVGUU";
+const CLAN_NAME = "The Dutch Giant";
 
 export async function GET() {
   try {
@@ -18,17 +19,11 @@ export async function GET() {
     const data = await response.json();
 
     if (data.season) {
-      const season = data.season.substring(0, 7);
-
-      await prisma.season.upsert({
-        where: {
-          season,
-        },
-        update: {},
-        create: {
-          season,
-        },
-      });
+      await saveSeason(
+        CLAN_TAG,
+        CLAN_NAME,
+        data.season
+      );
     }
 
     return NextResponse.json(data, {
