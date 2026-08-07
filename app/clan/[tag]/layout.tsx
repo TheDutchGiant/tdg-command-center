@@ -1,5 +1,7 @@
-import ClanHeader from "@/app/components/ClanHeader";
+import ClanHero from "@/app/components/ClanHero";
 import ClanNavigation from "@/app/components/ClanNavigation";
+import ScrollToTop from "@/app/components/ScrollToTop";
+import ClanHud from "@/app/components/ClanHud";
 
 export default async function ClanLayout({
   children,
@@ -28,13 +30,15 @@ export default async function ClanLayout({
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto max-w-7xl p-8">
-        <ClanHeader clan={clan} />
+      <ScrollToTop />
+
+      <div className="relative mx-auto max-w-7xl p-8">
+        <ClanHero clan={clan} />
 
         <ClanNavigation tag={tag} />
 
         {children}
       </div>
-    </main>
+</main>
   );
 }

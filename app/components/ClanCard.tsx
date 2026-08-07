@@ -28,8 +28,9 @@ export default function ClanCard({
   return (
     <Link
       href={`/clan/${tag}`}
+      scroll={true}
       className={`group block overflow-hidden rounded-3xl bg-neutral-900 shadow-2xl ${glow} transition duration-300 hover:scale-[1.02]`}
-    >
+>
       <div className="pt-6 pb-3 text-center">
         <h2 className={`text-3xl font-bold ${titleColor}`}>
           {name}

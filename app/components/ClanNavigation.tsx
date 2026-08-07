@@ -49,29 +49,39 @@ export default function ClanNavigation({
 
   return (
     <nav className="sticky top-0 z-50 mb-8 mt-6 rounded-xl border border-neutral-800 bg-neutral-900/95 backdrop-blur">
-      <div className="flex flex-wrap items-center justify-center gap-2 p-3">
-        {menuItems.map((item) => {
-          const href =
-            item.href === ""
-              ? `/clan/${tag}`
-              : `/clan/${tag}/${item.href}`;
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3">
 
-          const active = pathname === href;
+        <Link
+          href="/"
+          className="rounded-lg px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-800 hover:text-yellow-400"
+        >
+          ⬅ Back to Legacy Hall
+        </Link>
 
-          return (
-            <Link
-              key={item.name}
-              href={href}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                active
-                  ? "bg-yellow-500 text-black"
-                  : "text-neutral-300 hover:bg-neutral-800 hover:text-yellow-400"
-              }`}
-            >
-              {item.name}
-            </Link>
-          );
-        })}
+        <div className="flex flex-wrap items-center gap-2">
+          {menuItems.map((item) => {
+            const href =
+              item.href === ""
+                ? `/clan/${tag}`
+                : `/clan/${tag}/${item.href}`;
+
+            const active = pathname === href;
+
+            return (
+              <Link
+                key={item.name}
+                href={href}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  active
+                    ? "bg-yellow-500 text-black"
+                    : "text-neutral-300 hover:bg-neutral-800 hover:text-yellow-400"
+                }`}
+              >
+                {item.name}
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

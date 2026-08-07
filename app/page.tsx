@@ -34,32 +34,19 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
       <div className="mx-auto max-w-7xl p-8">
-        <div className="mb-16 text-center">
-          <div className="mb-4 text-7xl">
-            🔥
-          </div>
 
-          <h1 className="text-6xl font-extrabold tracking-wide text-yellow-400">
-            TDG Family
-          </h1>
+        {/* Hero */}
+        <div className="relative mb-16 overflow-hidden rounded-3xl border border-neutral-800 shadow-2xl">
+          <img
+            src="/images/hero/tdg-archives-hero.png"
+            alt="The Dutch Giant Family Archives"
+            className="w-full h-auto"
+          />
 
-          <p className="mt-4 text-2xl font-semibold text-yellow-300">
-            The Digital Memory of The Dutch Giant
-          </p>
-
-          <p className="mt-3 text-lg italic text-red-500">
-            Live today. Remember forever.
-          </p>
-
-          <p className="mt-6 text-sm text-neutral-500">
-            Brought to you live by{" "}
-            <span className="font-semibold text-orange-400">
-              TDG Phoenix
-            </span>{" "}
-            · Our Technical AI
-          </p>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
         </div>
 
+        {/* Clan Cards */}
         <div className="mt-10 grid gap-6 md:grid-cols-4">
           {clans.map((clan) => (
             <ClanCard
@@ -75,19 +62,20 @@ export default function Home() {
                   : clan.tag === "#2CQ2LGQJ2"
                   ? "/images/tdg-mini.png"
                   : "/images/tdg-micro.png"
-             }
-             glow={
-               clan.tag === "#2JLLPVGUU"
-                 ? "shadow-orange-500/50 hover:shadow-orange-500/80"
-                 : clan.tag === "#2CVVG00QQ"
-                 ? "shadow-cyan-500/50 hover:shadow-cyan-500/80"
-                 : clan.tag === "#2CQ2LGQJ2"
-                 ? "shadow-green-500/50 hover:shadow-green-500/80"
-                 : "shadow-purple-500/50 hover:shadow-purple-500/80"
-             }
-           />
+              }
+              glow={
+                clan.tag === "#2JLLPVGUU"
+                  ? "shadow-orange-500/50 hover:shadow-orange-500/80"
+                  : clan.tag === "#2CVVG00QQ"
+                  ? "shadow-cyan-500/50 hover:shadow-cyan-500/80"
+                  : clan.tag === "#2CQ2LGQJ2"
+                  ? "shadow-green-500/50 hover:shadow-green-500/80"
+                  : "shadow-purple-500/50 hover:shadow-purple-500/80"
+              }
+            />
           ))}
         </div>
+
       </div>
     </main>
   );
