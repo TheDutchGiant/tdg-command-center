@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
+import { PHOENIX } from "@/app/lib/config";
 
 type Props = {
   params: Promise<{
@@ -8,16 +9,25 @@ type Props = {
 
 export default async function CWLPage({ params }: Props) {
   const { tag } = await params;
+  const clan = PHOENIX.clans.find(
+  (c) => c.tag === tag
+);
 
   const wars = await prisma.war.findMany({
-    orderBy: [
-      { season: { season: "desc" } },
-      { round: "asc" },
-    ],
-    include: {
-      season: true,
-    },
-  });
+  where: {
+    clan: {
+      tag: tag,
+  },
+},
+  orderBy: [
+    { season: { season: "desc" } },
+    { round: "asc" },
+  ],
+  include: {
+    season: true,
+    clan: true,
+  },
+});
 
   return (
     <main className="max-w-6xl mx-auto p-8">
@@ -25,8 +35,8 @@ export default async function CWLPage({ params }: Props) {
         CWL History
       </h1>
 
-      <p className="mb-6 opacity-70">
-        Clan: {decodeURIComponent(tag)}
+      <p className="mb-6 text-xl font-semibold text-yellow-400">
+        🏰 {clan?.name ?? tag}
       </p>
 
       <table className="w-full border-collapse">
@@ -55,11 +65,15 @@ export default async function CWLPage({ params }: Props) {
               </td>
 
               <td className="p-3">
-                {war.opponentStars < war.clanStars
-                  ? "✅ Win"
-                  : war.opponentStars > war.clanStars
-                  ? "❌ Loss"
-                  : "🤝 Draw"}
+                {war.clanStars > war.opponentStars
+ 		  ? "✅ Win"
+ 		  : war.clanStars < war.opponentStars
+  		  ? "❌ Loss"
+ 		  : war.clanDestruction > war.opponentDestruction
+ 		  ? "✅ Win"
+ 	 	  : war.clanDestruction < war.opponentDestruction
+ 		  ? "❌ Loss"
+		  : "🤝 Draw"}
               </td>
 
               <td className="p-3">

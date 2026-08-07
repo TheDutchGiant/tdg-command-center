@@ -49,10 +49,20 @@ export async function saveWar(
   clanName: string
 ) {
   const seasonRecord = await saveSeason(
-    clanTag,
-    clanName,
-    season
+  clanTag,
+  clanName,
+  season
 );
+
+const ourClan =
+  data.clan.tag === `#${clanTag}`
+    ? data.clan
+    : data.opponent;
+
+const enemyClan =
+  data.clan.tag === `#${clanTag}`
+    ? data.opponent
+    : data.clan;
 
   return prisma.war.upsert({
     where: {
@@ -76,14 +86,14 @@ export async function saveWar(
         data.endTime
       ),
 
-      clanStars: data.clan.stars ?? 0,
-      opponentStars: data.opponent.stars ?? 0,
+      clanStars: ourClan.stars ?? 0,
+      opponentStars: enemyClan.stars ?? 0,
 
       clanDestruction:
-        data.clan.destructionPercentage ?? 0,
+        ourClan.destructionPercentage ?? 0,
 
       opponentDestruction:
-        data.opponent.destructionPercentage ?? 0,
+        enemyClan.destructionPercentage ?? 0,
       lastSyncedAt: new Date(),
     },
 
@@ -112,16 +122,14 @@ export async function saveWar(
         data.endTime
       ),
 
-      clanStars: data.clan.stars ?? 0,
-
-      opponentStars:
-        data.opponent.stars ?? 0,
+      clanStars: ourClan.stars ?? 0,
+      opponentStars: enemyClan.stars ?? 0,
 
       clanDestruction:
-        data.clan.destructionPercentage ?? 0,
+        ourClan.destructionPercentage ?? 0,
 
       opponentDestruction:
-        data.opponent.destructionPercentage ?? 0,
+        enemyClan.destructionPercentage ?? 0,
       lastSyncedAt: new Date(),
     },
   });
