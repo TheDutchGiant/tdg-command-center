@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
+import type { Base } from "@prisma/client";
 import DeleteBaseButton from "@/app/components/DeleteBaseButton";
 import EditDescriptionForm from "@/app/components/EditDescriptionForm";
 
@@ -59,7 +60,7 @@ export default async function TownHallPage({ params }: Props) {
         </div>
       ) : (
         <div className="grid gap-6">
-          {bases.map((base) => (
+          {bases.map((base: Base) => (
             <div
               key={base.id}
               className="rounded-xl border border-neutral-800 bg-neutral-900 p-6"
