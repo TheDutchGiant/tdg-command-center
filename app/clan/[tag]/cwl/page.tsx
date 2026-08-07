@@ -1,5 +1,6 @@
 import { prisma } from "@/app/lib/prisma";
 import { PHOENIX } from "@/app/lib/config";
+import { Prisma } from "@prisma/client";
 
 type Props = {
   params: Promise<{
@@ -13,7 +14,12 @@ export default async function CWLPage({ params }: Props) {
   (c) => c.tag === tag
 );
 
-  const wars = await prisma.war.findMany({
+  const wars: Prisma.WarGetPayload<{
+  include: {
+    season: true;
+    clan: true;
+  };
+}>[] = await prisma.war.findMany({
   where: {
     clan: {
       tag: tag,
