@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ClanSwitcher from "@/app/components/ClanSwitcher";
 
 type ClanNavigationProps = {
   tag: string;
@@ -33,10 +34,6 @@ const menuItems = [
     href: "stats",
   },
   {
-    name: "💬 Discord",
-    href: "discord",
-  },
-  {
     name: "⚙️ Instellingen",
     href: "settings",
   },
@@ -51,12 +48,16 @@ export default function ClanNavigation({
     <nav className="sticky top-0 z-50 mb-8 mt-6 rounded-xl border border-neutral-800 bg-neutral-900/95 backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-3 p-3">
 
-        <Link
-          href="/"
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-800 hover:text-yellow-400"
-        >
-          ⬅ Back to Legacy Hall
-        </Link>
+        <div className="flex items-center">
+          <ClanSwitcher currentTag={tag} />
+
+          <Link
+            href="/"
+            className="rounded-lg px-2 py-2 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-800 hover:text-yellow-400"
+          >
+            ⬅ Back to Legacy Hall
+          </Link>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {menuItems.map((item) => {

@@ -24,140 +24,130 @@ model Clan {
   tag       String   @unique
   primary   Boolean  @default(false)
   createdAt DateTime @default(now())
-
-  seasons Season[]
-  wars    War[]
+  seasons   Season[]
+  wars      War[]
 }
 
 model Season {
   id        Int      @id @default(autoincrement())
-
   clanId    Int
   season    String
-
   createdAt DateTime @default(now())
-
-  clan Clan @relation(fields: [clanId], references: [id])
-
-  wars War[]
+  clan      Clan     @relation(fields: [clanId], references: [id])
+  wars      War[]
 
   @@unique([clanId, season])
 }
 
 model War {
-  warTag                  String   @id
-  seasonId                Int
-  clanId                  Int
-  round                   Int
-
-  state                   String
-  teamSize                Int
-
-  preparationStartTime    DateTime
-  warStartTime            DateTime
-  warEndTime              DateTime
-
-  clanStars               Int
-  opponentStars           Int
-
-  clanDestruction         Float
-  opponentDestruction     Float
-
-  importedAt              DateTime @default(now())
-  lastSyncedAt DateTime @default(now())
-  isFinalized Boolean @default(false)
-
-  season Season @relation(fields: [seasonId], references: [id])
-  clan   Clan   @relation(fields: [clanId], references: [id])
-
-  attacks Attack[]
+  warTag               String   @id
+  seasonId             Int
+  clanId               Int
+  round                Int
+  state                String
+  teamSize             Int
+  preparationStartTime DateTime
+  warStartTime         DateTime
+  warEndTime           DateTime
+  clanStars            Int
+  opponentStars        Int
+  clanDestruction      Float
+  opponentDestruction  Float
+  importedAt           DateTime @default(now())
+  lastSyncedAt         DateTime @default(now())
+  isFinalized          Boolean  @default(false)
+  attacks              Attack[]
+  clan                 Clan     @relation(fields: [clanId], references: [id])
+  season               Season   @relation(fields: [seasonId], references: [id])
 }
 
 model Player {
-  playerTag    String   @id
-  currentName  String
-  createdAt    DateTime @default(now())
-
-  attacks Attack[]
-  events  CareerEvent[]
+  playerTag   String        @id
+  currentName String
+  createdAt   DateTime      @default(now())
+  attacks     Attack[]
+  events      CareerEvent[]
 }
 
 model Attack {
-  id Int @id @default(autoincrement())
-
-  warTag String
-  playerTag String
-
-  defenderTag String
-  defenderName String
-
-  warDay Int
-  attackNumber Int
-
-  stars Int
-  destruction Int
-  duration Int
-
-  attackerTownHall Int
-  defenderTownHall Int
-
-  defenseStars Int
-  defenseDestruction Int
+  id                      Int    @id @default(autoincrement())
+  warTag                  String
+  playerTag               String
+  defenderTag             String
+  defenderName            String
+  warDay                  Int
+  attackNumber            Int
+  stars                   Int
+  destruction             Int
+  duration                Int
+  attackerTownHall        Int
+  defenderTownHall        Int
+  defenseStars            Int
+  defenseDestruction      Int
   defenseAttackerTownHall Int
-
-  war War @relation(fields: [warTag], references: [warTag])
-
-  player Player @relation(fields: [playerTag], references: [playerTag])
+  player                  Player @relation(fields: [playerTag], references: [playerTag])
+  war                     War    @relation(fields: [warTag], references: [warTag])
 }
 
 model CareerEvent {
-  id Int @id @default(autoincrement())
-
-  playerTag String
-
-  date DateTime
-
-  type String
-
+  id          Int      @id @default(autoincrement())
+  playerTag   String
+  date        DateTime
+  type        String
   description String
-
-  createdBy String
-
-  player Player @relation(fields: [playerTag], references: [playerTag])
+  createdBy   String
+  player      Player   @relation(fields: [playerTag], references: [playerTag])
 }
 
 model ImportLog {
-  id Int @id @default(autoincrement())
-
-  season String
-
-  startedAt DateTime
-
-  finishedAt DateTime?
-
-  warsImported Int
-
+  id              Int       @id @default(autoincrement())
+  season          String
+  startedAt       DateTime
+  finishedAt      DateTime?
+  warsImported    Int
   attacksImported Int
-
-  success Boolean
-
-  error String?
-
-  createdAt DateTime @default(now())
-
-  successfulSync Boolean @default(false)
+  success         Boolean
+  error           String?
+  createdAt       DateTime  @default(now())
+  successfulSync  Boolean   @default(false)
 }
 
 model SystemState {
-  id          Int      @id @default(1)
-
-  mode        String   @default("IDLE")
-
+  id            Int       @id @default(1)
+  mode          String    @default("IDLE")
   currentSeason String?
+  lastCheck     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
 
-  lastCheck   DateTime?
+model CwlMatchup {
+  id                  Int      @id @default(autoincrement())
 
-  createdAt   DateTime @default(now())
+  season              String
+  round               Int
+  warTag              String   @unique
+  warSize             Int?
 
-  updatedAt   DateTime @updatedAt
+  clanATag            String
+  clanAName           String
+  clanAStars          Int      @default(0)
+  clanADestruction    Float    @default(0)
+  clanABonusStars     Int      @default(0)
+  clanAResult         String?
+  clanAIsTDG          Boolean  @default(false)
+
+  clanBTag            String
+  clanBName           String
+  clanBStars          Int      @default(0)
+  clanBDestruction    Float    @default(0)
+  clanBBonusStars     Int      @default(0)
+  clanBResult         String?
+  clanBIsTDG          Boolean  @default(false)
+
+  status              String?
+  endTime             DateTime?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }

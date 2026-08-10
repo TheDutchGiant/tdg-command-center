@@ -1,3 +1,5 @@
+import type { CwlSimulationResult } from "@/app/lib/cwl/types";
+
 type ClanHudProps = {
   clan: {
     tag: string;
@@ -10,10 +12,33 @@ type ClanHudProps = {
       large: string;
     };
   };
+
+  promotion?: {
+    position: number;
+    promotionPosition: number;
+    maximumPromotionPosition: number;
+    currentStars: number;
+    bonusStars: number;
+    totalStars: number;
+    destruction: number;
+    currentWars: number;
+    remainingWars: number;
+  } | null;
+
+  prediction?: CwlSimulationResult | null;
+
+  netherlandsRank?: number | null;
 };
 
-export default function ClanHud({ clan }: ClanHudProps) {
-  const isMainClan = clan.tag === "#2JLLPVGUU";
+export default function ClanHud({
+  clan,
+  promotion,
+  prediction,
+  netherlandsRank,
+}: ClanHudProps) {
+  const isMainClan =
+    clan.tag === "#2JLLPVGUU" ||
+    clan.tag === "2JLLPVGUU";
 
   return (
     <>
@@ -35,9 +60,45 @@ export default function ClanHud({ clan }: ClanHudProps) {
         🔥 <span>{clan.warWinStreak}</span>
       </div>
 
-      {isMainClan && (
+      {isMainClan && netherlandsRank !== null && netherlandsRank !== undefined && (
         <div className="flex items-center gap-2 text-lg font-semibold">
-          🇳🇱 <span>Top 200</span>
+          🇳🇱 <span>#{netherlandsRank} NL</span>
+        </div>
+      )}
+
+      {promotion && (
+        <div className="flex items-center gap-3 text-lg font-semibold">
+          <span>
+            🏆 #{promotion.position}
+          </span>
+
+          <span>
+            ⭐ {promotion.totalStars}
+          </span>
+
+          {prediction?.promotionStatus === "GUARANTEED" && (
+            <span className="text-sm text-neutral-300">
+              🟢 PROMOTIE GEGARANDEERD
+            </span>
+          )}
+
+          {prediction?.promotionStatus === "POSSIBLE" && (
+            <span className="text-sm text-neutral-300">
+              🟡 PROMOTIE NOG MOGELIJK
+            </span>
+          )}
+
+          {prediction?.promotionStatus === "IMPOSSIBLE" && (
+            <span className="text-sm text-neutral-300">
+              🔴 PROMOTIE ONMOGELIJK
+            </span>
+          )}
+
+          {prediction && (
+            <span className="text-sm text-neutral-400">
+              max #{prediction.bestPossiblePosition}
+            </span>
+          )}
         </div>
       )}
     </>

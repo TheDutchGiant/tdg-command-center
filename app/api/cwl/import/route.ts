@@ -7,6 +7,7 @@ import {
   saveWar,
   savePlayers,
   saveAttacks,
+  saveCwlMatchup,
 } from "@/app/actions/cwlActions";
 
 const PRIMARY_CLAN = PHOENIX.clans.find(
@@ -45,6 +46,14 @@ for (const clan of PHOENIX.clans) {
 
         const war = await fetchClash(
           `/clanwarleagues/wars/%23${warTag.replace("#", "")}`
+        );
+
+        await saveCwlMatchup(
+          warTag,
+          season,
+          round + 1,
+          war,
+          PHOENIX.clans.map((clan) => clan.tag)
         );
 
 const isOurClan = PHOENIX.clans.some(

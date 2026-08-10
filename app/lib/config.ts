@@ -22,6 +22,10 @@ export const PHOENIX = {
     },
   ],
 
+  discord: {
+    invite: "https://discord.gg/AWxMw96aTW",
+  },
+
   sync: {
     idleDays: 7,
     activeMinutes: 10,
