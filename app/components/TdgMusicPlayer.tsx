@@ -193,183 +193,239 @@ export default function TdgMusicPlayer() {
   }
 
   return (
-    <section className="mx-auto mb-10 w-full max-w-3xl">
-      <audio
-        ref={audioRef}
-        src="/tdg-music/TDG-warsong.mp3"
-        preload="metadata"
-      />
-
-      {/* TDG MUSIC BANNER */}
-      <img
-        src="/tdg-music/tdg-music-banner.png"
-        alt="TDG Music"
-        className="mx-auto mb-2 h-auto w-full max-w-lg"
-      />
-
-      {/* MUSIC CONSOLE */}
-      <div
-        className={`relative overflow-hidden rounded-2xl border bg-neutral-950 shadow-2xl transition-all duration-500 ${
-          isPlaying
-            ? "border-yellow-500/50 shadow-yellow-500/10"
-            : "border-neutral-800"
-        }`}
-      >
-        {/* Subtle top glow */}
-        <div
-          className={`pointer-events-none absolute inset-x-0 top-0 h-px transition-opacity duration-500 ${
-            isPlaying
-              ? "bg-yellow-400 opacity-100"
-              : "bg-neutral-700 opacity-60"
-          }`}
+    <>
+      <section className="tdg-music-player mx-auto mb-10 w-full max-w-3xl">
+        <audio
+          ref={audioRef}
+          src="/tdg-music/TDG-warsong.mp3"
+          preload="metadata"
         />
 
-        <div className="px-5 py-4 sm:px-7 sm:py-5">
+        {/* TDG MUSIC BANNER */}
+        <img
+          src="/tdg-music/tdg-music-banner.png"
+          alt="TDG Music"
+          className="tdg-music-banner mx-auto mb-2 h-auto w-full max-w-lg"
+        />
 
-          {/* HEADER */}
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-lg transition-all duration-500 ${
-                isPlaying
-                  ? "border-yellow-500/60 bg-yellow-500/10 text-yellow-400"
-                  : "border-neutral-700 bg-neutral-900 text-neutral-500"
-              }`}
-            >
-              🦅
-            </div>
+        {/* MUSIC CONSOLE */}
+        <div
+          className={`relative overflow-hidden rounded-2xl border bg-neutral-950 shadow-2xl transition-all duration-500 ${
+            isPlaying
+              ? "border-yellow-500/50 shadow-yellow-500/10"
+              : "border-neutral-800"
+          }`}
+        >
+          {/* Subtle top glow */}
+          <div
+            className={`pointer-events-none absolute inset-x-0 top-0 h-px transition-opacity duration-500 ${
+              isPlaying
+                ? "bg-yellow-400 opacity-100"
+                : "bg-neutral-700 opacity-60"
+            }`}
+          />
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold tracking-wide text-white">
-                  TDG FOREVER
-                </span>
+          <div className="tdg-music-content px-5 py-4 sm:px-7 sm:py-5">
 
-                {isPlaying && (
-                  <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-yellow-500">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
-                    Playing
-                  </span>
-                )}
-              </div>
-
-              <div className="text-xs text-neutral-500">
-                The Dutch Giant War Song
-              </div>
-            </div>
-
-            <div className="text-xs tabular-nums text-neutral-500">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </div>
-          </div>
-
-          {/* PROGRESS */}
-          <div className="mt-4">
-            <input
-              type="range"
-              min="0"
-              max={duration || 0}
-              step="0.01"
-              value={Math.min(
-                currentTime,
-                duration || 0
-              )}
-              onChange={handleSeek}
-              aria-label="Muziek voortgang"
-              className="h-1.5 w-full cursor-pointer accent-yellow-500"
-              style={{
-                background: `linear-gradient(to right, rgb(234 179 8) ${progress}%, rgb(64 64 64) ${progress}%)`,
-              }}
-            />
-          </div>
-
-          {/* KARAOKE */}
-          <div className="flex min-h-[94px] flex-col items-center justify-center px-2 py-4 text-center">
-
-            {currentLyric ? (
-              <>
-                <div
-                  className={`transition-all duration-300 ${
-                    currentLyric.emphasis
-                      ? "text-2xl font-black tracking-wide text-yellow-400 drop-shadow-[0_0_14px_rgba(250,204,21,0.3)] sm:text-3xl"
-                      : "text-lg font-bold text-white sm:text-xl"
-                  }`}
-                >
-                  {currentLyric.text}
-                </div>
-
-                {!isFinalChant && nextLyric && (
-                  <div className="mt-2 text-sm font-medium text-neutral-600 sm:text-base">
-                    {nextLyric.text}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-sm font-medium uppercase tracking-[0.25em] text-neutral-600">
-                Press play
-              </div>
-            )}
-          </div>
-
-          {/* CONTROLS */}
-          <div className="flex items-center justify-between border-t border-neutral-800 pt-3">
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => seekBy(-10)}
-                aria-label="10 seconden terug"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-xs text-neutral-500 transition hover:bg-neutral-800 hover:text-white"
-              >
-                ↶
-              </button>
-
-              <button
-                type="button"
-                onClick={togglePlay}
-                aria-label={
+            {/* HEADER */}
+            <div className="flex items-center gap-3">
+              <div
+                className={`tdg-music-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-lg transition-all duration-500 ${
                   isPlaying
-                    ? "Pauzeren"
-                    : "Afspelen"
-                }
-                className={`flex h-11 w-11 items-center justify-center rounded-full border text-lg transition-all duration-300 ${
-                  isPlaying
-                    ? "border-yellow-500 bg-yellow-500 text-black shadow-lg shadow-yellow-500/20"
-                    : "border-yellow-500/70 text-yellow-400 hover:bg-yellow-500 hover:text-black"
+                    ? "border-yellow-500/60 bg-yellow-500/10 text-yellow-400"
+                    : "border-neutral-700 bg-neutral-900 text-neutral-500"
                 }`}
               >
-                {isPlaying ? "❚❚" : "▶"}
-              </button>
+                🦅
+              </div>
 
-              <button
-                type="button"
-                onClick={() => seekBy(10)}
-                aria-label="10 seconden vooruit"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-xs text-neutral-500 transition hover:bg-neutral-800 hover:text-white"
-              >
-                ↷
-              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold tracking-wide text-white">
+                    TDG FOREVER
+                  </span>
+
+                  {isPlaying && (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-yellow-500">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
+                      Playing
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-xs text-neutral-500">
+                  The Dutch Giant War Song
+                </div>
+              </div>
+
+              <div className="text-xs tabular-nums text-neutral-500">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </div>
             </div>
 
-            {/* VOLUME */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-neutral-500">
-                🔊
-              </span>
-
+            {/* PROGRESS */}
+            <div className="mt-4">
               <input
                 type="range"
                 min="0"
-                max="1"
+                max={duration || 0}
                 step="0.01"
-                value={volume}
-                onChange={handleVolume}
-                aria-label="Volume"
-                className="w-20 cursor-pointer accent-yellow-500 sm:w-24"
+                value={Math.min(
+                  currentTime,
+                  duration || 0
+                )}
+                onChange={handleSeek}
+                aria-label="Muziek voortgang"
+                className="h-1.5 w-full cursor-pointer accent-yellow-500"
+                style={{
+                  background: `linear-gradient(to right, rgb(234 179 8) ${progress}%, rgb(64 64 64) ${progress}%)`,
+                }}
               />
+            </div>
+
+            {/* KARAOKE */}
+            <div className="tdg-karaoke flex min-h-[94px] flex-col items-center justify-center px-2 py-4 text-center">
+
+              {currentLyric ? (
+                <>
+                  <div
+                    className={`transition-all duration-300 ${
+                      currentLyric.emphasis
+                        ? "text-2xl font-black tracking-wide text-yellow-400 drop-shadow-[0_0_14px_rgba(250,204,21,0.3)] sm:text-3xl"
+                        : "text-lg font-bold text-white sm:text-xl"
+                    }`}
+                  >
+                    {currentLyric.text}
+                  </div>
+
+                  {!isFinalChant && nextLyric && (
+                    <div className="mt-2 text-sm font-medium text-neutral-600 sm:text-base">
+                      {nextLyric.text}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-sm font-medium uppercase tracking-[0.25em] text-neutral-600">
+                  Press play
+                </div>
+              )}
+            </div>
+
+            {/* CONTROLS */}
+            <div className="flex items-center justify-between border-t border-neutral-800 pt-3">
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => seekBy(-10)}
+                  aria-label="10 seconden terug"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-xs text-neutral-500 transition hover:bg-neutral-800 hover:text-white"
+                >
+                  ↶
+                </button>
+
+                <button
+                  type="button"
+                  onClick={togglePlay}
+                  aria-label={
+                    isPlaying
+                      ? "Pauzeren"
+                      : "Afspelen"
+                  }
+                  className={`flex h-11 w-11 items-center justify-center rounded-full border text-lg transition-all duration-300 ${
+                    isPlaying
+                      ? "border-yellow-500 bg-yellow-500 text-black shadow-lg shadow-yellow-500/20"
+                      : "border-yellow-500/70 text-yellow-400 hover:bg-yellow-500 hover:text-black"
+                  }`}
+                >
+                  {isPlaying ? "❚❚" : "▶"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => seekBy(10)}
+                  aria-label="10 seconden vooruit"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-xs text-neutral-500 transition hover:bg-neutral-800 hover:text-white"
+                >
+                  ↷
+                </button>
+              </div>
+
+              {/* VOLUME */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-neutral-500">
+                  🔊
+                </span>
+
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={handleVolume}
+                  aria-label="Volume"
+                  className="w-20 cursor-pointer accent-yellow-500 sm:w-24"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      {/* MOBILE MUSIC PLAYER STYLING */}
+      <style jsx>{`
+  @media (max-width: 767px) {
+    .tdg-music-player {
+      margin-bottom: 16px;
+    }
+
+    .tdg-music-banner {
+      width: 65%;
+      max-width: 260px;
+      margin-bottom: 4px;
+    }
+
+    .tdg-music-content {
+      padding: 5px 8px 6px;
+    }
+
+    .tdg-music-icon {
+      width: 24px;
+      height: 24px;
+      font-size: 11px;
+    }
+
+    .tdg-karaoke {
+      min-height: 30px;
+      padding-top: 2px;
+      padding-bottom: 2px;
+    }
+
+    .tdg-karaoke > div:first-child {
+      font-size: 12px;
+      line-height: 1.1;
+    }
+
+    .tdg-karaoke > div:last-child {
+      margin-top: 1px;
+      font-size: 7px;
+      line-height: 1;
+    }
+
+    .tdg-music-player input[type="range"] {
+      height: 3px;
+    }
+
+    .tdg-music-player button {
+      transform: scale(0.85);
+    }
+
+    .tdg-music-player .border-t {
+      padding-top: 2px;
+    }
+  }
+`}</style>
+    </>
   );
 }

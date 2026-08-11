@@ -122,32 +122,27 @@ model SystemState {
 }
 
 model CwlMatchup {
-  id                  Int      @id @default(autoincrement())
-
-  season              String
-  round               Int
-  warTag              String   @unique
-  warSize             Int?
-
-  clanATag            String
-  clanAName           String
-  clanAStars          Int      @default(0)
-  clanADestruction    Float    @default(0)
-  clanABonusStars     Int      @default(0)
-  clanAResult         String?
-  clanAIsTDG          Boolean  @default(false)
-
-  clanBTag            String
-  clanBName           String
-  clanBStars          Int      @default(0)
-  clanBDestruction    Float    @default(0)
-  clanBBonusStars     Int      @default(0)
-  clanBResult         String?
-  clanBIsTDG          Boolean  @default(false)
-
-  status              String?
-  endTime             DateTime?
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id               Int       @id @default(autoincrement())
+  season           String
+  round            Int
+  warTag           String    @unique
+  warSize          Int?
+  clanATag         String
+  clanAName        String
+  clanAStars       Int       @default(0)
+  clanADestruction Float     @default(0)
+  clanABonusStars  Int       @default(0)
+  clanAResult      String?
+  clanAIsTDG       Boolean   @default(false)
+  clanBTag         String
+  clanBName        String
+  clanBStars       Int       @default(0)
+  clanBDestruction Float     @default(0)
+  clanBBonusStars  Int       @default(0)
+  clanBResult      String?
+  clanBIsTDG       Boolean   @default(false)
+  status           String?
+  endTime          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }

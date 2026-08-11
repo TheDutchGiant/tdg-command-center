@@ -26,18 +26,18 @@ body {
 }
 
 /* ===========================
-   PHOENIX TITLE - BASIS
+   PHOENIX TITLE
 =========================== */
 
 .phoenix-title {
   position: relative;
   color: #ffe08a;
-  text-shadow:
-    0 0 8px rgba(255, 200, 60, 0.6),
-    0 0 18px rgba(255, 170, 0, 0.35);
-
+  animation:
+    phoenixGlow 4s ease-in-out infinite,
+    phoenixIgnite 15s ease forwards;
   transition: all 0.4s ease;
 }
+
 @keyframes phoenixGlow {
   0%,
   100% {
@@ -54,11 +54,6 @@ body {
   }
 }
 
-.phoenix-title {
-  position: relative;
-  color: #ffe08a;
-  animation: phoenixGlow 4s ease-in-out infinite;
-}
 @keyframes phoenixIgnite {
   0% {
     color: #ffe08a;
@@ -86,8 +81,172 @@ body {
   }
 }
 
-.phoenix-title {
-  animation:
-    phoenixGlow 4s ease-in-out infinite,
-    phoenixIgnite 15s ease forwards;
+/* ===========================
+   CLAN HUD
+=========================== */
+
+.tdg-clan-hud {
+  display: flex;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 0 24px;
+  background: #0a0a0a;
+}
+
+.tdg-hud-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tdg-hud-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tdg-hud-badge img {
+  display: block;
+  width: 48px;
+  height: 48px;
+}
+
+.tdg-hud-league {
+  flex-shrink: 0;
+}
+
+.tdg-league-desktop {
+  display: inline;
+}
+
+.tdg-league-mobile {
+  display: none;
+}
+
+/* ===========================
+   CWL SUMMARY
+=========================== */
+
+.tdg-cwl-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tdg-promotion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tdg-promotion-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+}
+
+.tdg-promotion.green .tdg-promotion-dot {
+  background: #22c55e;
+  box-shadow:
+    0 0 7px rgba(34, 197, 94, 0.75),
+    0 0 16px rgba(34, 197, 94, 0.35);
+}
+
+.tdg-promotion.orange .tdg-promotion-dot {
+  background: #f59e0b;
+  box-shadow:
+    0 0 7px rgba(245, 158, 11, 0.75),
+    0 0 16px rgba(245, 158, 11, 0.35);
+}
+
+.tdg-promotion.red .tdg-promotion-dot {
+  background: #ef4444;
+  box-shadow:
+    0 0 7px rgba(239, 68, 68, 0.75),
+    0 0 16px rgba(239, 68, 68, 0.35);
+}
+
+/* ===========================
+   MOBILE CLAN HUD
+=========================== */
+
+@media (max-width: 767px) {
+  .tdg-clan-hud {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+    width: 100%;
+    box-sizing: border-box;
+    height: auto;
+    gap: 2px;
+    padding: 6px 4px;
+  }
+
+  .tdg-hud-item {
+    min-width: 0;
+    width: 100%;
+    height: 38px;
+    gap: 4px;
+    box-sizing: border-box;
+    font-size: 12px;
+  }
+
+  .tdg-hud-badge {
+    width: 100%;
+    height: 38px;
+  }
+
+  .tdg-hud-badge img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .tdg-league-desktop {
+    display: none;
+  }
+
+  .tdg-league-mobile {
+    display: inline;
+  }
+
+  .tdg-cwl-summary {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-top: 1px solid #262626;
+    margin-top: 2px;
+    padding-top: 5px;
+    font-size: 11px;
+  }
+
+  .tdg-promotion {
+    gap: 5px;
+  }
+
+  .tdg-promotion-dot {
+    width: 11px;
+    height: 11px;
+  }
 }

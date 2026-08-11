@@ -30,6 +30,77 @@ type ClanHudProps = {
   netherlandsRank?: number | null;
 };
 
+function getLeagueName(name: string) {
+  const normalized = name.trim();
+
+  const championMatch = normalized.match(
+    /^Champion League\s+(I|II|III)$/i
+  );
+
+  if (championMatch) {
+    const roman = championMatch[1].toUpperCase();
+
+    const level =
+      roman === "I"
+        ? "1"
+        : roman === "II"
+        ? "2"
+        : "3";
+
+    return {
+      desktop: normalized,
+      mobile: `Champ ${level}`,
+    };
+  }
+
+  const titanMatch = normalized.match(
+    /^Titan League\s+(I|II|III)$/i
+  );
+
+  if (titanMatch) {
+    const roman = titanMatch[1].toUpperCase();
+
+    const level =
+      roman === "I"
+        ? "1"
+        : roman === "II"
+        ? "2"
+        : "3";
+
+    return {
+      desktop: normalized,
+      mobile: `Titan ${level}`,
+    };
+  }
+
+  return {
+    desktop: normalized,
+    mobile: normalized,
+  };
+}
+
+function getPromotionLight(
+  prediction?: CwlSimulationResult | null
+) {
+  if (!prediction) {
+    return null;
+  }
+
+  if (prediction.promotionStatus === "GUARANTEED") {
+    return "green";
+  }
+
+  if (prediction.promotionStatus === "POSSIBLE") {
+    return "orange";
+  }
+
+  if (prediction.promotionStatus === "IMPOSSIBLE") {
+    return "red";
+  }
+
+  return null;
+}
+
 export default function ClanHud({
   clan,
   promotion,
@@ -40,63 +111,79 @@ export default function ClanHud({
     clan.tag === "#2JLLPVGUU" ||
     clan.tag === "2JLLPVGUU";
 
+  /*
+   * CWL HUD is visible during the CWL cycle:
+   * days 1 through 10.
+   *
+   * From the 11th onward the complete CWL HUD item
+   * disappears from the clan header.
+   */
+  const currentDay = new Date().getDate();
+  const showCwlHud =
+    currentDay >= 1 &&
+    currentDay <= 10 &&
+    promotion !== null &&
+    promotion !== undefined;
+
+  const league = getLeagueName(clan.warLeague.name);
+  const promotionLight = getPromotionLight(prediction);
+
   return (
     <>
-      <div className="flex items-center gap-2 text-lg font-semibold">
-        👥 <span>{clan.members}/50</span>
+      {/* 1. MEMBERS */}
+      <div className="tdg-hud-item">
+        <span>👥</span>
+        <span>{clan.members}/50</span>
       </div>
 
-      <img
-        src={clan.badgeUrls.large}
-        alt="Clan Badge"
-        className="h-12 w-12"
-      />
-
-      <div className="flex items-center gap-2 text-lg font-semibold">
-        ⚔️ <span>{clan.warLeague.name}</span>
+      {/* 2. CLAN BADGE */}
+      <div className="tdg-hud-badge">
+        <img
+          src={clan.badgeUrls.large}
+          alt="Clan Badge"
+        />
       </div>
 
-      <div className="flex items-center gap-2 text-lg font-semibold">
-        🔥 <span>{clan.warWinStreak}</span>
+      {/* 3. WAR LEAGUE */}
+      <div className="tdg-hud-item tdg-hud-league">
+        <span>⚔️</span>
+
+        <span className="tdg-league-desktop">
+          {league.desktop}
+        </span>
+
+        <span className="tdg-league-mobile">
+          {league.mobile}
+        </span>
       </div>
 
-      {isMainClan && netherlandsRank !== null && netherlandsRank !== undefined && (
-        <div className="flex items-center gap-2 text-lg font-semibold">
-          🇳🇱 <span>#{netherlandsRank} NL</span>
-        </div>
-      )}
+      {/* 4. WIN STREAK */}
+      <div className="tdg-hud-item">
+        <span>🔥</span>
+        <span>{clan.warWinStreak}</span>
+      </div>
 
-      {promotion && (
-        <div className="flex items-center gap-3 text-lg font-semibold">
-          <span>
-            🏆 #{promotion.position}
-          </span>
+      {/* 5. NETHERLANDS RANK */}
+      {isMainClan &&
+        netherlandsRank !== null &&
+        netherlandsRank !== undefined && (
+          <div className="tdg-hud-item">
+            <span>🇳🇱</span>
+            <span>#{netherlandsRank} NL</span>
+          </div>
+        )}
 
-          <span>
-            ⭐ {promotion.totalStars}
-          </span>
+      {/* 6. CWL SUMMARY */}
+      {showCwlHud && (
+        <div className="tdg-cwl-summary">
+          <span>🏆 #{promotion.position}</span>
 
-          {prediction?.promotionStatus === "GUARANTEED" && (
-            <span className="text-sm text-neutral-300">
-              🟢 PROMOTIE GEGARANDEERD
-            </span>
-          )}
+          <span>⭐ {promotion.totalStars}</span>
 
-          {prediction?.promotionStatus === "POSSIBLE" && (
-            <span className="text-sm text-neutral-300">
-              🟡 PROMOTIE NOG MOGELIJK
-            </span>
-          )}
-
-          {prediction?.promotionStatus === "IMPOSSIBLE" && (
-            <span className="text-sm text-neutral-300">
-              🔴 PROMOTIE ONMOGELIJK
-            </span>
-          )}
-
-          {prediction && (
-            <span className="text-sm text-neutral-400">
-              max #{prediction.bestPossiblePosition}
+          {promotionLight && (
+            <span className={`tdg-promotion ${promotionLight}`}>
+              <span className="tdg-promotion-dot" />
+              <span>PROMOTIE</span>
             </span>
           )}
         </div>

@@ -67,7 +67,7 @@ export default async function ClanHero({
         className="block w-full"
       />
 
-      <div className="flex h-16 items-center justify-center gap-12 bg-neutral-950 px-8">
+      <div className="tdg-clan-hud">
         <ClanHud
           clan={clan}
           promotion={promotion}

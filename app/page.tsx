@@ -52,7 +52,14 @@ export default function Home() {
         <TdgMusicPlayer />
 
         {/* Clan Cards */}
-        <div className="mt-10 grid gap-6 md:grid-cols-4">
+        <div
+          className="mt-10"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: "16px",
+          }}
+        >
           {clans.map((clan) => (
             <ClanCard
               key={clan.tag}
