@@ -44,21 +44,21 @@ model War {
   seasonId             Int
   clanId               Int
   round                Int
-  state                String
+  state                 String
   teamSize             Int
   preparationStartTime DateTime
   warStartTime         DateTime
   warEndTime           DateTime
-  clanStars            Int
-  opponentStars        Int
-  clanDestruction      Float
-  opponentDestruction  Float
-  importedAt           DateTime @default(now())
-  lastSyncedAt         DateTime @default(now())
-  isFinalized          Boolean  @default(false)
-  attacks              Attack[]
-  clan                 Clan     @relation(fields: [clanId], references: [id])
-  season               Season   @relation(fields: [seasonId], references: [id])
+  clanStars             Int
+  opponentStars         Int
+  clanDestruction       Float
+  opponentDestruction   Float
+  importedAt            DateTime @default(now())
+  lastSyncedAt          DateTime @default(now())
+  isFinalized           Boolean  @default(false)
+  attacks               Attack[]
+  clan                  Clan     @relation(fields: [clanId], references: [id])
+  season                Season   @relation(fields: [seasonId], references: [id])
 }
 
 model Player {
@@ -114,11 +114,11 @@ model ImportLog {
 
 model SystemState {
   id            Int       @id @default(1)
-  mode          String    @default("IDLE")
+  mode          String     @default("IDLE")
   currentSeason String?
   lastCheck     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }
 
 model CwlMatchup {
@@ -135,7 +135,7 @@ model CwlMatchup {
   clanAResult      String?
   clanAIsTDG       Boolean   @default(false)
   clanBTag         String
-  clanBName        String
+  clanBName         String
   clanBStars       Int       @default(0)
   clanBDestruction Float     @default(0)
   clanBBonusStars  Int       @default(0)
@@ -145,4 +145,95 @@ model CwlMatchup {
   endTime          DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+}
+
+enum AdminRole {
+  ADMIN
+  SUPERADMIN
+}
+
+model AdminUser {
+  id           Int                    @id @default(autoincrement())
+  username     String                 @unique
+  passwordHash String
+  role         AdminRole              @default(ADMIN)
+  isActive     Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  sessions     AdminSession[]
+  auditLogs    AuditLog[]
+  permissions  AdminUserPermission[]
+}
+
+model AdminPermission {
+  id          Int                    @id @default(autoincrement())
+  key         String                 @unique
+  name        String
+  description String?
+  createdAt   DateTime               @default(now())
+  admins      AdminUserPermission[]
+}
+
+model AdminUserPermission {
+  id           Int             @id @default(autoincrement())
+  adminId      Int
+  permissionId Int
+  createdAt    DateTime        @default(now())
+
+  admin        AdminUser       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  permission   AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, permissionId])
+  @@index([adminId])
+  @@index([permissionId])
+}
+
+model AdminSession {
+  id         String    @id
+  adminId    Int
+  deviceId   String
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  admin      AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([deviceId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model AuditLog {
+  id          Int       @id @default(autoincrement())
+  adminId     Int
+  action      String
+  targetType  String?
+  targetId    String?
+  details     String?
+  createdAt   DateTime  @default(now())
+
+  admin       AdminUser @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+model MissedAttack {
+  id              Int      @id @default(autoincrement())
+  clanTag         String
+  warTag          String
+  playerTag       String
+  playerName      String
+  missedAttacks   Int
+  warEndTime      DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([clanTag])
+  @@index([playerTag])
+  @@index([warTag])
+  @@index([createdAt])
 }
