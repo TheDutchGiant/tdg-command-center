@@ -1,7 +1,15 @@
-import { redirect } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import { requireSuperadmin } from "@/app/lib/auth/session";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/app/lib/auth/password";
+import { AdminPermissionLevel } from "@prisma/client";
+import DeleteAdminButton from "./DeleteAdminButton";
+import ResetAdminPasswordButton from "./ResetAdminPasswordButton";
+
+const levels = [
+  { value: "READ", label: "👁️ Lezen" },
+  { value: "EDIT", label: "✏️ Bewerken" },
+  { value: "DELETE", label: "🗑️ Verwijderen" },
+] as const;
 
 async function createAdmin(formData: FormData) {
   "use server";
@@ -15,10 +23,6 @@ async function createAdmin(formData: FormData) {
   const password = String(
     formData.get("password") || ""
   );
-
-  const permissionKeys = formData.getAll(
-    "permissions"
-  ).map(String);
 
   if (username.length < 3) {
     throw new Error(
@@ -34,9 +38,7 @@ async function createAdmin(formData: FormData) {
 
   const existingAdmin =
     await prisma.adminUser.findUnique({
-      where: {
-        username,
-      },
+      where: { username },
     });
 
   if (existingAdmin) {
@@ -46,25 +48,35 @@ async function createAdmin(formData: FormData) {
   }
 
   const permissions =
-    await prisma.adminPermission.findMany({
-      where: {
-        key: {
-          in: permissionKeys,
+    await prisma.adminPermission.findMany();
+
+  const selectedPermissions =
+    permissions.map((permission) => {
+      const selected = String(
+        formData.get(
+          `permission_${permission.key}`
+        ) || "READ"
+      );
+
+      const level: AdminPermissionLevel =
+        selected === "DELETE"
+          ? AdminPermissionLevel.DELETE
+          : selected === "EDIT"
+            ? AdminPermissionLevel.EDIT
+            : AdminPermissionLevel.READ;
+
+      return {
+        permission: {
+          connect: {
+            id: permission.id,
+          },
         },
-      },
+        level,
+      };
     });
 
-  if (
-    permissions.length !==
-    new Set(permissionKeys).size
-  ) {
-    throw new Error(
-      "Een of meer geselecteerde rechten zijn ongeldig."
-    );
-  }
-
   const passwordHash =
-    await bcrypt.hash(password, 12);
+    hashPassword(password);
 
   await prisma.adminUser.create({
     data: {
@@ -72,210 +84,362 @@ async function createAdmin(formData: FormData) {
       passwordHash,
       role: "ADMIN",
       permissions: {
-        create: permissions.map(
-          (permission) => ({
-            permissionId: permission.id,
-          })
-        ),
+        create: selectedPermissions,
       },
     },
   });
-
-  redirect("/admin/admins?created=1");
 }
 
-export default async function AdminManagementPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    created?: string;
-  }>;
-}) {
-  await requireSuperadmin();
+async function updateAdmin(formData: FormData) {
+  "use server";
 
-  const params = await searchParams;
+  const current =
+    await requireSuperadmin();
 
-  const admins =
-    await prisma.adminUser.findMany({
-      orderBy: [
-        {
-          role: "desc",
-        },
-        {
-          username: "asc",
-        },
-      ],
-      include: {
-        permissions: {
-          include: {
-            permission: true,
-          },
-        },
-        sessions: {
-          where: {
-            revokedAt: null,
-          },
-          orderBy: {
-            lastSeenAt: "desc",
-          },
-        },
+  const adminId = Number(
+    formData.get("adminId")
+  );
+
+  if (!Number.isInteger(adminId)) {
+    throw new Error(
+      "Ongeldig admin-ID."
+    );
+  }
+
+  if (adminId === current.admin.id) {
+    throw new Error(
+      "Je kunt je eigen SUPERADMIN-account niet aanpassen."
+    );
+  }
+
+  const admin =
+    await prisma.adminUser.findUnique({
+      where: {
+        id: adminId,
       },
     });
+
+  if (!admin) {
+    throw new Error(
+      "Admin bestaat niet."
+    );
+  }
+
+  if (admin.role === "SUPERADMIN") {
+    throw new Error(
+      "Een SUPERADMIN kan niet via dit formulier worden aangepast."
+    );
+  }
+
+  const isActive =
+    formData.get("isActive") === "on";
 
   const permissions =
-    await prisma.adminPermission.findMany({
-      orderBy: {
-        name: "asc",
+    await prisma.adminPermission.findMany();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.adminUser.update({
+      where: {
+        id: adminId,
+      },
+      data: {
+        isActive,
       },
     });
 
+    for (const permission of permissions) {
+      const selectedLevel =
+        String(
+          formData.get(
+            `edit_permission_${permission.key}`
+          ) || "READ"
+        );
+
+      const level: AdminPermissionLevel =
+        selectedLevel === "DELETE"
+          ? AdminPermissionLevel.DELETE
+          : selectedLevel === "EDIT"
+            ? AdminPermissionLevel.EDIT
+            : AdminPermissionLevel.READ;
+
+      await tx.adminUserPermission.upsert({
+        where: {
+          adminId_permissionId: {
+            adminId,
+            permissionId: permission.id,
+          },
+        },
+        update: {
+          level,
+        },
+        create: {
+          adminId,
+          permissionId: permission.id,
+          level,
+        },
+      });
+    }
+  });
+}
+
+async function revokeSession(formData: FormData) {
+  "use server";
+
+  const current =
+    await requireSuperadmin();
+
+  const sessionId = String(
+    formData.get("sessionId") || ""
+  );
+
+  if (!sessionId) {
+    throw new Error(
+      "Ongeldige sessie."
+    );
+  }
+
+  const session =
+    await prisma.adminSession.findUnique({
+      where: {
+        id: sessionId,
+      },
+      include: {
+        admin: true,
+      },
+    });
+
+  if (!session) {
+    throw new Error(
+      "Sessie bestaat niet."
+    );
+  }
+
+  if (
+    session.admin.role === "SUPERADMIN"
+  ) {
+    throw new Error(
+      "Een SUPERADMIN-sessie kan hier niet worden ingetrokken."
+    );
+  }
+
+  if (
+    session.adminId === current.admin.id
+  ) {
+    throw new Error(
+      "Je kunt je eigen sessie hier niet intrekken."
+    );
+  }
+
+  await prisma.adminSession.update({
+    where: {
+      id: sessionId,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  });
+}
+
+async function revokeAllSessions(
+  formData: FormData
+) {
+  "use server";
+
+  const current =
+    await requireSuperadmin();
+
+  const adminId = Number(
+    formData.get("adminId")
+  );
+
+  if (!Number.isInteger(adminId)) {
+    throw new Error(
+      "Ongeldig admin-ID."
+    );
+  }
+
+  if (adminId === current.admin.id) {
+    throw new Error(
+      "Je kunt je eigen sessies hier niet intrekken."
+    );
+  }
+
+  const admin =
+    await prisma.adminUser.findUnique({
+      where: {
+        id: adminId,
+      },
+    });
+
+  if (!admin) {
+    throw new Error(
+      "Admin bestaat niet."
+    );
+  }
+
+  if (admin.role === "SUPERADMIN") {
+    throw new Error(
+      "SUPERADMIN-sessies kunnen hier niet worden ingetrokken."
+    );
+  }
+
+  await prisma.adminSession.updateMany({
+    where: {
+      adminId,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  });
+}
+
+export default async function AdminManagementPage() {
+  await requireSuperadmin();
+
+  const [admins, permissions] =
+    await Promise.all([
+      prisma.adminUser.findMany({
+        orderBy: [
+          { role: "desc" },
+          { username: "asc" },
+        ],
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+          sessions: {
+            where: {
+              revokedAt: null,
+            },
+            orderBy: {
+              lastSeenAt: "desc",
+            },
+          },
+        },
+      }),
+
+      prisma.adminPermission.findMany({
+        orderBy: {
+          name: "asc",
+        },
+      }),
+    ]);
+
   return (
-    <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-10">
-      <div className="mx-auto w-full max-w-6xl">
+    <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6">
+      <div className="mx-auto max-w-5xl">
 
-        {/* Header */}
-        <header className="mb-8">
-          <a
-            href="/admin"
-            className="mb-4 inline-block text-sm text-white/50 transition hover:text-orange-300"
-          >
-            ← Terug naar Admin Dashboard
-          </a>
+        <a
+          href="/admin"
+          className="text-xs text-white/40 hover:text-orange-300"
+        >
+          ← Admin dashboard
+        </a>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-orange-300">
-                👑 SUPERADMIN
-              </p>
+        <header className="mt-5 mb-6">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-orange-300">
+            👑 SUPERADMIN
+          </p>
 
-              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">
-                Admin beheer
-              </h1>
+          <h1 className="mt-1 text-2xl font-bold">
+            Admin beheer
+          </h1>
 
-              <p className="mt-2 max-w-2xl text-sm text-white/50">
-                Beheer admins, hun rechten en actieve
-                sessies.
-              </p>
-            </div>
-
-            <div className="w-fit rounded-xl border border-orange-400/20 bg-orange-500/10 px-4 py-2">
-              <p className="text-xs text-orange-300">
-                Beheerders
-              </p>
-
-              <p className="text-lg font-bold">
-                {admins.length}
-              </p>
-            </div>
-          </div>
+          <p className="mt-1 text-xs text-white/40">
+            Accounts, rechten en sessies beheren.
+          </p>
         </header>
 
-        {/* Success */}
-        {params.created === "1" && (
-          <div className="mb-6 rounded-2xl border border-green-400/20 bg-green-500/10 px-4 py-3 text-sm text-green-200">
-            ✅ Admin is succesvol aangemaakt.
-          </div>
-        )}
-
-        {/* Create admin */}
-        <section className="rounded-2xl border border-orange-400/15 bg-orange-500/[0.04] p-5 sm:p-6">
-          <div className="mb-6">
-            <h2 className="text-lg font-bold">
-              ➕ Nieuwe admin
-            </h2>
-
-            <p className="mt-1 text-sm text-white/45">
-              Bepaal hier direct welke onderdelen deze
-              admin mag bekijken of beheren.
-            </p>
-          </div>
+        {/* Nieuwe admin */}
+        <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <h2 className="mb-4 text-sm font-semibold">
+            ➕ Nieuwe admin
+          </h2>
 
           <form
             action={createAdmin}
-            className="space-y-6"
+            className="space-y-4"
           >
-            {/* Account */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="username"
-                  className="mb-1.5 block text-sm font-medium"
-                >
-                  Gebruikersnaam
-                </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input
+                name="username"
+                type="text"
+                required
+                minLength={3}
+                placeholder="Gebruikersnaam"
+                autoComplete="username"
+                className="rounded-lg border border-white/10 bg-black px-3 py-2.5 text-sm outline-none focus:border-orange-400/50"
+              />
 
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  required
-                  minLength={3}
-                  autoComplete="username"
-                  placeholder="Bijvoorbeeld TDG-Klaas"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-3 text-sm outline-none transition focus:border-orange-400/60"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="password"
-                  className="mb-1.5 block text-sm font-medium"
-                >
-                  Tijdelijk/nieuw wachtwoord
-                </label>
-
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  placeholder="Minimaal 8 tekens"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-3 text-sm outline-none transition focus:border-orange-400/60"
-                />
-              </div>
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                placeholder="Tijdelijk wachtwoord"
+                autoComplete="new-password"
+                className="rounded-lg border border-white/10 bg-black px-3 py-2.5 text-sm outline-none focus:border-orange-400/50"
+              />
             </div>
 
-            {/* Permissions */}
             <div>
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold">
-                  Rechten
-                </h3>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold">
+                  🔐 Rechten
+                </p>
 
-                <p className="mt-1 text-xs text-white/40">
-                  Alleen geselecteerde onderdelen worden
-                  straks zichtbaar voor deze admin.
+                <p className="text-[10px] text-white/30">
+                  Geen keuze = alleen lezen
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="overflow-hidden rounded-lg border border-white/10">
                 {permissions.map(
-                  (permission) => (
-                    <label
+                  (permission, index) => (
+                    <div
                       key={permission.id}
-                      className="flex cursor-pointer gap-3 rounded-xl border border-white/10 bg-black/20 p-4 transition hover:border-orange-400/30"
+                      className={`grid grid-cols-1 gap-2 px-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center ${
+                        index !==
+                        permissions.length - 1
+                          ? "border-b border-white/10"
+                          : ""
+                      }`}
                     >
-                      <input
-                        type="checkbox"
-                        name="permissions"
-                        value={permission.key}
-                        className="mt-1 h-4 w-4 accent-orange-500"
-                      />
-
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium">
+                      <div>
+                        <p className="text-xs font-semibold">
                           {permission.name}
-                        </span>
+                        </p>
 
-                        {permission.description && (
-                          <span className="mt-1 block text-xs leading-5 text-white/40">
-                            {permission.description}
-                          </span>
+                        <p className="text-[10px] text-white/30">
+                          {permission.key}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1">
+                        {levels.map(
+                          (level) => (
+                            <label
+                              key={level.value}
+                              className="cursor-pointer"
+                            >
+                              <input
+                                type="radio"
+                                name={`permission_${permission.key}`}
+                                value={level.value}
+                                className="peer sr-only"
+                              />
+
+                              <span className="block rounded-md border border-white/10 px-2 py-2 text-center text-[10px] text-white/50 transition hover:bg-white/[0.05] peer-checked:border-orange-400/60 peer-checked:bg-orange-500/10 peer-checked:text-orange-200">
+                                {level.label}
+                              </span>
+                            </label>
+                          )
                         )}
-                      </span>
-                    </label>
+                      </div>
+                    </div>
                   )
                 )}
               </div>
@@ -283,26 +447,20 @@ export default async function AdminManagementPage({
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold transition hover:bg-orange-400 sm:w-auto"
+              className="rounded-lg bg-orange-500 px-4 py-2.5 text-xs font-bold text-black hover:bg-orange-400"
             >
               👑 Admin aanmaken
             </button>
           </form>
         </section>
 
-        {/* Existing admins */}
-        <section className="mt-8">
-          <div className="mb-4">
-            <h2 className="text-lg font-bold">
-              👥 Bestaande admins
-            </h2>
+        {/* Bestaande admins */}
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold">
+            👥 Bestaande admins
+          </h2>
 
-            <p className="mt-1 text-sm text-white/40">
-              Overzicht van accounts en huidige rechten.
-            </p>
-          </div>
-
-          <div className="space-y-4">
+          <div className="space-y-2">
             {admins.map((admin) => {
               const isSuperadmin =
                 admin.role === "SUPERADMIN";
@@ -310,127 +468,284 @@ export default async function AdminManagementPage({
               return (
                 <article
                   key={admin.id}
-                  className={`rounded-2xl border p-5 ${
-                    isSuperadmin
-                      ? "border-orange-400/25 bg-orange-500/[0.05]"
-                      : "border-white/10 bg-white/[0.03]"
-                  }`}
+                  className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3"
                 >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
 
-                    <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold">
+                        {admin.username}
+                      </span>
+
+                      <span className="rounded bg-white/10 px-2 py-0.5 text-[9px] font-bold">
+                        {isSuperadmin
+                          ? "SUPERADMIN"
+                          : "ADMIN"}
+                      </span>
+
+                      <span
+                        className={`rounded px-2 py-0.5 text-[9px] font-bold ${
+                          admin.isActive
+                            ? "bg-green-500/10 text-green-300"
+                            : "bg-red-500/10 text-red-300"
+                        }`}
+                      >
+                        {admin.isActive
+                          ? "ACTIEF"
+                          : "INACTIEF"}
+                      </span>
+                    </div>
+
+                    {!isSuperadmin && (
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold">
-                          {admin.username}
-                        </h3>
 
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
-                            isSuperadmin
-                              ? "bg-orange-500/15 text-orange-300"
-                              : "bg-white/10 text-white/60"
-                          }`}
-                        >
-                          {isSuperadmin
-                            ? "SUPERADMIN"
-                            : "ADMIN"}
+                        <span className="text-[10px] text-white/30">
+                          {admin.sessions.length} sessie(s)
                         </span>
 
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                            admin.isActive
-                              ? "bg-green-500/10 text-green-300"
-                              : "bg-red-500/10 text-red-300"
-                          }`}
-                        >
-                          {admin.isActive
-                            ? "ACTIEF"
-                            : "INACTIEF"}
-                        </span>
-                      </div>
+                        <details>
+                          <summary className="cursor-pointer list-none rounded-lg border border-orange-400/20 bg-orange-500/10 px-3 py-2 text-xs font-semibold text-orange-300 hover:bg-orange-500/20">
+                            ✏️ Bewerken
+                          </summary>
 
-                      <p className="mt-2 text-xs text-white/35">
-                        Aangemaakt op{" "}
-                        {admin.createdAt.toLocaleDateString(
-                          "nl-NL"
-                        )}
-                      </p>
-                    </div>
+                          <form
+                            action={updateAdmin}
+                            className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3"
+                          >
+                            <input
+                              type="hidden"
+                              name="adminId"
+                              value={admin.id}
+                            />
 
-                    <div className="text-left lg:text-right">
-                      <p className="text-xs text-white/35">
-                        Actieve sessies
-                      </p>
+                            <label className="flex items-center gap-2 text-xs text-white/70">
+                              <input
+                                type="checkbox"
+                                name="isActive"
+                                defaultChecked={
+                                  admin.isActive
+                                }
+                                className="h-4 w-4 accent-orange-500"
+                              />
 
-                      <p className="mt-1 font-semibold">
-                        {admin.sessions.length}
-                      </p>
-                    </div>
-                  </div>
+                              Account actief
+                            </label>
 
-                  <div className="mt-5">
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-white/35">
-                      Rechten
-                    </p>
+                            <div className="mt-3 space-y-2">
+                              {permissions.map(
+                                (permission) => {
+                                  const assigned =
+                                    admin.permissions.find(
+                                      (item) =>
+                                        item.permissionId ===
+                                        permission.id
+                                    );
 
-                    {isSuperadmin ? (
-                      <div className="rounded-xl border border-orange-400/15 bg-orange-500/5 px-4 py-3 text-sm text-orange-200">
-                        👑 Alle rechten
-                      </div>
-                    ) : admin.permissions.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {admin.permissions.map(
-                          (item) => (
-                            <span
-                              key={
-                                item.permission.id
-                              }
-                              className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-xs text-white/65"
+                                  const currentLevel =
+                                    assigned?.level ||
+                                    "READ";
+
+                                  return (
+                                    <div
+                                      key={permission.id}
+                                      className="grid grid-cols-1 gap-2 border-t border-white/10 pt-2 sm:grid-cols-[1fr_auto] sm:items-center"
+                                    >
+                                      <span className="text-xs font-medium">
+                                        {permission.name}
+                                      </span>
+
+                                      <div className="grid grid-cols-3 gap-1">
+                                        {levels.map(
+                                          (level) => (
+                                            <label
+                                              key={
+                                                level.value
+                                              }
+                                              className="cursor-pointer"
+                                            >
+                                              <input
+                                                type="radio"
+                                                name={`edit_permission_${permission.key}`}
+                                                value={
+                                                  level.value
+                                                }
+                                                defaultChecked={
+                                                  currentLevel ===
+                                                  level.value
+                                                }
+                                                className="peer sr-only"
+                                              />
+
+                                              <span className="block rounded-md border border-white/10 px-2 py-1.5 text-center text-[10px] text-white/50 peer-checked:border-orange-400/60 peer-checked:bg-orange-500/10 peer-checked:text-orange-200">
+                                                {
+                                                  level.label
+                                                }
+                                              </span>
+                                            </label>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              )}
+                            </div>
+
+                            <button
+                              type="submit"
+                              className="mt-3 rounded-lg bg-orange-500 px-3 py-2 text-xs font-bold text-black hover:bg-orange-400"
                             >
-                              {item.permission.name}
-                            </span>
-                          )
-                        )}
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/40">
-                        Geen rechten toegewezen.
+                              💾 Opslaan
+                            </button>
+                          </form>
+                        </details>
+
+                        <details>
+                          <summary className="cursor-pointer list-none rounded-lg border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-300 hover:bg-blue-500/20">
+                            📱 Sessies
+                          </summary>
+
+                          <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3">
+
+                            {admin.sessions.length === 0 ? (
+                              <p className="text-xs text-white/35">
+                                Geen actieve sessies.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {admin.sessions.map(
+                                  (session) => (
+                                    <div
+                                      key={session.id}
+                                      className="rounded-lg border border-white/10 bg-white/[0.02] p-3"
+                                    >
+                                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-medium text-white/80">
+                                            {session.userAgent ||
+                                              "Onbekend apparaat"}
+                                          </p>
+
+                                          <p className="mt-1 text-[10px] text-white/35">
+                                            IP:{" "}
+                                            {session.ipAddress ||
+                                              "Onbekend"}
+                                          </p>
+
+                                          <p className="text-[10px] text-white/35">
+                                            Laatst actief:{" "}
+                                            {session.lastSeenAt.toLocaleString(
+                                              "nl-NL"
+                                            )}
+                                          </p>
+                                        </div>
+
+                                        <form
+                                          action={
+                                            revokeSession
+                                          }
+                                        >
+                                          <input
+                                            type="hidden"
+                                            name="sessionId"
+                                            value={
+                                              session.id
+                                            }
+                                          />
+
+                                          <button
+                                            type="submit"
+                                            className="rounded-md border border-red-400/20 bg-red-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-red-300 hover:bg-red-500/20"
+                                          >
+                                            🚫 Intrekken
+                                          </button>
+                                        </form>
+
+                                      </div>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            )}
+
+                            {admin.sessions.length > 0 && (
+                              <form
+                                action={
+                                  revokeAllSessions
+                                }
+                                className="mt-3 border-t border-white/10 pt-3"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="adminId"
+                                  value={admin.id}
+                                />
+
+                                <button
+                                  type="submit"
+                                  className="w-full rounded-md border border-red-400/20 bg-red-500/10 px-3 py-2 text-[10px] font-semibold text-red-300 hover:bg-red-500/20"
+                                >
+                                  🔒 Alle sessies intrekken
+                                </button>
+                              </form>
+                            )}
+
+                          </div>
+                        </details>
+
+                        <ResetAdminPasswordButton
+                          adminId={admin.id}
+                          username={admin.username}
+                        />
+
+                        <DeleteAdminButton
+                          adminId={admin.id}
+                          username={admin.username}
+                        />
                       </div>
                     )}
                   </div>
 
-                  {!isSuperadmin &&
-                    admin.sessions.length >
-                      0 && (
-                      <div className="mt-5 border-t border-white/10 pt-4">
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-white/35">
-                          Actieve apparaten
-                        </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {isSuperadmin ? (
+                      <span className="rounded-md border border-orange-400/20 bg-orange-500/10 px-2 py-1 text-[10px] text-orange-200">
+                        👑 Alles
+                      </span>
+                    ) : (
+                      permissions.map(
+                        (permission) => {
+                          const assigned =
+                            admin.permissions.find(
+                              (item) =>
+                                item.permissionId ===
+                                permission.id
+                            );
 
-                        <div className="space-y-2">
-                          {admin.sessions.map(
-                            (session) => (
-                              <div
-                                key={session.id}
-                                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50"
-                              >
-                                <div>
-                                  {session.userAgent ||
-                                    "Onbekend apparaat"}
-                                </div>
+                          const level =
+                            assigned?.level ||
+                            "READ";
 
-                                <div className="mt-1 text-white/30">
-                                  Laatst actief:{" "}
-                                  {session.lastSeenAt.toLocaleString(
-                                    "nl-NL"
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
+                          return (
+                            <span
+                              key={permission.id}
+                              className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-[10px] text-white/60"
+                            >
+                              {permission.name}:{" "}
+                              {level === "READ" &&
+                                "👁️"}
+
+                              {level === "EDIT" &&
+                                "✏️"}
+
+                              {level === "DELETE" &&
+                                "🗑️"}
+                            </span>
+                          );
+                        }
+                      )
                     )}
+                  </div>
                 </article>
               );
             })}

@@ -4,63 +4,28 @@ const prisma = new PrismaClient();
 
 const permissions = [
   {
-    key: "CW_VIEW",
-    name: "CW bekijken",
-    description: "CW-informatie bekijken.",
+    key: "CW",
+    name: "CW beheer",
+    description:
+      "Toegang tot CW-informatie en CW-beheer.",
   },
   {
-    key: "CW_MISSED_ATTACKS",
-    name: "Gemiste CW-aanvallen beheren",
+    key: "CWL",
+    name: "CWL beheer",
     description:
-      "Gemiste aanvallen bekijken, aanpassen en verwijderen.",
+      "Toegang tot CWL-informatie en CWL-beheer.",
   },
   {
-    key: "CWL_VIEW",
-    name: "CWL bekijken",
+    key: "API",
+    name: "API beheer",
     description:
-      "CWL-informatie en resultaten bekijken.",
+      "Toegang tot API-status en synchronisaties.",
   },
   {
-    key: "CWL_APPLICATIONS",
-    name: "CWL-aanmeldingen beheren",
+    key: "AUDIT",
+    name: "Auditlog",
     description:
-      "CWL-aanmeldingen bekijken en beheren.",
-  },
-  {
-    key: "CWL_ASSIGNMENT",
-    name: "CWL-indeling beheren",
-    description:
-      "CWL-indelingen bekijken en aanpassen.",
-  },
-  {
-    key: "API_VIEW",
-    name: "API-status bekijken",
-    description:
-      "Synchronisatie- en API-status bekijken.",
-  },
-  {
-    key: "API_SYNC",
-    name: "Handmatige API-sync",
-    description:
-      "Een eenmalige API-synchronisatie uitvoeren.",
-  },
-  {
-    key: "AUDIT_VIEW",
-    name: "Auditlog bekijken",
-    description:
-      "Beheeracties en wijzigingen bekijken.",
-  },
-  {
-    key: "DATA_DELETE",
-    name: "Data verwijderen",
-    description:
-      "Toegestane gegevens verwijderen.",
-  },
-  {
-    key: "OVERRIDE",
-    name: "Override en herstel",
-    description:
-      "Beschikbare acties terugdraaien of herstellen.",
+      "Toegang tot het bekijken en beheren van de auditlog.",
   },
 ];
 
@@ -80,7 +45,7 @@ async function main() {
   }
 
   console.log(
-    `✅ ${permissions.length} adminrechten gecontroleerd.`
+    `✅ ${permissions.length} admin-kaarten gecontroleerd.`
   );
 }
 
@@ -90,6 +55,7 @@ main()
       "❌ Permission seed mislukt:",
       error
     );
+
     process.exit(1);
   })
   .finally(async () => {

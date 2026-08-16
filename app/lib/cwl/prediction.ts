@@ -219,19 +219,11 @@ export function getTotalFutureAttacks(
 ): number {
   let attacks = 0;
 
-  /*
-   * Nog beschikbare aanvallen in de
-   * huidige lopende war.
-   */
   attacks +=
     getCurrentAttacksRemaining(
       clan
     );
 
-  /*
-   * Iedere toekomstige war heeft één
-   * aanval per deelnemende speler.
-   */
   attacks +=
     clan.remainingWars *
     getAvailableAttacks(
@@ -523,6 +515,46 @@ export function validatePredictionInput(
 }
 
 /*
+ * Maak een leeg/ongeldig prediction-resultaat.
+ *
+ * Dit gebruikt hetzelfde volledige
+ * CwlSimulationResult-contract als de
+ * normale simulator.
+ */
+function createInvalidPredictionResult(
+  promotionSlots: number
+): CwlSimulationResult {
+  return {
+    promotionChance: 0,
+
+    maximumPromotionChance: 0,
+
+    simulations: 0,
+
+    promotions: 0,
+
+    currentPosition: 0,
+
+    promotionSlots,
+
+    currentScore: 0,
+
+    maximumPossibleScore: 0,
+
+    promotionStatus:
+      "IMPOSSIBLE",
+
+    clansToPass: 0,
+
+    maxClansCanPass: 0,
+
+    bestPossiblePosition: 0,
+
+    worstPossiblePosition: 0,
+  };
+}
+
+/*
  * ------------------------------------------------
  * CWL PREDICTION ENGINE
  * ------------------------------------------------
@@ -530,17 +562,8 @@ export function validatePredictionInput(
  * Deze functie vormt de brug tussen de
  * echte CWL-data en de simulatie-engine.
  *
- * Belangrijk:
- *
- * futureMatchups wordt nu daadwerkelijk
- * doorgegeven aan simulation.ts.
- *
- * Daardoor weet de simulator:
- *
- * #1 vs #6
- * #2 vs #7
- * #3 vs #5
- * enz.
+ * De daadwerkelijke berekening blijft
+ * volledig in simulation.ts.
  */
 export function runCwlPrediction(
   input: CwlPredictionInput,
@@ -554,31 +577,19 @@ export function runCwlPrediction(
   if (
     !validation.valid
   ) {
-    return {
-      promotionChance: 0,
-
-      maximumPromotionChance: 0,
-
-      simulations: 0,
-
-      promotions: 0,
-
-      currentPosition: 0,
-
-      promotionSlots:
-        input.promotionSlots,
-
-      currentScore: 0,
-
-      maximumPossibleScore: 0,
-    };
+    return createInvalidPredictionResult(
+      input.promotionSlots
+    );
   }
 
   /*
    * Bouw de profielen één keer.
    *
-   * De simulaties zelf blijven volledig
-   * in memory.
+   * De huidige deterministische simulator
+   * gebruikt deze profielen niet rechtstreeks
+   * voor de mathematische grensberekening,
+   * maar deze stap blijft bewust aanwezig
+   * als centrale profielopbouw voor Phoenix.
    */
   buildAllClanProfiles(
     input.clans
@@ -613,6 +624,16 @@ export function runCwlPrediction(
   /*
    * Geef de volledige matchup-route
    * door aan de simulator.
+   *
+   * simulation.ts bepaalt vervolgens:
+   *
+   * - huidige positie
+   * - gegarandeerde promotie
+   * - mogelijke promotie
+   * - onmogelijke promotie
+   * - beste positie
+   * - slechtste positie
+   * - maximaal haalbare score
    */
   return simulatePromotionChance(
     input.clans,

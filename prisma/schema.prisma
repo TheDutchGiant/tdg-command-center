@@ -44,29 +44,32 @@ model War {
   seasonId             Int
   clanId               Int
   round                Int
-  state                 String
+  state                String
   teamSize             Int
   preparationStartTime DateTime
   warStartTime         DateTime
   warEndTime           DateTime
-  clanStars             Int
-  opponentStars         Int
-  clanDestruction       Float
-  opponentDestruction   Float
-  importedAt            DateTime @default(now())
-  lastSyncedAt          DateTime @default(now())
-  isFinalized           Boolean  @default(false)
-  attacks               Attack[]
-  clan                  Clan     @relation(fields: [clanId], references: [id])
-  season                Season   @relation(fields: [seasonId], references: [id])
+  clanStars            Int
+  opponentStars        Int
+  clanDestruction      Float
+  opponentDestruction  Float
+  importedAt           DateTime @default(now())
+  lastSyncedAt         DateTime @default(now())
+  isFinalized          Boolean  @default(false)
+  attacks              Attack[]
+  clan                 Clan     @relation(fields: [clanId], references: [id])
+  season               Season   @relation(fields: [seasonId], references: [id])
 }
 
 model Player {
-  playerTag   String        @id
-  currentName String
-  createdAt   DateTime      @default(now())
-  attacks     Attack[]
-  events      CareerEvent[]
+  playerTag          String                         @id
+  currentName        String
+  createdAt          DateTime                       @default(now())
+  attacks            Attack[]
+  events             CareerEvent[]
+  cwlApplications    CwlApplication[]
+  cwlAssignments     CwlAssignment[]
+  defensiveOverrides CwlDefensiveStrengthOverride[]
 }
 
 model Attack {
@@ -114,11 +117,11 @@ model ImportLog {
 
 model SystemState {
   id            Int       @id @default(1)
-  mode          String     @default("IDLE")
+  mode          String    @default("IDLE")
   currentSeason String?
   lastCheck     DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model CwlMatchup {
@@ -135,7 +138,7 @@ model CwlMatchup {
   clanAResult      String?
   clanAIsTDG       Boolean   @default(false)
   clanBTag         String
-  clanBName         String
+  clanBName        String
   clanBStars       Int       @default(0)
   clanBDestruction Float     @default(0)
   clanBBonusStars  Int       @default(0)
@@ -152,36 +155,44 @@ enum AdminRole {
   SUPERADMIN
 }
 
+enum AdminPermissionLevel {
+  READ
+  EDIT
+  DELETE
+}
+
 model AdminUser {
-  id           Int                    @id @default(autoincrement())
-  username     String                 @unique
-  passwordHash String
-  role         AdminRole              @default(ADMIN)
-  isActive     Boolean                @default(true)
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-  sessions     AdminSession[]
-  auditLogs    AuditLog[]
-  permissions  AdminUserPermission[]
+  id                Int                   @id @default(autoincrement())
+  username          String                @unique
+  passwordHash      String
+  role              AdminRole             @default(ADMIN)
+  isActive          Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  sessions          AdminSession[]
+  auditLogs         AuditLog[]
+  permissions       AdminUserPermission[]
+  finalizedCwlPlans CwlPlan[]             @relation("CwlPlanFinalizedBy")
 }
 
 model AdminPermission {
-  id          Int                    @id @default(autoincrement())
-  key         String                 @unique
+  id          Int                   @id @default(autoincrement())
+  key         String                @unique
   name        String
   description String?
-  createdAt   DateTime               @default(now())
+  createdAt   DateTime              @default(now())
   admins      AdminUserPermission[]
 }
 
 model AdminUserPermission {
-  id           Int             @id @default(autoincrement())
+  id           Int                  @id @default(autoincrement())
   adminId      Int
   permissionId Int
-  createdAt    DateTime        @default(now())
+  level        AdminPermissionLevel @default(READ)
+  createdAt    DateTime             @default(now())
 
-  admin        AdminUser       @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  permission   AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  admin      AdminUser       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  permission AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([adminId, permissionId])
   @@index([adminId])
@@ -199,7 +210,7 @@ model AdminSession {
   expiresAt  DateTime
   revokedAt  DateTime?
 
-  admin      AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
   @@index([deviceId])
@@ -208,32 +219,248 @@ model AdminSession {
 }
 
 model AuditLog {
-  id          Int       @id @default(autoincrement())
-  adminId     Int
-  action      String
-  targetType  String?
-  targetId    String?
-  details     String?
-  createdAt   DateTime  @default(now())
+  id         Int      @id @default(autoincrement())
+  adminId    Int?
+  action     String
+  targetType String?
+  targetId   String?
+  details    String?
+  createdAt  DateTime @default(now())
 
-  admin       AdminUser @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
 
   @@index([adminId])
   @@index([createdAt])
 }
 
 model MissedAttack {
-  id              Int      @id @default(autoincrement())
-  clanTag         String
-  warTag          String
-  playerTag       String
-  playerName      String
-  missedAttacks   Int
-  warEndTime      DateTime
-  createdAt       DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  clanTag       String
+  warTag        String
+  playerTag     String
+  playerName    String
+  missedAttacks Int
+  warEndTime    DateTime
+  createdAt     DateTime @default(now())
 
   @@index([clanTag])
   @@index([playerTag])
   @@index([warTag])
   @@index([createdAt])
+}
+
+/**
+ * |--------------------------------------------------------------------------
+ * | CWL SELECTION & ASSIGNMENT
+ * |--------------------------------------------------------------------------
+ */
+
+enum CwlAvailability {
+  FULL
+  LIMITED
+}
+
+enum CwlPlanStatus {
+  DRAFT
+  FINAL
+}
+
+enum CwlAssignmentRole {
+  STARTER
+  RESERVE
+}
+
+enum CwlAssignmentSource {
+  ENGINE
+  MANUAL
+}
+
+enum CwlClanFormat {
+  V15
+  V30
+}
+
+model CwlApplication {
+  id           Int             @id @default(autoincrement())
+  season       String
+  playerTag    String
+  clashName    String
+  availability CwlAvailability
+  submittedAt  DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  player Player @relation(fields: [playerTag], references: [playerTag], onDelete: Cascade)
+
+  @@unique([season, playerTag])
+  @@index([season])
+  @@index([playerTag])
+}
+
+model CwlPlan {
+  id            Int           @id @default(autoincrement())
+  season        String        @unique
+  status        CwlPlanStatus @default(DRAFT)
+  version       Int           @default(1)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  finalizedAt   DateTime?
+  finalizedById Int?
+
+  finalizedBy AdminUser?    @relation("CwlPlanFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
+  clanPlans   CwlClanPlan[]
+
+  @@index([status])
+  @@index([finalizedById])
+}
+
+model CwlClanPlan {
+  id          Int           @id @default(autoincrement())
+  planId      Int
+  clanTag     String
+  format      CwlClanFormat
+  starters    Int
+  minReserves Int
+  maxReserves Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  plan        CwlPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  assignments CwlAssignment[]
+
+  @@unique([planId, clanTag])
+  @@index([planId])
+  @@index([clanTag])
+}
+
+model CwlAssignment {
+  id              Int                 @id @default(autoincrement())
+  clanPlanId      Int
+  playerTag       String
+  role            CwlAssignmentRole
+  source          CwlAssignmentSource @default(ENGINE)
+  position        Int
+  score           Float
+  townHall        Int?
+  stars           Int                 @default(0)
+  attacks         Int                 @default(0)
+  missedAttacks   Int                 @default(0)
+  difficultyBonus Float               @default(0)
+  defenceStars    Int                 @default(0)
+  availability    CwlAvailability?
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  clanPlan CwlClanPlan @relation(fields: [clanPlanId], references: [id], onDelete: Cascade)
+  player   Player      @relation(fields: [playerTag], references: [playerTag], onDelete: Cascade)
+
+  @@unique([clanPlanId, playerTag])
+  @@unique([clanPlanId, position])
+  @@index([clanPlanId])
+  @@index([playerTag])
+  @@index([role])
+}
+
+model CwlPlayerSnapshot {
+  id              Int      @id @default(autoincrement())
+  playerTag       String
+  name            String
+  townHall        Int
+  experienceLevel Int      @default(0)
+  attackWins      Int      @default(0)
+  defenseWins     Int      @default(0)
+  trophies        Int      @default(0)
+  warStars        Int      @default(0)
+  builderHall     Int?
+  snapshotDate    DateTime @default(now())
+  snapshotType    String   @default("OWN_CLAN")
+
+  @@index([playerTag])
+  @@index([snapshotDate])
+}
+
+/**
+ * |--------------------------------------------------------------------------
+ * | HISTORISCHE CWL SNAPSHOT
+ * |--------------------------------------------------------------------------
+ * |
+ * | Bewaart de volledige Clash API-response van een CWL-war.
+ * | Hierdoor kunnen we later opnieuw analyseren zonder afhankelijk
+ * | te zijn van het opnieuw beschikbaar zijn van de Clash API.
+ * |
+ */
+
+model CwlHistoricalWar {
+  id          Int      @id @default(autoincrement())
+  warTag      String   @unique
+  season      String
+  round       Int
+  state       String
+  teamSize    Int
+  clanTag     String
+  opponentTag String
+  rawData     Json
+  importedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  players CwlHistoricalPlayer[]
+
+  @@index([season])
+  @@index([round])
+  @@index([clanTag])
+  @@index([opponentTag])
+}
+
+model CwlHistoricalPlayer {
+  id                 Int      @id @default(autoincrement())
+  warId              Int
+  playerTag          String
+  name               String
+  townHall           Int
+  mapPosition        Int
+  attacks            Json
+  opponentAttacks    Json
+  bestOpponentAttack Json?
+  importedAt         DateTime @default(now())
+
+  war CwlHistoricalWar @relation(fields: [warId], references: [id], onDelete: Cascade)
+
+  @@unique([warId, playerTag])
+  @@index([playerTag])
+  @@index([mapPosition])
+}
+
+/**
+ * |--------------------------------------------------------------------------
+ * | CWL DEFENSIVE STRENGTH OVERRIDE
+ * |--------------------------------------------------------------------------
+ * |
+ * | Handmatige uitzonderingen op de automatische Defensive Strength.
+ * |
+ * | MAX = speler wordt op 100 gezet.
+ * |
+ * | De override is gekoppeld aan clan + speler.
+ * | Zodra de speler TH19 bereikt, moet de override automatisch
+ * | ongeldig worden en neemt de automatische berekening het weer over.
+ * |
+ */
+
+enum CwlDefensiveStrengthOverrideType {
+  MAX
+}
+
+model CwlDefensiveStrengthOverride {
+  id        Int                              @id @default(autoincrement())
+  clanTag   String
+  playerTag String
+  type      CwlDefensiveStrengthOverrideType @default(MAX)
+  reason    String?
+  createdAt DateTime                         @default(now())
+  updatedAt DateTime                         @updatedAt
+
+  player Player @relation(fields: [playerTag], references: [playerTag], onDelete: Cascade)
+
+  @@unique([clanTag, playerTag])
+  @@index([clanTag])
+  @@index([playerTag])
 }

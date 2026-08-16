@@ -1,37 +1,29 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-
 import {
-  requireAdmin,
-} from "@/app/lib/auth/session";
-
+  hashPassword,
+  verifyPassword,
+} from "@/app/lib/auth/password";
+import { requireAdmin } from "@/app/lib/auth/session";
 import { prisma } from "@/app/lib/prisma";
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    const current =
-      await requireAdmin();
+    const current = await requireAdmin();
 
-    const body =
-      await request.json();
+    const body = await request.json();
 
     const currentPassword =
-      typeof body.currentPassword ===
-      "string"
+      typeof body.currentPassword === "string"
         ? body.currentPassword
         : "";
 
     const newPassword =
-      typeof body.newPassword ===
-      "string"
+      typeof body.newPassword === "string"
         ? body.newPassword
         : "";
 
     const confirmPassword =
-      typeof body.confirmPassword ===
-      "string"
+      typeof body.confirmPassword === "string"
         ? body.confirmPassword
         : "";
 
@@ -50,10 +42,7 @@ export async function POST(
       );
     }
 
-    if (
-      newPassword !==
-      confirmPassword
-    ) {
+    if (newPassword !== confirmPassword) {
       return NextResponse.json(
         {
           success: false,
@@ -75,11 +64,10 @@ export async function POST(
       );
     }
 
-    const passwordCorrect =
-      await bcrypt.compare(
-        currentPassword,
-        current.admin.passwordHash
-      );
+    const passwordCorrect = verifyPassword(
+      currentPassword,
+      current.admin.passwordHash
+    );
 
     if (!passwordCorrect) {
       return NextResponse.json(
@@ -93,18 +81,14 @@ export async function POST(
     }
 
     const newPasswordHash =
-      await bcrypt.hash(
-        newPassword,
-        12
-      );
+      hashPassword(newPassword);
 
-    await prisma.admin.update({
+    await prisma.adminUser.update({
       where: {
         id: current.admin.id,
       },
       data: {
-        passwordHash:
-          newPasswordHash,
+        passwordHash: newPasswordHash,
       },
     });
 
@@ -114,8 +98,7 @@ export async function POST(
   } catch (error) {
     if (
       error instanceof Error &&
-      error.message ===
-        "ADMIN_UNAUTHORIZED"
+      error.message === "ADMIN_UNAUTHORIZED"
     ) {
       return NextResponse.json(
         {

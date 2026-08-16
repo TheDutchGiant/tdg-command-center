@@ -210,34 +210,48 @@ export async function saveWar(
 }
 
 /*
- * Sla spelers uit een war op.
+ * Sla spelers uit BEIDE clans uit een war op.
+ *
+ * Voorheen werden alleen onze eigen spelers opgeslagen.
+ * Voor defensive analysis hebben we ook de spelers van
+ * de tegenstander nodig.
  */
 export async function savePlayers(
   data: any,
   clanTag: string
 ) {
-  const players =
-    new Map<string, any>();
-
   const normalizedClanTag =
     clanTag.replace("#", "");
 
-  const ourClan =
-    data.clan.tag.replace("#", "") ===
-    normalizedClanTag
-      ? data.clan
-      : data.opponent;
+  const clans = [
+    data.clan,
+    data.opponent,
+  ].filter(Boolean);
 
-  for (
-    const member of
-    ourClan.members ?? []
-  ) {
-    players.set(
-      member.tag,
-      member
-    );
+  const players =
+    new Map<string, any>();
+
+  /*
+   * Verzamel spelers van beide clans.
+   */
+  for (const clan of clans) {
+    for (
+      const member of
+      clan.members ?? []
+    ) {
+      players.set(
+        member.tag,
+        member
+      );
+    }
   }
 
+  /*
+   * Sla alle spelers op.
+   *
+   * Hierdoor kunnen aanvallen van
+   * tegenstanders ook naar Player verwijzen.
+   */
   for (
     const player of
     players.values()
@@ -268,12 +282,34 @@ export async function savePlayers(
 
 /*
  * Sla aanvallen uit een war op.
+ *
+ * BELANGRIJK:
+ *
+ * We slaan nu aanvallen op van:
+ *
+ * - onze eigen clan
+ * - de tegenstander
+ *
+ * Daardoor krijgen we historische defensive data
+ * zoals:
+ *
+ * - wie viel wie aan?
+ * - met welke TH?
+ * - hoeveel sterren?
+ * - hoeveel destruction?
+ * - hoeveel seconden?
+ *
+ * Dit wordt later gebruikt voor Defensive Performance.
  */
 export async function saveAttacks(
   warTag: string,
   data: any,
   clanTag: string
 ) {
+  /*
+   * Bij iedere sync bouwen we de attack-data
+   * voor deze war opnieuw op.
+   */
   await prisma.attack.deleteMany({
     where: {
       warTag,
@@ -289,65 +325,189 @@ export async function saveAttacks(
       ? data.clan
       : data.opponent;
 
-  let imported = 0;
+  const enemyClan =
+    data.clan.tag.replace("#", "") ===
+    normalizedClanTag
+      ? data.opponent
+      : data.clan;
+
+  /*
+   * Zorg dat zowel eigen spelers als
+   * tegenstanders bestaan in Player.
+   *
+   * Dit is nodig omdat Attack.playerTag
+   * een foreign key naar Player is.
+   */
+  const allMembers = [
+    ...(ourClan.members ?? []),
+    ...(enemyClan?.members ?? []),
+  ];
+
+  const uniquePlayers =
+    new Map<string, any>();
+
+  for (const member of allMembers) {
+    uniquePlayers.set(
+      member.tag,
+      member
+    );
+  }
 
   for (
-    const member of
-    ourClan.members ?? []
+    const player of
+    uniquePlayers.values()
   ) {
-    for (
-      const attack of
-      member.attacks ?? []
-    ) {
-      await prisma.attack.create({
-        data: {
-          warTag,
+    await prisma.player.upsert({
+      where: {
+        playerTag:
+          player.tag,
+      },
 
-          playerTag:
-            member.tag,
+      update: {
+        currentName:
+          player.name,
+      },
 
-          warDay: 1,
+      create: {
+        playerTag:
+          player.tag,
 
-          attackNumber:
-            attack.order,
-
-          stars:
-            attack.stars,
-
-          destruction:
-            attack.destructionPercentage,
-
-          duration:
-            attack.duration ?? 0,
-
-          attackerTownHall:
-            member.townhallLevel,
-
-          defenderTownHall:
-            0,
-
-          defenseStars:
-            member.bestOpponentAttack
-              ?.stars ?? 0,
-
-          defenseDestruction:
-            member.bestOpponentAttack
-              ?.destructionPercentage ?? 0,
-
-          defenseAttackerTownHall:
-            0,
-
-          defenderTag:
-            attack.defenderTag,
-
-          defenderName:
-            "",
-        },
-      });
-
-      imported++;
-    }
+        currentName:
+          player.name,
+      },
+    });
   }
+
+  let imported = 0;
+
+  /*
+   * Functie om alle aanvallen van één clan
+   * te importeren.
+   */
+  const importClanAttacks = async (
+    clan: any
+  ) => {
+    if (!clan) {
+      return;
+    }
+
+    for (
+      const member of
+      clan.members ?? []
+    ) {
+      for (
+        const attack of
+        member.attacks ?? []
+      ) {
+        /*
+         * Zoek de verdediger in de andere clan.
+         *
+         * Hierdoor kunnen we ook de TH van de
+         * verdediger opslaan.
+         */
+        const defender =
+          enemyClan?.members?.find(
+            (player: any) =>
+              player.tag ===
+              attack.defenderTag
+          );
+
+        /*
+         * Zoek eventueel de verdediger
+         * in onze eigen clan.
+         *
+         * Dit is nodig wanneer we juist
+         * de tegenstander importeren.
+         */
+        const ownDefender =
+          ourClan.members?.find(
+            (player: any) =>
+              player.tag ===
+              attack.defenderTag
+          );
+
+        const defenderPlayer =
+          defender ??
+          ownDefender;
+
+        /*
+         * bestOpponentAttack bevat de beste
+         * aanval die deze speler heeft ontvangen.
+         *
+         * Deze informatie bewaren we ook.
+         */
+        const bestDefense =
+          member.bestOpponentAttack;
+
+        await prisma.attack.create({
+          data: {
+            warTag,
+
+            playerTag:
+              member.tag,
+
+            warDay: 1,
+
+            attackNumber:
+              attack.order,
+
+            stars:
+              attack.stars ?? 0,
+
+            destruction:
+              attack.destructionPercentage ?? 0,
+
+            duration:
+              attack.duration ?? 0,
+
+            attackerTownHall:
+              member.townhallLevel ?? 0,
+
+            defenderTownHall:
+              defenderPlayer?.townhallLevel ??
+              0,
+
+            defenseStars:
+              bestDefense?.stars ?? 0,
+
+            defenseDestruction:
+              bestDefense?.destructionPercentage ??
+              0,
+
+            defenseAttackerTownHall:
+              bestDefense
+                ? (
+                    defenderPlayer
+                      ?.townhallLevel ?? 0
+                  )
+                : 0,
+
+            defenderTag:
+              attack.defenderTag ?? "",
+
+            defenderName:
+              defenderPlayer?.name ?? "",
+          },
+        });
+
+        imported++;
+      }
+    }
+  };
+
+  /*
+   * EIGEN AANVALLEN
+   */
+  await importClanAttacks(
+    ourClan
+  );
+
+  /*
+   * TEGENSTANDER-AANVALLEN
+   */
+  await importClanAttacks(
+    enemyClan
+  );
 
   return imported;
 }
@@ -386,10 +546,6 @@ export async function saveCwlMatchup(
   const clanBDestruction =
     clanB.destructionPercentage ?? 0;
 
-  /*
-   * Alleen een afgesloten war heeft
-   * een definitieve uitslag en bonus.
-   */
   const winnerTag =
     data.state === "warEnded"
       ? determineCwlWinner(
@@ -733,14 +889,6 @@ export async function getCwlStand(
             ? "win"
             : "loss";
 
-      /*
-       * Bereken bonus opnieuw vanuit
-       * de daadwerkelijke waruitslag.
-       *
-       * Hierdoor kunnen oude foutieve
-       * bonuswaarden niet de ranking
-       * vervuilen.
-       */
       const bonusStars =
         result === "win"
           ? 10
@@ -918,17 +1066,11 @@ export async function getCwlPromotionPosition(
     `#${rawTag}`,
   ];
 
-  /*
-   * Aantal promotieplaatsen.
-   */
   const promotionSlots =
     await getCwlPromotionSlots(
       leagueName
     );
 
-  /*
-   * Zoek eerst onze eigen wars.
-   */
   const ownMatchups =
     await prisma.cwlMatchup.findMany({
       where: {
@@ -966,9 +1108,6 @@ export async function getCwlPromotionPosition(
     return null;
   }
 
-  /*
-   * Verzamel alle clans uit onze groep.
-   */
   const groupTags =
     new Set<string>();
 
@@ -985,9 +1124,6 @@ export async function getCwlPromotionPosition(
     );
   }
 
-  /*
-   * Haal de volledige groep op.
-   */
   const groupMatchups =
     await prisma.cwlMatchup.findMany({
       where: {
@@ -1025,9 +1161,6 @@ export async function getCwlPromotionPosition(
       ],
     });
 
-  /*
-   * Actuele gegevens per clan.
-   */
   const clanMap =
     new Map<
       string,
@@ -1082,10 +1215,6 @@ export async function getCwlPromotionPosition(
       },
     ];
 
-    /*
-     * Alleen afgesloten wars hebben
-     * een definitieve winnaar.
-     */
     const winnerTag =
       matchup.status ===
       "warEnded"
@@ -1111,10 +1240,6 @@ export async function getCwlPromotionPosition(
           entry.tag
         );
 
-      /*
-       * Bonus alleen voor een gewonnen
-       * afgesloten war.
-       */
       const warBonus =
         matchup.status ===
           "warEnded" &&
@@ -1132,7 +1257,8 @@ export async function getCwlPromotionPosition(
             name:
               entry.name,
 
-            warSize: matchup.warSize ?? 15,
+            warSize:
+              matchup.warSize ?? 15,
 
             stars:
               matchup.status ===
@@ -1207,13 +1333,6 @@ export async function getCwlPromotionPosition(
     }
   }
 
-  /*
-   * Officiële actuele CWL-score:
-   *
-   * echte sterren
-   * +
-   * reeds verdiende bonussterren.
-   */
   const stand =
     Array.from(
       clanMap.values()
@@ -1264,15 +1383,6 @@ export async function getCwlPromotionPosition(
     return null;
   }
 
-  /*
-   * Maximum per war:
-   *
-   * 15v15:
-   * 45 sterren + 10 bonus = 55
-   *
-   * 30v30:
-   * 90 sterren + 10 bonus = 100
-   */
   const maxStarsPerWar =
     ownClan.warSize === 30
       ? 90
@@ -1288,32 +1398,18 @@ export async function getCwlPromotionPosition(
     totalCwlWars *
     maxScorePerWar;
 
-  /*
-   * Huidige officiële score.
-   */
   const currentScore =
     ownClan.totalStars;
 
-  /*
-   * Wars die nog niet definitief
-   * zijn afgelopen.
-   */
   const remainingWars =
     ownClan.currentWars +
     ownClan.remainingWars;
 
-  /*
-   * Maximale score vanaf nu.
-   */
   const maximumFinalScore =
     currentScore +
     remainingWars *
       maxScorePerWar;
 
-  /*
-   * Huidige score als percentage
-   * van maximaal mogelijke score.
-   */
   const currentProgress =
     maximumCwlScore > 0
       ? (
@@ -1322,9 +1418,6 @@ export async function getCwlPromotionPosition(
         ) * 100
       : 0;
 
-  /*
-   * Maximaal haalbare score.
-   */
   const maximumProgress =
     maximumCwlScore > 0
       ? (
@@ -1333,23 +1426,11 @@ export async function getCwlPromotionPosition(
         ) * 100
       : 0;
 
-  /*
-   * Promotiezone.
-   *
-   * Bij 2 promotieplaatsen:
-   *
-   * #1 = promotie
-   * #2 = promotie
-   */
   const isCurrentlyPromoting =
     promotionSlots > 0 &&
     ownClan.position <=
       promotionSlots;
 
-  /*
-   * Positiefactor ten opzichte van
-   * de promotiegrens.
-   */
   const promotionPositionFactor =
     promotionSlots > 0 &&
     stand.length >
@@ -1371,9 +1452,6 @@ export async function getCwlPromotionPosition(
         )
       : 1;
 
-  /*
-   * Scorefactor.
-   */
   const scoreFactor =
     maximumCwlScore > 0
       ? Math.min(
@@ -1384,12 +1462,6 @@ export async function getCwlPromotionPosition(
         )
       : 0;
 
-  /*
-   * Huidige promotiekans.
-   *
-   * 75% score
-   * 25% positie.
-   */
   const promotionPosition =
     (
       scoreFactor * 0.75 +
@@ -1397,9 +1469,6 @@ export async function getCwlPromotionPosition(
         0.25
     ) * 100;
 
-  /*
-   * Maximaal haalbare promotiekans.
-   */
   const maximumScoreFactor =
     maximumCwlScore > 0
       ? Math.min(

@@ -1,20 +1,14 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-
-import {
-  requireSuperadmin,
-} from "@/app/lib/auth/session";
-
+import { hashPassword } from "@/app/lib/auth/password";
+import { requireSuperadmin } from "@/app/lib/auth/session";
 import { prisma } from "@/app/lib/prisma";
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    await requireSuperadmin();
+    const current =
+      await requireSuperadmin();
 
-    const body =
-      await request.json();
+    const body = await request.json();
 
     const adminId =
       typeof body.adminId === "number"
@@ -39,17 +33,6 @@ export async function POST(
       );
     }
 
-    if (!newPassword) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Een nieuw wachtwoord is verplicht.",
-        },
-        { status: 400 }
-      );
-    }
-
     if (newPassword.length < 8) {
       return NextResponse.json(
         {
@@ -61,8 +44,19 @@ export async function POST(
       );
     }
 
+    if (adminId === current.admin.id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Je kunt je eigen wachtwoord niet via reset wijzigen. Gebruik 'Mijn account'.",
+        },
+        { status: 400 }
+      );
+    }
+
     const targetAdmin =
-      await prisma.admin.findUnique({
+      await prisma.adminUser.findUnique({
         where: {
           id: adminId,
         },
@@ -72,8 +66,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error:
-            "Admin bestaat niet.",
+          error: "Admin bestaat niet.",
         },
         { status: 404 }
       );
@@ -91,19 +84,40 @@ export async function POST(
     }
 
     const passwordHash =
-      await bcrypt.hash(
-        newPassword,
-        12
-      );
+      hashPassword(newPassword);
 
-    await prisma.admin.update({
-      where: {
-        id: targetAdmin.id,
-      },
-      data: {
-        passwordHash,
-      },
-    });
+    await prisma.$transaction([
+      prisma.adminUser.update({
+        where: {
+          id: targetAdmin.id,
+        },
+        data: {
+          passwordHash,
+        },
+      }),
+
+      prisma.adminSession.updateMany({
+        where: {
+          adminId: targetAdmin.id,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      }),
+
+      prisma.auditLog.create({
+        data: {
+          adminId: current.admin.id,
+          action: "ADMIN_PASSWORD_RESET",
+          targetType: "AdminUser",
+          targetId: String(targetAdmin.id),
+          details: JSON.stringify({
+            username: targetAdmin.username,
+          }),
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
