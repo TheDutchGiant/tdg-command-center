@@ -1,6 +1,8 @@
 import { prisma } from "@/app/lib/prisma";
 import { requireAdmin } from "@/app/lib/auth/session";
 import CwlProposalGenerator from "./CwlProposalGenerator";
+import CwlDraftEditor from "./CwlDraftEditor";
+import CwlApplicationCard from "./CwlApplicationCard";
 
 type Availability =
   | "FULL"
@@ -373,8 +375,49 @@ export default async function AdminCwlPage() {
           />
         </section>
 
+        {/* CWL aanmeldingenbeheer */}
+        <section className="mb-7">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">
+                📋 CWL aanmeldingen
+              </h2>
+
+              <p className="mt-1 text-[10px] text-white/30">
+                Controleer gastaanmeldingen en keur ze goed of af.
+              </p>
+            </div>
+
+            <span className="text-[10px] text-white/30">
+              {applications.length}
+            </span>
+          </div>
+
+          {applications.length === 0 ? (
+            <Empty text="Nog geen CWL-aanmeldingen." />
+          ) : (
+            <div className="space-y-2">
+              {applications.map((application) => (
+                <CwlApplicationCard
+                  key={application.id}
+                  application={{
+                    id: application.id,
+                    playerTag: application.playerTag,
+                    clashName: application.clashName,
+                    availability: application.availability,
+                    status: application.status,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* CWL voorstelgenerator */}
         <CwlProposalGenerator />
+
+        {/* CWL draft editor */}
+        <CwlDraftEditor />
 
         {/* Aangemeld */}
         <section className="mt-7">

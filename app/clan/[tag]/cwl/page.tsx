@@ -42,6 +42,27 @@ export default async function CWLPage({
         🏰 {clan?.name ?? tag}
       </p>
 
+      <div className="mb-8 rounded-2xl border border-orange-400/20 bg-orange-500/[0.06] p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-white sm:text-base">
+              🏆 Meedoen met de komende CWL?
+            </h2>
+
+            <p className="mt-1 text-xs text-white/45">
+              Meld je hier aan met je Player ID en geef je beschikbaarheid door.
+            </p>
+          </div>
+
+          <a
+            href="/cwl"
+            className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-black transition hover:bg-orange-400"
+          >
+            🏆 Aanmelden voor CWL →
+          </a>
+        </div>
+      </div>
+
       <div className="w-full overflow-x-auto rounded-lg border border-white/10">
         <table className="w-full min-w-[620px] border-collapse">
           <thead>

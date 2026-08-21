@@ -1,13 +1,24 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import PublicClanNavigation from "@/app/components/PublicClanNavigation";
+
+type PlayerData = {
+  tag: string;
+  name: string;
+  townHallLevel: number;
+  clan: {
+    tag: string;
+    name: string;
+  } | null;
+};
 
 export default function CwlApplicationPage() {
-  const [clashName, setClashName] =
-    useState("");
-
   const [playerTag, setPlayerTag] =
     useState("");
+
+  const [player, setPlayer] =
+    useState<PlayerData | null>(null);
 
   const [availability, setAvailability] =
     useState<"FULL" | "LIMITED">("FULL");
@@ -18,8 +29,67 @@ export default function CwlApplicationPage() {
   const [error, setError] =
     useState("");
 
-  const [loading, setLoading] =
+  const [lookupLoading, setLookupLoading] =
     useState(false);
+
+  const [submitLoading, setSubmitLoading] =
+    useState(false);
+
+  async function handleLookup() {
+    setMessage("");
+    setError("");
+    setPlayer(null);
+
+    const tag =
+      playerTag.trim().toUpperCase();
+
+    if (!tag) {
+      setError(
+        "Vul eerst je Player ID in."
+      );
+      return;
+    }
+
+    setLookupLoading(true);
+
+    try {
+      const response = await fetch(
+        "/api/cwl/player",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            playerTag: tag,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        setError(
+          data.error ||
+            "Speler kon niet worden gevonden."
+        );
+        return;
+      }
+
+      setPlayer(data.player);
+      setPlayerTag(data.player.tag);
+    } catch {
+      setError(
+        "Er kon geen verbinding met Phoenix worden gemaakt."
+      );
+    } finally {
+      setLookupLoading(false);
+    }
+  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -28,7 +98,15 @@ export default function CwlApplicationPage() {
 
     setMessage("");
     setError("");
-    setLoading(true);
+
+    if (!player) {
+      setError(
+        "Controleer eerst je Player ID."
+      );
+      return;
+    }
+
+    setSubmitLoading(true);
 
     try {
       const response = await fetch(
@@ -39,8 +117,7 @@ export default function CwlApplicationPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            clashName,
-            playerTag,
+            playerTag: player.tag,
             availability,
           }),
         }
@@ -68,13 +145,15 @@ export default function CwlApplicationPage() {
         "Er kon geen verbinding met Phoenix worden gemaakt."
       );
     } finally {
-      setLoading(false);
+      setSubmitLoading(false);
     }
   }
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 sm:py-12">
       <div className="mx-auto w-full max-w-xl">
+
+        <PublicClanNavigation />
 
         <header className="mb-6 text-center">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-orange-300">
@@ -98,106 +177,158 @@ export default function CwlApplicationPage() {
             className="space-y-4"
           >
 
-            <div>
-              <label
-                htmlFor="clashName"
-                className="mb-1.5 block text-xs font-semibold"
-              >
-                Clash naam
-              </label>
-
-              <input
-                id="clashName"
-                type="text"
-                value={clashName}
-                onChange={(event) =>
-                  setClashName(
-                    event.target.value
-                  )
-                }
-                required
-                placeholder="Bijvoorbeeld Maarten"
-                className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-3 text-sm outline-none transition focus:border-orange-400/60"
-              />
-            </div>
-
+            {/* Player ID */}
             <div>
               <label
                 htmlFor="playerTag"
                 className="mb-1.5 block text-xs font-semibold"
               >
-                Player tag
+                Player ID
               </label>
 
-              <input
-                id="playerTag"
-                type="text"
-                value={playerTag}
-                onChange={(event) =>
-                  setPlayerTag(
-                    event.target.value.toUpperCase()
-                  )
-                }
-                required
-                placeholder="#ABC123"
-                className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-3 font-mono text-sm uppercase outline-none transition focus:border-orange-400/60"
-              />
+              <div className="flex gap-2">
+                <input
+                  id="playerTag"
+                  type="text"
+                  value={playerTag}
+                  onChange={(event) => {
+                    setPlayerTag(
+                      event.target.value.toUpperCase()
+                    );
+                    setPlayer(null);
+                    setError("");
+                    setMessage("");
+                  }}
+                  required
+                  placeholder="#ABC123"
+                  disabled={
+                    lookupLoading ||
+                    submitLoading
+                  }
+                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/40 px-3.5 py-3 font-mono text-sm uppercase outline-none transition focus:border-orange-400/60 disabled:opacity-50"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleLookup}
+                  disabled={
+                    lookupLoading ||
+                    submitLoading ||
+                    !playerTag.trim()
+                  }
+                  className="rounded-xl bg-orange-500 px-4 py-3 text-xs font-bold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {lookupLoading
+                    ? "Zoeken..."
+                    : "🔎 Controleren"}
+                </button>
+              </div>
 
               <p className="mt-1 text-[10px] text-white/30">
-                Je vindt je player tag onder
-                je Clash of Clans-profiel.
+                Plak hier je Player ID uit
+                Clash of Clans.
               </p>
             </div>
 
-            <div>
-              <p className="mb-2 text-xs font-semibold">
-                📅 Beschikbaarheid
-              </p>
+            {/* Player confirmation */}
+            {player && (
+              <div className="rounded-xl border border-green-400/30 bg-green-500/10 p-4">
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <p className="text-xs font-semibold text-green-300">
+                  ✅ Speler gevonden
+                </p>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAvailability("FULL")
-                  }
-                  className={`rounded-xl border px-3 py-3 text-left transition ${
-                    availability === "FULL"
-                      ? "border-green-400/50 bg-green-500/10"
-                      : "border-white/10 bg-black/20 hover:bg-white/[0.04]"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">
-                    🟢 Volledig beschikbaar
-                  </span>
+                <div className="mt-3">
+                  <p className="text-lg font-bold text-white">
+                    {player.name}
+                  </p>
 
-                  <span className="mt-1 block text-[10px] text-white/35">
-                    Alle CWL-dagen beschikbaar.
-                  </span>
-                </button>
+                  <p className="mt-1 text-xs text-white/50">
+                    {player.tag}
+                  </p>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAvailability("LIMITED")
-                  }
-                  className={`rounded-xl border px-3 py-3 text-left transition ${
-                    availability === "LIMITED"
-                      ? "border-yellow-400/50 bg-yellow-500/10"
-                      : "border-white/10 bg-black/20 hover:bg-white/[0.04]"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">
-                    🟡 Beperkt beschikbaar
-                  </span>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs font-semibold">
+                      🏰 TH{player.townHallLevel}
+                    </span>
 
-                  <span className="mt-1 block text-[10px] text-white/35">
-                    Niet alle CWL-dagen beschikbaar.
-                  </span>
-                </button>
+                    {player.clan && (
+                      <span className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs font-semibold">
+                        🛡️ {player.clan.name}
+                      </span>
+                    )}
+
+                    {!player.clan && (
+                      <span className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-white/50">
+                        Geen clan
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-xs text-white/60">
+                    Ben jij dit? Controleer de
+                    gegevens hierboven voordat je
+                    je aanmeldt.
+                  </p>
+                </div>
 
               </div>
-            </div>
+            )}
+
+            {/* Availability */}
+            {player && (
+              <div>
+                <p className="mb-2 text-xs font-semibold">
+                  📅 Beschikbaarheid
+                </p>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAvailability("FULL")
+                    }
+                    disabled={submitLoading}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${
+                      availability === "FULL"
+                        ? "border-green-400/50 bg-green-500/10"
+                        : "border-white/10 bg-black/20 hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold">
+                      🟢 Volledig beschikbaar
+                    </span>
+
+                    <span className="mt-1 block text-[10px] text-white/35">
+                      Alle CWL-dagen beschikbaar.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAvailability("LIMITED")
+                    }
+                    disabled={submitLoading}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${
+                      availability === "LIMITED"
+                        ? "border-yellow-400/50 bg-yellow-500/10"
+                        : "border-white/10 bg-black/20 hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold">
+                      🟡 Beperkt beschikbaar
+                    </span>
+
+                    <span className="mt-1 block text-[10px] text-white/35">
+                      Niet alle CWL-dagen beschikbaar.
+                    </span>
+                  </button>
+
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2.5 text-xs text-red-200">
@@ -211,15 +342,18 @@ export default function CwlApplicationPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading
-                ? "Aanmelding controleren..."
-                : "🏆 Aanmelden voor CWL"}
-            </button>
+            {/* Submit */}
+            {player && (
+              <button
+                type="submit"
+                disabled={submitLoading}
+                className="w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitLoading
+                  ? "Aanmelding opslaan..."
+                  : "🏆 Aanmelden voor CWL"}
+              </button>
+            )}
 
           </form>
 

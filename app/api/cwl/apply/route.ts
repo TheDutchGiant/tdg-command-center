@@ -1,23 +1,26 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { fetchClashPlayer } from "@/app/lib/clash";
 
-const TDG_CLAN_TAGS = new Set([
-  // We vullen deze straks met de echte TDG-tags.
-]);
+function normalizeTag(tag: string): string {
+  const value = tag.trim().toUpperCase();
+
+  return value.startsWith("#")
+    ? value
+    : `#${value}`;
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const clashName =
-      typeof body.clashName === "string"
-        ? body.clashName.trim()
+    const rawTag =
+      typeof body.playerTag === "string"
+        ? body.playerTag
         : "";
 
     const playerTag =
-      typeof body.playerTag === "string"
-        ? body.playerTag.trim().toUpperCase()
-        : "";
+      normalizeTag(rawTag);
 
     const availability =
       body.availability === "LIMITED"
@@ -26,54 +29,123 @@ export async function POST(request: Request) {
           ? "FULL"
           : "";
 
-    if (!clashName || !playerTag || !availability) {
+    if (
+      !playerTag ||
+      playerTag === "#" ||
+      !availability
+    ) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "Clash naam, player tag en beschikbaarheid zijn verplicht.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!playerTag.startsWith("#")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Een player tag moet beginnen met #.",
+            "Player ID en beschikbaarheid zijn verplicht.",
         },
         { status: 400 }
       );
     }
 
     /*
-     * Voor nu gebruiken we de bestaande Player-tabel.
+     * =====================================================
+     * 1. EERST PHOENIX
+     * =====================================================
      *
-     * Zodra we de bestaande Clash API/player-sync
-     * koppelen, controleren we hier de actuele spelerdata.
+     * Phoenix is de eerste bron.
+     *
+     * Een speler die al in Phoenix staat is een bekende
+     * TDG-speler en wordt automatisch goedgekeurd.
      */
-    const player =
+
+    const knownInPhoenix =
       await prisma.player.findUnique({
         where: {
           playerTag,
         },
+        select: {
+          playerTag: true,
+        },
       });
 
-    if (!player) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Deze player tag is nog niet bekend bij Phoenix. Controleer de tag.",
-        },
-        { status: 404 }
-      );
-    }
+    /*
+     * =====================================================
+     * 2. ACTUELE CLASH DATA
+     * =====================================================
+     *
+     * Voor de bevestiging en opgeslagen naam gebruiken
+     * we altijd de actuele Clash API-data.
+     *
+     * Voor een onbekende Phoenix-speler is dit tevens de
+     * controle of de Player ID daadwerkelijk bestaat.
+     */
+
+    const clashPlayer =
+      await fetchClashPlayer(playerTag);
+
+    const clashName =
+      clashPlayer.name;
+
+    const now = new Date();
 
     const season =
-      new Date().toISOString().slice(0, 7);
+      `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+    /*
+     * =====================================================
+     * 3. STATUS
+     * =====================================================
+     */
+
+    const status =
+      knownInPhoenix
+        ? "AUTO_APPROVED"
+        : "PENDING";
+
+    /*
+     * =====================================================
+     * 4. BESTAANDE AANMELDING
+     * =====================================================
+     *
+     * Een bestaande gast die al handmatig is goedgekeurd
+     * blijft APPROVED wanneer hij zijn beschikbaarheid
+     * opnieuw doorgeeft.
+     *
+     * Hetzelfde geldt voor REJECTED: we overschrijven een
+     * admin-beslissing niet automatisch.
+     */
+
+    const existing =
+      await prisma.cwlApplication.findUnique({
+        where: {
+          season_playerTag: {
+            season,
+            playerTag,
+          },
+        },
+        select: {
+          status: true,
+        },
+      });
+
+    let finalStatus = status;
+
+    if (
+      !knownInPhoenix &&
+      existing &&
+      (
+        existing.status === "APPROVED" ||
+        existing.status === "REJECTED"
+      )
+    ) {
+      finalStatus =
+        existing.status;
+    }
+
+    /*
+     * =====================================================
+     * 5. OPSLAAN
+     * =====================================================
+     */
 
     await prisma.cwlApplication.upsert({
       where: {
@@ -82,22 +154,41 @@ export async function POST(request: Request) {
           playerTag,
         },
       },
+
       update: {
         clashName,
         availability,
+        status: finalStatus as "AUTO_APPROVED" | "PENDING" | "APPROVED" | "REJECTED",
       },
+
       create: {
         season,
         playerTag,
         clashName,
         availability,
+        status: finalStatus as "AUTO_APPROVED" | "PENDING" | "APPROVED" | "REJECTED",
       },
     });
 
     return NextResponse.json({
       success: true,
+      status: finalStatus as "AUTO_APPROVED" | "PENDING" | "APPROVED" | "REJECTED",
+      player: {
+        tag: clashPlayer.tag,
+        name: clashPlayer.name,
+        townHallLevel:
+          clashPlayer.townHallLevel,
+        clan: clashPlayer.clan
+          ? {
+              tag: clashPlayer.clan.tag,
+              name: clashPlayer.clan.name,
+            }
+          : null,
+      },
       message:
-        "Je CWL-aanmelding is opgeslagen.",
+        finalStatus === "PENDING"
+          ? "Je CWL-aanmelding is opgeslagen en wacht op goedkeuring van een admin."
+          : "Je CWL-aanmelding is opgeslagen.",
     });
   } catch (error) {
     console.error(
@@ -109,9 +200,9 @@ export async function POST(request: Request) {
       {
         success: false,
         error:
-          "Er ging iets mis bij het aanmelden.",
+          "Speler kon niet worden gecontroleerd. Controleer de Player ID.",
       },
-      { status: 500 }
+      { status: 404 }
     );
   }
 }

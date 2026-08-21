@@ -73,7 +73,7 @@ model Player {
 }
 
 model Attack {
-  id                      Int    @id @default(autoincrement())
+  id                      Int     @id @default(autoincrement())
   warTag                  String
   playerTag               String
   defenderTag             String
@@ -88,8 +88,11 @@ model Attack {
   defenseStars            Int
   defenseDestruction      Int
   defenseAttackerTownHall Int
-  player                  Player @relation(fields: [playerTag], references: [playerTag])
-  war                     War    @relation(fields: [warTag], references: [warTag])
+  isOwnAttack             Boolean @default(true)
+  player                  Player  @relation(fields: [playerTag], references: [playerTag])
+  war                     War     @relation(fields: [warTag], references: [warTag])
+
+  @@unique([warTag, playerTag, attackNumber])
 }
 
 model CareerEvent {
@@ -233,6 +236,70 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model RegularWar {
+  warTag        String   @id
+  clanTag       String
+  opponentTag   String
+  clanName      String
+  opponentName  String
+  teamSize      Int
+  clanStars     Int      @default(0)
+  opponentStars Int      @default(0)
+  warStartTime  DateTime
+  warEndTime    DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  players RegularWarPlayer[]
+  attacks RegularWarAttack[]
+
+  @@index([clanTag])
+  @@index([warEndTime])
+}
+
+model RegularWarAttack {
+  id               Int      @id @default(autoincrement())
+  warTag           String
+  playerTag        String
+  playerName       String
+  defenderTag      String
+  defenderName     String
+  attackNumber     Int
+  stars            Int
+  destruction      Int
+  duration         Int      @default(0)
+  attackerTownHall Int
+  defenderTownHall Int
+  createdAt        DateTime @default(now())
+
+  war RegularWar @relation(fields: [warTag], references: [warTag], onDelete: Cascade)
+
+  @@unique([warTag, playerTag, attackNumber])
+  @@index([playerTag])
+  @@index([warTag])
+}
+
+model RegularWarPlayer {
+  id              Int      @id @default(autoincrement())
+  warTag          String
+  playerTag       String
+  playerName      String
+  attacksExpected Int      @default(2)
+  attacksDone     Int      @default(0)
+  missedAttacks   Int      @default(0)
+  oneStars        Int      @default(0)
+  twoStars        Int      @default(0)
+  threeStars      Int      @default(0)
+  totalStars      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  war RegularWar @relation(fields: [warTag], references: [warTag], onDelete: Cascade)
+
+  @@unique([warTag, playerTag])
+  @@index([playerTag])
+  @@index([warTag])
+}
+
 model MissedAttack {
   id            Int      @id @default(autoincrement())
   clanTag       String
@@ -260,6 +327,13 @@ enum CwlAvailability {
   LIMITED
 }
 
+enum CwlApplicationStatus {
+  AUTO_APPROVED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum CwlPlanStatus {
   DRAFT
   FINAL
@@ -281,19 +355,21 @@ enum CwlClanFormat {
 }
 
 model CwlApplication {
-  id           Int             @id @default(autoincrement())
+  id           Int                  @id @default(autoincrement())
   season       String
   playerTag    String
   clashName    String
   availability CwlAvailability
-  submittedAt  DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  status       CwlApplicationStatus @default(PENDING)
+  submittedAt  DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
-  player Player @relation(fields: [playerTag], references: [playerTag], onDelete: Cascade)
+  player Player? @relation(fields: [playerTag], references: [playerTag], onDelete: Cascade)
 
   @@unique([season, playerTag])
   @@index([season])
   @@index([playerTag])
+  @@index([status])
 }
 
 model CwlPlan {
@@ -336,6 +412,7 @@ model CwlAssignment {
   id              Int                 @id @default(autoincrement())
   clanPlanId      Int
   playerTag       String
+  playerName      String?
   role            CwlAssignmentRole
   source          CwlAssignmentSource @default(ENGINE)
   position        Int
@@ -352,7 +429,7 @@ model CwlAssignment {
   updatedAt       DateTime            @updatedAt
 
   clanPlan CwlClanPlan @relation(fields: [clanPlanId], references: [id], onDelete: Cascade)
-  player   Player      @relation(fields: [playerTag], references: [playerTag], onDelete: Cascade)
+  player   Player?     @relation(fields: [playerTag], references: [playerTag])
 
   @@unique([clanPlanId, playerTag])
   @@unique([clanPlanId, position])

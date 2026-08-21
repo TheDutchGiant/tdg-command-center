@@ -385,7 +385,8 @@ export async function saveAttacks(
    * te importeren.
    */
   const importClanAttacks = async (
-    clan: any
+    clan: any,
+    isOwnAttack: boolean
   ) => {
     if (!clan) {
       return;
@@ -446,6 +447,8 @@ export async function saveAttacks(
             playerTag:
               member.tag,
 
+            isOwnAttack,
+
             warDay: 1,
 
             attackNumber:
@@ -499,14 +502,16 @@ export async function saveAttacks(
    * EIGEN AANVALLEN
    */
   await importClanAttacks(
-    ourClan
+    ourClan,
+    true
   );
 
   /*
    * TEGENSTANDER-AANVALLEN
    */
   await importClanAttacks(
-    enemyClan
+    enemyClan,
+    false
   );
 
   return imported;

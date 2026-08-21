@@ -1,262 +1,642 @@
 import { prisma } from "@/app/lib/prisma";
-import { fetchClash } from "@/app/lib/clash";
-import { PHOENIX } from "@/app/lib/config";
 
-export type CwlPlayerSnapshotType =
-  | "OWN_CLAN"
-  | "OPPONENT";
-
-export type CwlPlayerSnapshot = {
+export type CwlAttackScore = {
+  warTag: string;
+  round: number;
   playerTag: string;
-  name: string;
-  townHall: number;
-  experienceLevel: number;
-  attackWins: number;
-  defenseWins: number;
-  trophies: number;
-  warStars: number;
-  builderHall: number | null;
-  snapshotDate: Date;
+  playerName: string;
+  attackerTownHall: number;
+  defenderTag: string;
+  defenderName: string;
+  defenderTownHall: number;
+  stars: number;
+  destruction: number;
+  score: number;
 };
 
-/*
- * Haal actuele spelerinformatie op
- * via de Clash Player API.
- */
-export async function fetchCwlPlayerSnapshot(
-  playerTag: string
-): Promise<CwlPlayerSnapshot> {
-  const tag = playerTag.replace("#", "");
+export type RegularWarAttackScore = {
+  warTag: string;
+  playerTag: string;
+  playerName: string;
+  attackNumber: number;
+  attackerTownHall: number;
+  defenderName: string;
+  defenderTownHall: number;
+  stars: number;
+  destruction: number;
+  score: number;
+};
 
-  const data = await fetchClash(
-    `/players/%23${tag}`
-  );
+export type RegularWarHistory = {
+  wars: number;
+  attacks: number;
+  missedAttacks: number;
+  score: number;
+  attackScores: RegularWarAttackScore[];
+};
 
-  return {
-    playerTag: data.tag,
-    name: data.name,
-    townHall: data.townHallLevel,
-    experienceLevel: data.expLevel ?? 0,
-    attackWins: data.attackWins ?? 0,
-    defenseWins: data.defenseWins ?? 0,
-    trophies: data.trophies ?? 0,
-    warStars: data.warStars ?? 0,
-    builderHall:
-      data.builderHallLevel ?? null,
-    snapshotDate: new Date(),
-  };
+export type CwlHistory = {
+  wars: number;
+  attacks: number;
+  score: number;
+  attackScores: CwlAttackScore[];
+};
+
+export type CwlPlayerScore = {
+  playerTag: string;
+  playerName: string;
+
+  cwlScore: number;
+  regularWarScore: number;
+  defensiveWeight: number;
+
+  totalScore: number;
+
+  cwl: CwlHistory;
+  regularWar: RegularWarHistory;
+
+  regularWarDataConfidence:
+    | "NONE"
+    | "LIMITED"
+    | "GOOD";
+
+  manualReview: boolean;
+  manualReviewReasons: string[];
+};
+
+function normalizeTag(tag: string) {
+  return tag.replace(/^#/, "").toUpperCase();
 }
 
 /*
- * Sla één speler-snapshot op.
- */
-export async function saveCwlPlayerSnapshot(
-  playerTag: string,
-  snapshotType: CwlPlayerSnapshotType
-): Promise<CwlPlayerSnapshot> {
-  const snapshot =
-    await fetchCwlPlayerSnapshot(
-      playerTag
-    );
-
-  await prisma.cwlPlayerSnapshot.create({
-    data: {
-      ...snapshot,
-      snapshotType,
-    },
-  });
-
-  return snapshot;
-}
-
-/*
- * Haal alle unieke verdedigers uit
- * de meest recente CWL-season.
+ * ============================================================
+ * CWL SCORE
+ * ============================================================
  *
- * Dit gebruikt de reeds opgeslagen
- * defenderTag uit de CWL-aanvallen.
+ * CWL is de belangrijkste prestatiecomponent.
+ *
+ * Iedere aanval wordt beoordeeld op:
+ *
+ * - eigen TH
+ * - tegenstander TH
+ * - sterren
+ *
+ * Een lagere TH die tegen een veel hogere TH aanvalt
+ * wordt daardoor eerlijker beoordeeld.
  */
-export async function getLastCwlOpponentTags(): Promise<
-  string[]
-> {
-  const latestWar =
-    await prisma.war.findFirst({
+
+function getCwlAttackScore(
+  stars: number,
+  attackerTownHall: number,
+  defenderTownHall: number
+): number {
+  const difference =
+    defenderTownHall - attackerTownHall;
+
+  if (stars >= 3) {
+    if (difference >= 4) return 1200;
+    if (difference === 3) return 1150;
+    if (difference === 2) return 1100;
+    if (difference === 1) return 1050;
+    if (difference === 0) return 1000;
+    if (difference === -1) return 950;
+    return 900;
+  }
+
+  if (stars === 2) {
+    if (difference >= 4) return 1000;
+    if (difference === 3) return 975;
+    if (difference === 2) return 950;
+    if (difference === 1) return 925;
+    if (difference === 0) return 900;
+    if (difference === -1) return 800;
+    return 700;
+  }
+
+  if (stars === 1) {
+    if (difference >= 4) return 850;
+    if (difference === 3) return 825;
+    if (difference === 2) return 800;
+    if (difference === 1) return 775;
+    if (difference === 0) return 700;
+    if (difference === -1) return 600;
+    return 500;
+  }
+
+  if (difference >= 4) return 700;
+  if (difference === 3) return 675;
+  if (difference === 2) return 650;
+  if (difference === 1) return 625;
+  if (difference === 0) return 550;
+  if (difference === -1) return 400;
+  return 300;
+}
+
+/*
+ * ============================================================
+ * REGULAR CW SCORE
+ * ============================================================
+ */
+
+function getRegularAttackScore(
+  stars: number,
+  attackerTownHall: number,
+  defenderTownHall: number
+): number {
+  const difference =
+    defenderTownHall - attackerTownHall;
+
+  if (stars >= 3) {
+    if (difference >= 4) return 1200;
+    if (difference === 3) return 1150;
+    if (difference === 2) return 1100;
+    if (difference === 1) return 1050;
+    if (difference === 0) return 1000;
+    if (difference === -1) return 950;
+    return 900;
+  }
+
+  if (stars === 2) {
+    if (difference >= 4) return 1150;
+    if (difference === 3) return 1100;
+    if (difference === 2) return 1050;
+    if (difference === 1) return 1000;
+    if (difference === 0) return 950;
+    if (difference === -1) return 875;
+    return 800;
+  }
+
+  if (stars === 1) {
+    if (difference >= 4) return 1000;
+    if (difference === 3) return 1000;
+    if (difference === 2) return 950;
+    if (difference === 1) return 900;
+    if (difference === 0) return 850;
+    if (difference === -1) return 675;
+    return 500;
+  }
+
+  if (difference >= 4) return 900;
+  if (difference === 3) return 875;
+  if (difference === 2) return 800;
+  if (difference === 1) return 725;
+  if (difference === 0) return 650;
+  if (difference === -1) return 400;
+  return 250;
+}
+
+const MISSED_ATTACK_PENALTY = 1500;
+
+/*
+ * ============================================================
+ * CWL HISTORIE
+ * ============================================================
+ */
+
+export async function getCwlHistory(
+  playerTag: string
+): Promise<CwlHistory> {
+  const normalizedTag =
+    normalizeTag(playerTag);
+
+  const players =
+    await prisma.cwlHistoricalPlayer.findMany({
+      where: {
+        OR: [
+          {
+            playerTag: normalizedTag,
+          },
+          {
+            playerTag: `#${normalizedTag}`,
+          },
+        ],
+      },
+      include: {
+        war: true,
+      },
       orderBy: {
-        warEndTime: "desc",
-      },
-    });
-
-  if (!latestWar) {
-    return [];
-  }
-
-  const latestCwlSeason =
-    await prisma.season.findFirst({
-      where: {
-        id: latestWar.seasonId,
-      },
-    });
-
-  if (!latestCwlSeason) {
-    return [];
-  }
-
-  const wars =
-    await prisma.war.findMany({
-      where: {
-        seasonId:
-          latestCwlSeason.id,
-      },
-      select: {
-        warTag: true,
-      },
-    });
-
-  const warTags =
-    wars.map(
-      (war) => war.warTag
-    );
-
-  if (warTags.length === 0) {
-    return [];
-  }
-
-  const attacks =
-    await prisma.attack.findMany({
-      where: {
-        warTag: {
-          in: warTags,
+        war: {
+          round: "asc",
         },
       },
-      select: {
-        defenderTag: true,
-      },
     });
 
-  const opponentTags =
-    new Set<string>();
+  const attackScores: CwlAttackScore[] = [];
 
-  for (const attack of attacks) {
-    if (!attack.defenderTag) {
-      continue;
+  /*
+   * Historische spelers per war.
+   *
+   * De Clash API snapshot bevat niet altijd alle
+   * opponent.members. De CwlHistoricalPlayer-tabel
+   * bevat echter wel de historische spelers van die war.
+   *
+   * Daardoor kunnen we een defender alsnog reconstrueren
+   * wanneer deze niet meer in opponent.members staat.
+   */
+  const historicalPlayersByWar =
+    new Map<
+      string,
+      Map<string, (typeof players)[number]>
+    >();
+
+  for (const player of players) {
+    const warTag =
+      player.war.warTag;
+
+    if (
+      !historicalPlayersByWar.has(
+        warTag
+      )
+    ) {
+      historicalPlayersByWar.set(
+        warTag,
+        new Map()
+      );
     }
 
-    opponentTags.add(
-      attack.defenderTag
-    );
+    historicalPlayersByWar
+      .get(warTag)!
+      .set(
+        normalizeTag(player.playerTag),
+        player
+      );
   }
 
-  return Array.from(
-    opponentTags
-  );
-}
+  for (const player of players) {
+    const rawAttacks =
+      Array.isArray(player.attacks)
+        ? player.attacks
+        : [];
 
-/*
- * Haal de actuele spelers van alle
- * TDG-clans op.
- *
- * Eén speler die eventueel dubbel
- * voorkomt wordt maar één keer
- * verwerkt.
- */
-export async function getOwnClanPlayerTags(): Promise<
-  string[]
-> {
-  const playerTags =
-    new Set<string>();
+    const rawWarData =
+      player.war.rawData as any;
 
-  for (const clan of PHOENIX.clans) {
-    const data =
-      await fetchClash(
-        `/clans/%23${clan.tag.replace(
-          "#",
-          ""
-        )}`
-      );
+    const opponentMembers =
+      rawWarData?.opponent?.members ??
+      [];
 
-    for (const member of
-      data.memberList ?? []) {
-      if (member.tag) {
-        playerTags.add(
-          member.tag
+    const clanMembers =
+      rawWarData?.clan?.members ??
+      [];
+
+    const historicalPlayers =
+      historicalPlayersByWar.get(
+        player.war.warTag
+      ) ??
+      new Map();
+
+    for (const rawAttackValue of rawAttacks) {
+      if (!rawAttackValue || typeof rawAttackValue !== "object" || Array.isArray(rawAttackValue)) continue;
+      const rawAttack = rawAttackValue as Record<string, any>;
+      const defenderTag =
+        normalizeTag(
+          rawAttack.defenderTag ?? ""
         );
-      }
-    }
-  }
 
-  return Array.from(
-    playerTags
-  );
-}
+      const defenderFromSnapshot =
+        opponentMembers.find(
+          (member: any) =>
+            normalizeTag(
+              member.tag ?? ""
+            ) === defenderTag
+        );
 
-/*
- * Sla alle eigen TDG-spelers op
- * als OWN_CLAN snapshot.
- */
-export async function saveOwnClanPlayerSnapshots() {
-  const playerTags =
-    await getOwnClanPlayerTags();
+      const defenderFromClanSnapshot =
+        clanMembers.find(
+          (member: any) =>
+            normalizeTag(
+              member.tag ?? ""
+            ) === defenderTag
+        );
 
-  let saved = 0;
-  let failed = 0;
+      const defenderFromHistory =
+        historicalPlayers.get(
+          defenderTag
+        );
 
-  for (const playerTag of playerTags) {
-    try {
-      await saveCwlPlayerSnapshot(
-        playerTag,
-        "OWN_CLAN"
-      );
+      const defender =
+        defenderFromSnapshot ??
+        defenderFromClanSnapshot ??
+        defenderFromHistory;
 
-      saved++;
-    } catch (error) {
-      failed++;
+      const attackerTownHall =
+        Number(
+          player.townHall ?? 0
+        );
 
-      console.error(
-        `TDG player snapshot failed for ${playerTag}:`,
-        error
-      );
+      const defenderTownHall =
+        Number(
+          defender?.townhallLevel ?? 0
+        );
+
+      const stars =
+        Number(
+          rawAttack.stars ?? 0
+        );
+
+      attackScores.push({
+        warTag:
+          player.war.warTag,
+
+        round:
+          player.war.round,
+
+        playerTag:
+          normalizedTag,
+
+        playerName:
+          player.name,
+
+        attackerTownHall,
+
+        defenderTag,
+
+        defenderName:
+          defender?.name ?? "",
+
+        defenderTownHall,
+
+        stars,
+
+        destruction:
+          Number(
+            rawAttack.destructionPercentage ??
+            0
+          ),
+
+        score:
+          getCwlAttackScore(
+            stars,
+            attackerTownHall,
+            defenderTownHall
+          ),
+      });
     }
   }
 
   return {
-    total: playerTags.length,
-    saved,
-    failed,
+    wars: new Set(
+      players.map(
+        (player) =>
+          player.war.warTag
+      )
+    ).size,
+
+    attacks:
+      attackScores.length,
+
+    score:
+      attackScores.reduce(
+        (total, attack) =>
+          total + attack.score,
+        0
+      ),
+
+    attackScores,
   };
 }
 
 /*
- * Sla alle bekende tegenstanders van
- * de laatste CWL op.
+ * ============================================================
+ * GEWONE CW HISTORIE
+ * ============================================================
  */
-export async function saveLastCwlOpponentSnapshots() {
-  const opponentTags =
-    await getLastCwlOpponentTags();
 
-  let saved = 0;
-  let failed = 0;
+export async function getRegularWarHistory(
+  playerTag: string
+): Promise<RegularWarHistory> {
+  const normalizedTag =
+    normalizeTag(playerTag);
 
-  for (const playerTag of opponentTags) {
-    try {
-      await saveCwlPlayerSnapshot(
-        playerTag,
-        "OPPONENT"
-      );
+  const attacks =
+    await prisma.regularWarAttack.findMany({
+      where: {
+        playerTag: normalizedTag,
+      },
+      orderBy: [
+        {
+          createdAt: "desc",
+        },
+        {
+          attackNumber: "asc",
+        },
+      ],
+    });
 
-      saved++;
-    } catch (error) {
-      failed++;
+  const players =
+    await prisma.regularWarPlayer.findMany({
+      where: {
+        playerTag: normalizedTag,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
-      console.error(
-        `CWL opponent snapshot failed for ${playerTag}:`,
-        error
-      );
-    }
-  }
+  const missedAttacks =
+    players.reduce(
+      (total, player) =>
+        total +
+        Math.max(
+          player.missedAttacks ?? 0,
+          0
+        ),
+      0
+    );
+
+  const attackScores =
+    attacks.map((attack) => ({
+      warTag:
+        attack.warTag,
+
+      playerTag:
+        attack.playerTag,
+
+      playerName:
+        attack.playerName,
+
+      attackNumber:
+        attack.attackNumber,
+
+      attackerTownHall:
+        attack.attackerTownHall,
+
+      defenderName:
+        attack.defenderName,
+
+      defenderTownHall:
+        attack.defenderTownHall,
+
+      stars:
+        attack.stars,
+
+      destruction:
+        attack.destruction,
+
+      score:
+        getRegularAttackScore(
+          attack.stars,
+          attack.attackerTownHall,
+          attack.defenderTownHall
+        ),
+    }));
+
+  const attackScore =
+    attackScores.reduce(
+      (total, attack) =>
+        total + attack.score,
+      0
+    );
 
   return {
-    total: opponentTags.length,
-    saved,
-    failed,
+    wars: new Set(
+      attacks.map(
+        (attack) =>
+          attack.warTag
+      )
+    ).size,
+
+    attacks:
+      attackScores.length,
+
+    missedAttacks,
+
+    score:
+      attackScore -
+      missedAttacks *
+        MISSED_ATTACK_PENALTY,
+
+    attackScores,
+  };
+}
+
+/*
+ * ============================================================
+ * TOTAALSCORE
+ * ============================================================
+ *
+ * CWL is bewust zwaarder dan gewone CW.
+ *
+ * De CWL-score krijgt 75%.
+ * Gewone CW krijgt 25%.
+ *
+ * Defensive Strength staat daar los van.
+ */
+
+export function calculateTotalCwlScore(
+  cwlScore: number,
+  regularWarScore: number,
+  defensiveWeight: number
+): number {
+  const weightedCwl =
+    cwlScore * 0.75;
+
+  const weightedRegular =
+    regularWarScore * 0.25;
+
+  return Number(
+    (
+      weightedCwl +
+      weightedRegular +
+      defensiveWeight
+    ).toFixed(2)
+  );
+}
+
+/*
+ * ============================================================
+ * VOLLEDIGE SPELERBEOORDELING
+ * ============================================================
+ */
+
+export async function getCwlPlayerScore(
+  playerTag: string,
+  defensiveWeight = 0
+): Promise<CwlPlayerScore> {
+  const normalizedTag =
+    normalizeTag(playerTag);
+
+  const [
+    cwl,
+    regularWar,
+    player,
+  ] = await Promise.all([
+    getCwlHistory(normalizedTag),
+
+    getRegularWarHistory(
+      normalizedTag
+    ),
+
+    prisma.player.findUnique({
+      where: {
+        playerTag:
+          normalizedTag,
+      },
+    }),
+  ]);
+
+  const regularWarDataConfidence =
+    regularWar.wars === 0
+      ? "NONE"
+      : regularWar.wars < 3
+        ? "LIMITED"
+        : "GOOD";
+
+  const manualReviewReasons: string[] =
+    [];
+
+  if (
+    regularWarDataConfidence !==
+    "GOOD"
+  ) {
+    manualReviewReasons.push(
+      "Beperkte gewone-CW-data"
+    );
+  }
+
+  if (
+    cwl.attacks === 0
+  ) {
+    manualReviewReasons.push(
+      "Geen CWL-aanvallen beschikbaar"
+    );
+  }
+
+  const totalScore =
+    calculateTotalCwlScore(
+      cwl.score,
+      regularWar.score,
+      defensiveWeight
+    );
+
+  return {
+    playerTag:
+      normalizedTag,
+
+    playerName:
+      player?.currentName ??
+      normalizedTag,
+
+    cwlScore:
+      cwl.score,
+
+    regularWarScore:
+      regularWar.score,
+
+    defensiveWeight,
+
+    totalScore,
+
+    cwl,
+
+    regularWar,
+
+    regularWarDataConfidence,
+
+    manualReview:
+      manualReviewReasons.length >
+      0,
+
+    manualReviewReasons,
   };
 }

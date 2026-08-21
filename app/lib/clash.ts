@@ -110,3 +110,19 @@ export function parseClashDate(value: string): Date {
 
   return new Date(iso);
 }
+
+export async function fetchClashPlayer(
+  playerTag: string
+) {
+  const normalizedTag =
+    playerTag.replace(/^#/, "").toUpperCase();
+
+  if (!normalizedTag) {
+    throw new Error("Lege player tag ontvangen.");
+  }
+
+  return fetchClash(
+    `/players/%23${encodeURIComponent(normalizedTag)}`
+  );
+}
+

@@ -58,16 +58,25 @@ export default async function AdminPage() {
               </p>
             </div>
 
-            <div className="w-fit rounded-xl border border-orange-400/25 bg-orange-500/10 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wider text-orange-300">
-                Rol
-              </p>
+            <div className="flex items-center gap-2">
+              <a
+                href="/"
+                className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/70 transition hover:border-orange-400/30 hover:bg-orange-500/10 hover:text-orange-300"
+              >
+                ⬅️ Legacy Hall
+              </a>
 
-              <p className="text-sm font-bold text-white">
-                {isSuperadmin
-                  ? "👑 SUPERADMIN"
-                  : "🛡️ ADMIN"}
-              </p>
+              <div className="w-fit rounded-xl border border-orange-400/25 bg-orange-500/10 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wider text-orange-300">
+                  Rol
+                </p>
+
+                <p className="text-sm font-bold text-white">
+                  {isSuperadmin
+                    ? "👑 SUPERADMIN"
+                    : "🛡️ ADMIN"}
+                </p>
+              </div>
             </div>
           </div>
         </header>

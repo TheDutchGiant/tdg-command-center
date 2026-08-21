@@ -3,6 +3,7 @@ import { prisma } from "@/app/lib/prisma";
 import { requireAdmin } from "@/app/lib/auth/session";
 import { PHOENIX } from "@/app/lib/config";
 import { fetchClash } from "@/app/lib/clash";
+import { getCwlPlayerScore } from "@/app/lib/cwlPlayerData";
 
 type Mode = "ALL" | "APPLIED";
 
@@ -35,6 +36,12 @@ type Candidate = {
   difficultyBonus: number;
 
   lastCwlClan: string | null;
+
+  cwlScore: number;
+  regularWarScore: number;
+  manualReview: boolean;
+  manualReviewReasons: string[];
+  cwlClanModifier: number;
 
   score: number;
   warning: string | null;
@@ -296,57 +303,32 @@ function calculateScore(
     "score" | "warning"
   >
 ) {
-  let score = 0;
-
   /*
-   * TH blijft de belangrijkste basis.
-   */
-  score +=
-    candidate.townHall * 20;
-
-  /*
-   * Offensieve prestaties.
-   */
-  score +=
-    candidate.stars * 4;
-
-  score +=
-    candidate.starsPerAttack * 12;
-
-  /*
-   * Ervaring op hoger niveau.
-   */
-  score +=
-    candidate.difficultyBonus * 5;
-
-  /*
-   * Historische Defensive Strength.
+   * ---------------------------------------------------------
+   * NIEUWE PRESTATIESCORE
+   * ---------------------------------------------------------
    *
-   * Dit vervangt de oude losse
-   * defenceStars-bijdrage.
+   * CWL = 75%
+   * Gewone CW = 25%
+   * Defensive Strength staat los.
+   *
+   * De clanmodifier wordt uitsluitend toegepast
+   * op de CWL-prestatie.
    */
-  score +=
-    candidate.defensiveStrength * 2;
 
-  /*
-   * Gemiste aanvallen zijn een duidelijke min.
-   */
-  score -=
-    candidate.missedAttacks * 15;
+  const weightedCwl =
+    candidate.cwlScore *
+    0.75 *
+    (1 + candidate.cwlClanModifier);
 
-  if (
-    candidate.availability ===
-    "FULL"
-  ) {
-    score += 5;
-  }
+  const weightedRegular =
+    candidate.regularWarScore *
+    0.25;
 
-  if (
-    candidate.availability ===
-    "LIMITED"
-  ) {
-    score += 1;
-  }
+  const score =
+    weightedCwl +
+    weightedRegular +
+    candidate.defensiveStrength;
 
   return Number(
     score.toFixed(2)
@@ -832,8 +814,9 @@ export async function POST(
      */
 
     const candidates: Candidate[] =
-      selectedMembers.map(
-        (member) => {
+      await Promise.all(
+        selectedMembers.map(
+          async (member) => {
           const playerTag =
             normalizeTag(
               member.tag
@@ -968,6 +951,43 @@ export async function POST(
             defensiveStrength = 100;
           }
 
+          const cwlData =
+            await getCwlPlayerScore(
+              playerTag
+            );
+
+          const cwlClanName =
+            previous?.lastCwlClan ||
+            null;
+
+          let cwlClanModifier = 0;
+
+          if (
+            cwlClanName
+              ?.toLowerCase() ===
+            "the dutch giant"
+          ) {
+            cwlClanModifier = 0.10;
+          } else if (
+            cwlClanName
+              ?.toLowerCase() ===
+            "tdg ii"
+          ) {
+            cwlClanModifier = 0.05;
+          } else if (
+            cwlClanName
+              ?.toLowerCase() ===
+            "tdg mini"
+          ) {
+            cwlClanModifier = 0.03;
+          } else if (
+            cwlClanName
+              ?.toLowerCase() ===
+            "tdg micro"
+          ) {
+            cwlClanModifier = 0.01;
+          }
+
           const base = {
             playerTag,
             name:
@@ -994,6 +1014,20 @@ export async function POST(
             lastCwlClan:
               previous?.lastCwlClan ||
               null,
+
+            cwlScore:
+              cwlData.cwlScore,
+
+            regularWarScore:
+              cwlData.regularWarScore,
+
+            manualReview:
+              cwlData.manualReview,
+
+            manualReviewReasons:
+              cwlData.manualReviewReasons,
+
+            cwlClanModifier,
           };
 
           const score =
@@ -1008,7 +1042,8 @@ export async function POST(
             warning,
           };
         }
-      );
+      )
+    );
 
     /*
      * -----------------------------------------------------

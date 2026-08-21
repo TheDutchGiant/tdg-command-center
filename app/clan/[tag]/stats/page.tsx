@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
+import { getCwlStatsAttacks } from "@/app/lib/cwlStats";
 
 type StatsPageProps = {
   params: Promise<{
@@ -101,17 +102,7 @@ export default async function StatsPage({
     );
   }
 
-  const attacks = await prisma.attack.findMany({
-    where: {
-      war: {
-        clanId: clan.id,
-        isFinalized: true,
-      },
-    },
-    include: {
-      player: true,
-    },
-  });
+  const attacks = await getCwlStatsAttacks(clan.id);
 
   const playerStats = new Map<
     string,

@@ -26,6 +26,20 @@ type Player = {
   lastCwlClan: string | null;
   score: number;
   warning: string | null;
+
+  regularWarScore: number;
+  regularWarCount: number;
+  regularWarAttacks: Array<{
+    warTag: string;
+    attackNumber: number;
+    attackerTownHall: number;
+    defenderName: string;
+    defenderTownHall: number;
+    stars: number;
+    destruction: number;
+    score: number;
+  }>;
+
   position: number;
   role:
     | "STARTER"
@@ -101,6 +115,31 @@ export default function CwlProposalGenerator() {
         setError(
           data.error ||
             "Voorstel genereren is mislukt."
+        );
+        return;
+      }
+
+      const draftResponse = await fetch(
+        "/api/admin/cwl/draft",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        }
+      );
+
+      const draftData =
+        await draftResponse.json();
+
+      if (
+        !draftResponse.ok ||
+        !draftData.success
+      ) {
+        setError(
+          draftData.error ||
+            "Voorstel kon niet als concept worden opgeslagen."
         );
         return;
       }
@@ -418,6 +457,9 @@ function PlayerGroup({
     enabled: boolean
   ) => void;
 }) {
+  const [expandedPlayer, setExpandedPlayer] =
+    useState<string | null>(null);
+
   return (
     <div className="mt-3">
       <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30">
@@ -426,134 +468,317 @@ function PlayerGroup({
 
       <div className="space-y-1">
         {players.map(
-          (player) => (
-            <div
-              key={
-                player.playerTag
-              }
-              className="rounded-md border border-white/10 bg-white/[0.02] px-2.5 py-2"
-            >
-              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          (player) => {
+            const expanded =
+              expandedPlayer ===
+              player.playerTag;
 
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-white/40">
-                    #{player.position}
-                  </span>
+            return (
+              <div
+                key={
+                  player.playerTag
+                }
+                className="overflow-hidden rounded-md border border-white/10 bg-white/[0.02]"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedPlayer(
+                      expanded
+                        ? null
+                        : player.playerTag
+                    )
+                  }
+                  className="w-full px-2.5 py-2 text-left transition hover:bg-white/[0.04]"
+                >
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
 
-                  <span className="text-xs font-semibold">
-                    {player.name}
-                  </span>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-white/40">
+                        #{player.position}
+                      </span>
 
-                  <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[8px] font-bold text-purple-300">
-                    TH{player.townHall}
-                  </span>
+                      <span className="text-xs font-semibold">
+                        {player.name}
+                      </span>
 
-                  {player.availability ===
-                    "FULL" && (
-                    <span className="text-[9px] text-green-300">
-                      🟢
-                    </span>
-                  )}
+                      <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[8px] font-bold text-purple-300">
+                        TH{player.townHall}
+                      </span>
 
-                  {player.availability ===
-                    "LIMITED" && (
-                    <span className="text-[9px] text-yellow-300">
-                      🟡
-                    </span>
-                  )}
-                </div>
+                      {player.availability ===
+                        "FULL" && (
+                        <span className="text-[9px] text-green-300">
+                          🟢
+                        </span>
+                      )}
 
-                <div className="flex flex-wrap items-center gap-1 text-[9px] text-white/40">
-                  <span>
-                    ⭐ {player.stars}
-                  </span>
+                      {player.availability ===
+                        "LIMITED" && (
+                        <span className="text-[9px] text-yellow-300">
+                          🟡
+                        </span>
+                      )}
 
-                  <span>
-                    ⚔️ {player.attacks}
-                  </span>
+                      <span className="text-[10px] text-white/25">
+                        {expanded
+                          ? "▲"
+                          : "▼"}
+                      </span>
+                    </div>
 
-                  <span>
-                    ⭐/⚔️{" "}
-                    {player.starsPerAttack}
-                  </span>
+                    <div className="flex flex-wrap items-center gap-2 text-[9px] text-white/40">
+                      <span>
+                        ⚔️ {player.attacks}
+                      </span>
 
-                  <span>
-                    ❌{" "}
-                    {player.missedAttacks}
-                  </span>
+                      <span>
+                        ❌{" "}
+                        {player.missedAttacks}
+                      </span>
 
-                  <span>
-                    🛡️{" "}
-                    {player.defenceStars}
-                  </span>
+                      <span className="font-semibold text-cyan-300/80">
+                        🛡️ DS{" "}
+                        {player.defensiveStrength}
+                      </span>
 
-                  <span>
-                    ➕
-                    {player.difficultyBonus}
-                  </span>
+                      <span className="font-bold text-white">
+                        {player.score}
+                      </span>
+                    </div>
 
-                  <span className="font-semibold text-cyan-300/80">
-                    🛡️ DS{" "}
-                    {player.defensiveStrength}
-                  </span>
+                  </div>
+                </button>
 
-                  <span className="font-semibold text-white/60">
-                    Score{" "}
-                    {player.score}
-                  </span>
-                </div>
+                {expanded && (
+                  <div className="border-t border-white/10 bg-black/20 p-3">
 
-              </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
 
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="text-[9px] text-white/25">
-                  {player.defensiveStrengthOverride
-                    ? "Handmatige DS override actief"
-                    : player.townHall >=
-                        19
-                      ? "Automatische DS — TH19+"
-                      : "Automatische DS"}
-                </span>
+                      <div className="rounded-md border border-white/10 bg-white/[0.02] p-2">
+                        <span className="block text-[8px] uppercase tracking-wider text-white/30">
+                          Regular CW
+                        </span>
+                        <span className="mt-1 block text-sm font-bold text-orange-200">
+                          {player.regularWarScore}
+                        </span>
+                      </div>
 
-                {player.townHall <
-                  19 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onToggleOverride(
-                        clanTag,
-                        player.playerTag,
-                        !player.defensiveStrengthOverride
-                      )
-                    }
-                    disabled={
-                      overrideLoading ===
-                      `${clanTag}:${player.playerTag}`
-                    }
-                    className={
-                      player.defensiveStrengthOverride
-                        ? "rounded-md border border-red-400/20 bg-red-500/10 px-2 py-1 text-[9px] font-bold text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
-                        : "rounded-md border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[9px] font-bold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-50"
-                    }
-                  >
-                    {overrideLoading ===
-                    `${clanTag}:${player.playerTag}`
-                      ? "Bezig..."
-                      : player.defensiveStrengthOverride
-                        ? "↩ Automatische DS"
-                        : "🛡️ DS MAX"}
-                  </button>
+                      <div className="rounded-md border border-white/10 bg-white/[0.02] p-2">
+                        <span className="block text-[8px] uppercase tracking-wider text-white/30">
+                          CW's
+                        </span>
+                        <span className="mt-1 block text-sm font-bold">
+                          {player.regularWarCount}
+                        </span>
+                      </div>
+
+                      <div className="rounded-md border border-white/10 bg-white/[0.02] p-2">
+                        <span className="block text-[8px] uppercase tracking-wider text-white/30">
+                          Gemist
+                        </span>
+                        <span className="mt-1 block text-sm font-bold text-red-300">
+                          {player.missedAttacks}
+                        </span>
+                      </div>
+
+                      <div className="rounded-md border border-white/10 bg-white/[0.02] p-2">
+                        <span className="block text-[8px] uppercase tracking-wider text-white/30">
+                          Totaal
+                        </span>
+                        <span className="mt-1 block text-sm font-bold text-cyan-200">
+                          {player.score}
+                        </span>
+                      </div>
+
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white/30">
+                          ⚔️ Gewone CW aanvallen
+                        </span>
+
+                        <span className="text-[9px] text-white/25">
+                          {player.regularWarAttacks.length}
+                          {" aanvallen"}
+                        </span>
+                      </div>
+
+                      {player.regularWarAttacks.length ===
+                      0 ? (
+                        <div className="rounded-md border border-white/10 bg-white/[0.02] p-3 text-[10px] text-white/30">
+                          Geen individuele gewone-CW aanvallen beschikbaar.
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {player.regularWarAttacks.map(
+                            (attack) => (
+                              <div
+                                key={`${attack.warTag}-${attack.attackNumber}`}
+                                className="rounded-md border border-white/10 bg-white/[0.02] px-2.5 py-2"
+                              >
+                                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+
+                                  <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                    <span className="text-white/30">
+                                      #{attack.attackNumber}
+                                    </span>
+
+                                    <span>
+                                      TH{attack.attackerTownHall}
+                                    </span>
+
+                                    <span className="text-white/25">
+                                      →
+                                    </span>
+
+                                    <span>
+                                      TH{attack.defenderTownHall}
+                                    </span>
+
+                                    <span className="text-white/50">
+                                      {attack.defenderName ||
+                                        "Onbekende verdediger"}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 text-[9px]">
+                                    <span>
+                                      {"⭐".repeat(
+                                        Math.max(
+                                          0,
+                                          Math.min(
+                                            3,
+                                            attack.stars
+                                          )
+                                        )
+                                      )}
+                                    </span>
+
+                                    <span className="text-white/30">
+                                      {attack.destruction}%
+                                    </span>
+
+                                    <span className="font-bold text-orange-200">
+                                      +{attack.score}
+                                    </span>
+                                  </div>
+
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                    </div>
+
+                    {player.missedAttacks > 0 && (
+                      <div className="mt-3 rounded-md border border-red-400/15 bg-red-500/[0.04] p-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-bold text-red-200">
+                            ❌ Gemiste gewone-CW aanvallen
+                          </span>
+
+                          <span className="text-[10px] font-bold text-red-300">
+                            {player.missedAttacks}
+                            {" × -1500"}
+                          </span>
+                        </div>
+
+                        <p className="mt-1 text-[9px] text-white/30">
+                          Gemiste aanvallen worden rechtstreeks
+                          in de Regular CW-score verwerkt.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="mt-4 border-t border-white/10 pt-3">
+
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-white/35">
+                          Regular CW performance
+                        </span>
+
+                        <span className="font-semibold text-orange-200">
+                          {player.regularWarScore}
+                        </span>
+                      </div>
+
+                      <div className="mt-1 flex items-center justify-between text-[10px]">
+                        <span className="text-white/35">
+                          Defensive Strength
+                        </span>
+
+                        <span className="font-semibold text-cyan-300">
+                          +{player.defensiveStrength}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between rounded-md border border-orange-400/15 bg-orange-500/[0.04] px-2.5 py-2">
+                        <span className="text-[10px] font-bold text-white/60">
+                          TOTAAL
+                        </span>
+
+                        <span className="text-sm font-black text-orange-200">
+                          {player.score}
+                        </span>
+                      </div>
+
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className="text-[9px] text-white/25">
+                        {player.defensiveStrengthOverride
+                          ? "Handmatige DS override actief"
+                          : player.townHall >= 19
+                            ? "Automatische DS — TH19+"
+                            : "Automatische DS"}
+                      </span>
+
+                      {player.townHall <
+                        19 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onToggleOverride(
+                              clanTag,
+                              player.playerTag,
+                              !player.defensiveStrengthOverride
+                            )
+                          }
+                          disabled={
+                            overrideLoading ===
+                            `${clanTag}:${player.playerTag}`
+                          }
+                          className={
+                            player.defensiveStrengthOverride
+                              ? "rounded-md border border-red-400/20 bg-red-500/10 px-2 py-1 text-[9px] font-bold text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                              : "rounded-md border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[9px] font-bold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-50"
+                          }
+                        >
+                          {overrideLoading ===
+                          `${clanTag}:${player.playerTag}`
+                            ? "Bezig..."
+                            : player.defensiveStrengthOverride
+                              ? "↩ Automatische DS"
+                              : "🛡️ DS MAX"}
+                        </button>
+                      )}
+                    </div>
+
+                    {player.warning && (
+                      <p className="mt-2 text-[9px] text-yellow-300/80">
+                        {player.warning}
+                      </p>
+                    )}
+
+                  </div>
                 )}
               </div>
-
-              {player.warning && (
-                <p className="mt-1.5 text-[9px] text-yellow-300/80">
-                  ⚠️ {player.warning}
-                </p>
-              )}
-
-            </div>
-          )
+            );
+          }
         )}
       </div>
     </div>
