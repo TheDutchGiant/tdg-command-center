@@ -7,16 +7,6 @@ import { getCwlPlayerScore } from "@/app/lib/cwlPlayerData";
 
 type Mode = "ALL" | "APPLIED";
 
-type PlayerDay = {
-  round: number;
-  mapPosition: number;
-};
-
-type DefensivePlayer = {
-  tag: string;
-  days: PlayerDay[];
-};
-
 type Candidate = {
   playerTag: string;
   name: string;
@@ -32,13 +22,40 @@ type Candidate = {
   defensiveStrength: number;
   defensiveStrengthOverride: boolean;
 
+  defencePerformance: number;
+  defenceAttackCount: number;
+  defenceStarsConceded: number;
+  goodDefences: number;
+
   starsPerAttack: number;
   difficultyBonus: number;
 
   lastCwlClan: string | null;
 
+  currentClanName: string;
+  currentClanTag: string;
+
   cwlScore: number;
+
+  promotionEligible: boolean;
+  promotionTargetClan: string | null;
+
+  degradationEligible: boolean;
+  degradationTargetClan: string | null;
+
+  cwlStars: number;
+  cwlAttacks: number;
+  cwlEquivalentStars: number;
   regularWarScore: number;
+
+  regularWarAttacks: {
+    oneStar: number;
+    twoStar: number;
+    threeStar: number;
+    zeroStar: number;
+    total: number;
+  };
+
   manualReview: boolean;
   manualReviewReasons: string[];
   cwlClanModifier: number;
@@ -98,198 +115,123 @@ function difficultyBonus(
 
 /*
 |--------------------------------------------------------------------------
-| HISTORISCHE DEFENSIVE STRENGTH
+| NIEUWE CWL DEFENCE PERFORMANCE
 |--------------------------------------------------------------------------
 |
-| Basis:
-| - mappositie bepaalt de rangorde
-| - stabiele posities geven meer onderscheid
-| - positiewisselingen drukken scores naar elkaar toe
+| Defence wordt rechtstreeks berekend uit opponentAttacks.
 |
-| Dit is een relatieve sterktescore binnen de
-| historische CWL van de betreffende clan.
+| 0 sterren = 100 punten
+| 1 ster    = 75 punten
+| 2 sterren = 40 punten
+| 3 sterren = 0 punten
+|
+| De score is het gemiddelde van alle daadwerkelijk
+| uitgevoerde aanvallen op de speler.
 |--------------------------------------------------------------------------
 */
 
-function calculateDefensiveStrength(
-  players: DefensivePlayer[]
-): Map<string, number> {
-  const result =
-    new Map<string, number>();
-
-  if (
-    players.length === 0
-  ) {
-    return result;
+function calculateDefencePerformance(
+  opponentAttacks: unknown
+): number {
+  if (!Array.isArray(opponentAttacks)) {
+    return 0;
   }
 
-  const data =
-    players
-      .map((player) => {
-        const positions =
-          player.days
-            .map(
-              (day) =>
-                day.mapPosition
-            )
-            .filter(
-              (position) =>
-                position > 0
-            );
-
-        if (
-          positions.length === 0
-        ) {
-          return null;
-        }
-
-        const averagePosition =
-          positions.reduce(
-            (
-              sum,
-              position
-            ) =>
-              sum + position,
-            0
-          ) /
-          positions.length;
-
-        let changes = 0;
-
-        for (
-          let i = 1;
-          i < positions.length;
-          i++
-        ) {
-          if (
-            positions[i] !==
-            positions[i - 1]
-          ) {
-            changes++;
-          }
-        }
-
-        const stability =
-          positions.length > 1
-            ? 1 -
-              changes /
-                (positions.length - 1)
-            : 1;
-
-        return {
-          player,
-          averagePosition,
-          stability,
-        };
-      })
-      .filter(
-        (
-          value
-        ): value is {
-          player: DefensivePlayer;
-          averagePosition: number;
-          stability: number;
-        } =>
-          value !== null
-      );
-
-  data.sort((a, b) => {
-    if (
-      a.averagePosition !==
-      b.averagePosition
-    ) {
-      return (
-        a.averagePosition -
-        b.averagePosition
-      );
-    }
-
-    return (
-      b.stability -
-      a.stability
-    );
-  });
-
-  if (
-    data.length === 0
-  ) {
-    return result;
-  }
-
-  let previousScore = 100;
-
-  let previousAverage =
-    data[0].averagePosition;
-
-  let previousStability =
-    data[0].stability;
-
-  result.set(
-    data[0].player.tag,
-    100
+  const attacks = opponentAttacks.filter(
+    (attack): attack is Record<string, unknown> =>
+      Boolean(
+        attack &&
+        typeof attack === "object" &&
+        !Array.isArray(attack)
+      )
   );
 
-  for (
-    let i = 1;
-    i < data.length;
-    i++
-  ) {
-    const current =
-      data[i];
+  if (attacks.length === 0) {
+    return 0;
+  }
 
-    const positionGap =
-      Math.max(
-        0,
-        current.averagePosition -
-          previousAverage
-      );
-
-    const averageStability =
-      (current.stability +
-        previousStability) /
-      2;
-
-    const baseGap =
-      Math.max(
-        1,
-        positionGap * 4
-      );
-
-    const stabilityFactor =
-      0.45 +
-      averageStability * 0.55;
-
-    const scoreGap =
-      baseGap *
-      stabilityFactor;
-
-    const score =
-      Math.max(
+  const total = attacks.reduce(
+    (sum, attack) => {
+      const stars = Math.max(
         0,
         Math.min(
-          100,
-          previousScore -
-            scoreGap
+          3,
+          Number(attack.stars ?? 0)
         )
       );
 
-    result.set(
-      current.player.tag,
-      Math.round(score)
-    );
+      if (stars === 0) {
+        return sum + 100;
+      }
 
-    previousScore =
-      score;
+      if (stars === 1) {
+        return sum + 75;
+      }
 
-    previousAverage =
-      current.averagePosition;
+      if (stars === 2) {
+        return sum + 40;
+      }
 
-    previousStability =
-      current.stability;
+      return sum;
+    },
+    0
+  );
+
+  return Number(
+    (total / attacks.length).toFixed(2)
+  );
+}
+
+function getDefenceAttackCount(
+  opponentAttacks: unknown
+): number {
+  if (!Array.isArray(opponentAttacks)) {
+    return 0;
   }
 
-  return result;
+  return opponentAttacks.filter(
+    (attack) =>
+      attack &&
+      typeof attack === "object" &&
+      !Array.isArray(attack)
+  ).length;
 }
+
+function getDefenceStarsConceded(
+  opponentAttacks: unknown
+): number {
+  if (!Array.isArray(opponentAttacks)) {
+    return 0;
+  }
+
+  return opponentAttacks.reduce(
+    (total, attack) => {
+      if (
+        !attack ||
+        typeof attack !== "object" ||
+        Array.isArray(attack)
+      ) {
+        return total;
+      }
+
+      return (
+        total +
+        Math.max(
+          0,
+          Math.min(
+            3,
+            Number(
+              (attack as Record<string, unknown>).stars ??
+                0
+            )
+          )
+        )
+      );
+    },
+    0
+  );
+}
+
 
 /*
 |--------------------------------------------------------------------------
@@ -305,30 +247,29 @@ function calculateScore(
 ) {
   /*
    * ---------------------------------------------------------
-   * NIEUWE PRESTATIESCORE
+   * CWL PRESTATIESCORE
    * ---------------------------------------------------------
    *
-   * CWL = 75%
-   * Gewone CW = 25%
-   * Defensive Strength staat los.
+   * CWL offence = 70%
+   * CWL defence = 30%
    *
-   * De clanmodifier wordt uitsluitend toegepast
-   * op de CWL-prestatie.
+   * Defence telt alleen mee wanneer er daadwerkelijk
+   * historische verdedigingen beschikbaar zijn.
+   *
+   * Zonder defence-data blijft de score volledig gebaseerd
+   * op CWL offence.
    */
 
-  const weightedCwl =
-    candidate.cwlScore *
-    0.75 *
-    (1 + candidate.cwlClanModifier);
+  const offenceScore =
+    candidate.cwlScore;
 
-  const weightedRegular =
-    candidate.regularWarScore *
-    0.25;
+  const hasDefenceData =
+    candidate.defenceAttackCount > 0;
 
-  const score =
-    weightedCwl +
-    weightedRegular +
-    candidate.defensiveStrength;
+  const score = hasDefenceData
+    ? offenceScore * 0.70 +
+      candidate.defencePerformance * 3
+    : offenceScore;
 
   return Number(
     score.toFixed(2)
@@ -341,24 +282,49 @@ function getWarning(
     "score" | "warning"
   >
 ) {
+  /*
+   * ---------------------------------------------------------
+   * REGULAR CW = WAARSCHUWINGSFACTOR
+   * ---------------------------------------------------------
+   *
+   * Regular CW bepaalt niet langer rechtstreeks de
+   * plaatsingsscore.
+   *
+   * De historische aanvallen worden later in het
+   * spelersdetail volledig zichtbaar gemaakt.
+   */
+
   if (
-    candidate.attacks >= 3 &&
-    candidate.starsPerAttack < 2
+    candidate.missedAttacks >= 5
   ) {
-    return "Let op: mindere aanvaller — zie CWL-geschiedenis.";
+    return "ZWARE CONTROLE: meerdere gemiste gewone-CW aanvallen.";
   }
 
   if (
-    candidate.missedAttacks >= 2
+    candidate.missedAttacks >= 3
   ) {
-    return "Let op: meerdere gemiste aanvallen — zie CWL-geschiedenis.";
+    return "ZWARE CONTROLE: meerdere gemiste gewone-CW aanvallen.";
+  }
+
+  if (
+    candidate.attacks >= 10 &&
+    candidate.starsPerAttack < 1.75
+  ) {
+    return "ZWARE CONTROLE: zwakke gewone-CW aanvalsprestaties.";
+  }
+
+  if (
+    candidate.attacks >= 10 &&
+    candidate.starsPerAttack < 2
+  ) {
+    return "LICHTE CONTROLE: gewone-CW aanvalsprestaties verdienen aandacht.";
   }
 
   if (
     candidate.attacks > 0 &&
     candidate.stars === 0
   ) {
-    return "Let op: geen sterren behaald in beschikbare geschiedenis.";
+    return "ZWARE CONTROLE: geen sterren behaald in beschikbare CWL-historie.";
   }
 
   return null;
@@ -499,6 +465,115 @@ export async function POST(
 
     /*
      * -----------------------------------------------------
+     * LAATSTE CWL-CLAN PER SPELER
+     * -----------------------------------------------------
+     *
+     * BELANGRIJK:
+     *
+     * currentClanName/currentClanTag mogen hier NIET
+     * gebruikt worden voor de CWL-indeling.
+     *
+     * Na CWL verhuizen spelers regelmatig tijdelijk
+     * naar een andere clan.
+     *
+     * Daarom bepalen we de CWL-clan uitsluitend uit
+     * CwlHistoricalWar.clanTag.
+     *
+     * De meest recente historische CWL-war waarin
+     * de speler voorkwam is leidend.
+     */
+
+    const lastCwlClanByPlayer =
+      new Map<
+        string,
+        {
+          clanTag: string;
+          clanName: string;
+          warDate: Date;
+          round: number;
+        }
+      >();
+
+    for (
+      const war of
+      historicalWars
+    ) {
+      const clanTag =
+        normalizeTag(
+          war.clanTag
+        );
+
+      const clanConfig =
+        PHOENIX.clans.find(
+          (clan) =>
+            normalizeTag(
+              clan.tag
+            ) === clanTag
+        );
+
+      if (!clanConfig) {
+        continue;
+      }
+
+      /*
+       * Gebruik de opgeslagen war snapshot om
+       * de spelers van deze historische CWL-war
+       * te bepalen.
+       */
+      for (
+        const player of
+        war.players
+      ) {
+        const playerTag =
+          normalizeTag(
+            player.playerTag
+          );
+
+        if (!playerTag) {
+          continue;
+        }
+
+        const existing =
+          lastCwlClanByPlayer.get(
+            playerTag
+          );
+
+        /*
+         * historicalWars staat niet noodzakelijk
+         * chronologisch op importedAt.
+         *
+         * round is binnen een season relevant;
+         * warTag/updatedAt kunnen daarnaast verschillen.
+         *
+         * Voor dezelfde speler nemen we de meest
+         * recent opgeslagen CWL-war.
+         */
+        const warDate =
+          war.updatedAt ??
+          war.importedAt;
+
+        if (
+          !existing ||
+          warDate >
+            existing.warDate
+        ) {
+          lastCwlClanByPlayer.set(
+            playerTag,
+            {
+              clanTag,
+              clanName:
+                clanConfig.name,
+              warDate,
+              round:
+                war.round,
+            }
+          );
+        }
+      }
+    }
+
+    /*
+     * -----------------------------------------------------
      * OVERRIDES
      * -----------------------------------------------------
      *
@@ -566,93 +641,325 @@ export async function POST(
 
     /*
      * -----------------------------------------------------
-     * HISTORISCHE DEFENSIVE STRENGTH
+     * HISTORISCHE CWL DEFENCE
      * -----------------------------------------------------
+     *
+     * Defence wordt rechtstreeks uit de historische
+     * war snapshots gehaald.
+     *
+     * We tellen niet langer een kunstmatige
+     * "Defensive Strength" score.
+     *
+     * Per speler bewaren we:
+     * - aantal ontvangen defence-aanvallen
+     * - 0 sterren
+     * - 1 ster
+     * - 2 sterren
+     * - 3 sterren
+     * - aantal goede defences
+     *
+     * Een goede defence = maximaal 2 sterren tegen.
      */
 
-    const defensivePlayersByClan =
+    type CwlDefenceStats = {
+      defenceReceived: number;
+      defence0Star: number;
+      defence1Star: number;
+      defence2Star: number;
+      defence3Star: number;
+      goodDefences: number;
+      rounds: Array<{
+        round: number;
+        stars: number;
+        attackerName: string;
+        destruction: number;
+      }>;
+    };
+
+    const defenceByPlayer =
       new Map<
         string,
-        Map<string, DefensivePlayer>
+        CwlDefenceStats
       >();
 
     for (
       const war of
       historicalWars
     ) {
-      const clanTag =
-        normalizeTag(
-          war.clanTag
-        );
+      const rawData =
+        war.rawData as any;
 
-      if (
-        !defensivePlayersByClan.has(
-          clanTag
-        )
-      ) {
-        defensivePlayersByClan.set(
-          clanTag,
-          new Map()
-        );
-      }
+      const opponentMembers =
+        rawData?.opponent?.members ?? [];
 
-      const clanPlayers =
-        defensivePlayersByClan.get(
-          clanTag
-        )!;
+      const clanMembers =
+        rawData?.clan?.members ?? [];
 
+      /*
+       * De speler die verdedigt kan uit de eigen
+       * war snapshot worden gehaald.
+       *
+       * De aanvallen van de opponent staan bij
+       * opponent.members.
+       */
       for (
-        const player of
-        war.players
+        const member of
+        clanMembers
       ) {
         const playerTag =
           normalizeTag(
-            player.playerTag
+            member?.tag ?? ""
           );
 
+        if (!playerTag) {
+          continue;
+        }
+
         if (
-          !clanPlayers.has(
+          !defenceByPlayer.has(
             playerTag
           )
         ) {
-          clanPlayers.set(
+          defenceByPlayer.set(
             playerTag,
             {
-              tag: playerTag,
-              days: [],
+              defenceReceived: 0,
+              defence0Star: 0,
+              defence1Star: 0,
+              defence2Star: 0,
+              defence3Star: 0,
+              goodDefences: 0,
+              rounds: [],
             }
           );
         }
 
-        clanPlayers
-          .get(playerTag)!
-          .days.push({
+        const stats =
+          defenceByPlayer.get(
+            playerTag
+          )!;
+
+        /*
+         * Clash bewaart bij de opponent de
+         * aanvallen die zij op onze bases deden.
+         */
+        const attacks =
+          Array.isArray(
+            member?.opponentAttacks
+          )
+            ? member.opponentAttacks
+            : [];
+
+        for (
+          const attack of
+          attacks
+        ) {
+          if (
+            !attack ||
+            typeof attack !==
+              "object"
+          ) {
+            continue;
+          }
+
+          const stars =
+            Math.max(
+              0,
+              Math.min(
+                3,
+                Number(
+                  attack.stars ?? 0
+                )
+              )
+            );
+
+          const attackerName =
+            String(
+              attack.attackerName ??
+              attack.attacker?.name ??
+              ""
+            );
+
+          const destruction =
+            Number(
+              attack.destructionPercentage ??
+              attack.destruction ??
+              0
+            );
+
+          stats.defenceReceived++;
+
+          if (stars === 0) {
+            stats.defence0Star++;
+          } else if (
+            stars === 1
+          ) {
+            stats.defence1Star++;
+          } else if (
+            stars === 2
+          ) {
+            stats.defence2Star++;
+          } else {
+            stats.defence3Star++;
+          }
+
+          if (stars <= 2) {
+            stats.goodDefences++;
+          }
+
+          stats.rounds.push({
             round:
               war.round,
-            mapPosition:
-              player.mapPosition,
+            stars,
+            attackerName,
+            destruction,
           });
+        }
       }
-    }
 
-    const defensiveStrengthByClan =
-      new Map<
-        string,
-        Map<string, number>
-      >();
+      /*
+       * Fallback voor snapshots waarin de
+       * opponent-aanvallen niet onder
+       * clan.members zitten.
+       *
+       * De daadwerkelijke structuur wordt later
+       * gecontroleerd tegen de opgeslagen Neon-data.
+       */
+      for (
+        const opponent of
+        opponentMembers
+      ) {
+        const attacks =
+          Array.isArray(
+            opponent?.attacks
+          )
+            ? opponent.attacks
+            : [];
 
-    for (
-      const [
-        clanTag,
-        players,
-      ] of defensivePlayersByClan
-    ) {
-      defensiveStrengthByClan.set(
-        clanTag,
-        calculateDefensiveStrength(
-          [...players.values()]
-        )
-      );
+        for (
+          const attack of
+          attacks
+        ) {
+          if (
+            !attack ||
+            typeof attack !==
+              "object"
+          ) {
+            continue;
+          }
+
+          const defenderTag =
+            normalizeTag(
+              attack.defenderTag ?? ""
+            );
+
+          if (!defenderTag) {
+            continue;
+          }
+
+          if (
+            !defenceByPlayer.has(
+              defenderTag
+            )
+          ) {
+            defenceByPlayer.set(
+              defenderTag,
+              {
+                defenceReceived: 0,
+                defence0Star: 0,
+                defence1Star: 0,
+                defence2Star: 0,
+                defence3Star: 0,
+                goodDefences: 0,
+                rounds: [],
+              }
+            );
+          }
+
+          const stats =
+            defenceByPlayer.get(
+              defenderTag
+            )!;
+
+          const stars =
+            Math.max(
+              0,
+              Math.min(
+                3,
+                Number(
+                  attack.stars ?? 0
+                )
+              )
+            );
+
+          /*
+           * Voorkom dubbele telling wanneer
+           * dezelfde aanval al via member.opponentAttacks
+           * is verwerkt.
+           */
+          const alreadyRecorded =
+            stats.rounds.some(
+              (entry) =>
+                entry.round ===
+                  war.round &&
+                entry.stars ===
+                  stars &&
+                entry.attackerName ===
+                  String(
+                    opponent?.name ??
+                    ""
+                  )
+            );
+
+          if (
+            alreadyRecorded
+          ) {
+            continue;
+          }
+
+          const attackerName =
+            String(
+              opponent?.name ??
+              attack.attackerName ??
+              ""
+            );
+
+          const destruction =
+            Number(
+              attack.destructionPercentage ??
+              attack.destruction ??
+              0
+            );
+
+          stats.defenceReceived++;
+
+          if (stars === 0) {
+            stats.defence0Star++;
+          } else if (
+            stars === 1
+          ) {
+            stats.defence1Star++;
+          } else if (
+            stars === 2
+          ) {
+            stats.defence2Star++;
+          } else {
+            stats.defence3Star++;
+          }
+
+          if (stars <= 2) {
+            stats.goodDefences++;
+          }
+
+          stats.rounds.push({
+            round:
+              war.round,
+            stars,
+            attackerName,
+            destruction,
+          });
+        }
+      }
     }
 
     /*
@@ -685,8 +992,24 @@ export async function POST(
 
     /*
      * -----------------------------------------------------
-     * OFFENSIEVE / DEFENSIEVE HISTORIE
+     * HISTORISCHE CWL-HISTORIE
      * -----------------------------------------------------
+     *
+     * BELANGRIJK:
+     *
+     * Deze data komt UITSLUITEND uit:
+     *
+     *   CwlHistoricalPlayer
+     *   + CwlHistoricalWar
+     *
+     * Dus NIET uit de gewone CW attack-tabel.
+     *
+     * De laatste CWL waarin een speler speelde bepaalt:
+     * - zijn historische CWL-clan
+     * - zijn CWL-prestaties
+     *
+     * De huidige clan van de speler wordt hier volledig
+     * genegeerd voor promotie/degradatie.
      */
 
     const history =
@@ -706,60 +1029,140 @@ export async function POST(
       >();
 
     for (
-      const attack of
-      attacks
+      const war of
+      historicalWars
     ) {
-      const playerTag =
-        normalizeTag(
-          attack.playerTag
+      const clanConfig =
+        PHOENIX.clans.find(
+          (clan) =>
+            normalizeTag(
+              clan.tag
+            ) ===
+            normalizeTag(
+              war.clanTag
+            )
         );
 
-      if (
-        !history.has(
-          playerTag
-        )
-      ) {
-        history.set(
-          playerTag,
-          {
-            stars: 0,
-            attacks: 0,
-            defenceStars: 0,
-            lastCwlClan:
-              null,
-            lastCwlDate:
-              null,
-          }
-        );
+      if (!clanConfig) {
+        continue;
       }
 
-      const stats =
-        history.get(
-          playerTag
-        )!;
-
-      stats.stars +=
-        attack.stars;
-
-      stats.attacks += 1;
-
-      stats.defenceStars +=
-        attack.defenseStars;
-
       const warDate =
-        attack.war
-          .warStartTime;
+        war.updatedAt ??
+        war.importedAt;
 
-      if (
-        !stats.lastCwlDate ||
-        warDate >
-          stats.lastCwlDate
+      for (
+        const player of
+        war.players
       ) {
-        stats.lastCwlDate =
-          warDate;
+        const playerTag =
+          normalizeTag(
+            player.playerTag
+          );
 
-        stats.lastCwlClan =
-          attack.war.clan.name;
+        if (!playerTag) {
+          continue;
+        }
+
+        const rawAttacks =
+          Array.isArray(
+            player.attacks
+          )
+            ? player.attacks
+            : [];
+
+        const playerStars =
+          rawAttacks.reduce<number>(
+            (total: number, attack) => {
+              if (
+                !attack ||
+                typeof attack !==
+                  "object" ||
+                Array.isArray(
+                  attack
+                )
+              ) {
+                return total;
+              }
+
+              return (
+                total +
+                Math.max(
+                  0,
+                  Math.min(
+                    3,
+                    Number(
+                      attack.stars ??
+                      0
+                    )
+                  )
+                )
+              );
+            },
+            0
+          );
+
+        const playerAttacks =
+          rawAttacks.filter(
+            (attack) =>
+              attack &&
+              typeof attack ===
+                "object" &&
+              !Array.isArray(
+                attack
+              )
+          ).length;
+
+        const existing =
+          history.get(
+            playerTag
+          );
+
+        /*
+         * We bewaren alle CWL-aanvallen voor
+         * prestaties, maar de clan-identiteit
+         * komt uit de meest recente CWL-war.
+         */
+        const nextHistory = {
+          stars:
+            Number(
+              existing?.stars ??
+              0
+            ) +
+            Number(
+              playerStars
+            ),
+
+          attacks:
+            (existing?.attacks ??
+              0) +
+            playerAttacks,
+
+          defenceStars:
+            existing?.defenceStars ??
+            0,
+
+          lastCwlClan:
+            !existing ||
+            warDate >
+              (existing.lastCwlDate ??
+                new Date(0))
+              ? clanConfig.name
+              : existing.lastCwlClan,
+
+          lastCwlDate:
+            !existing ||
+            warDate >
+              (existing.lastCwlDate ??
+                new Date(0))
+              ? warDate
+              : existing.lastCwlDate,
+        };
+
+        history.set(
+          playerTag,
+          nextHistory
+        );
       }
     }
 
@@ -832,6 +1235,15 @@ export async function POST(
               playerTag
             );
 
+          const lastCwlClanData =
+            lastCwlClanByPlayer.get(
+              playerTag
+            );
+
+          const lastCwlClanName =
+            lastCwlClanData?.clanName ??
+            null;
+
           const stars =
             previous?.stars ||
             0;
@@ -848,6 +1260,35 @@ export async function POST(
           const defenceStars =
             previous?.defenceStars ||
             0;
+
+          const historicalPlayer =
+            historicalWars
+              .flatMap((war) => war.players)
+              .find(
+                (player) =>
+                  normalizeTag(
+                    player.playerTag
+                  ) === playerTag
+              );
+
+          const opponentAttacks =
+            historicalPlayer?.opponentAttacks ??
+            [];
+
+          const defencePerformance =
+            calculateDefencePerformance(
+              opponentAttacks
+            );
+
+          const defenceAttackCount =
+            getDefenceAttackCount(
+              opponentAttacks
+            );
+
+          const defenceStarsConceded =
+            getDefenceStarsConceded(
+              opponentAttacks
+            );
 
           const bonus =
             difficultyBonus(
@@ -877,53 +1318,7 @@ export async function POST(
            * TDG-clan van de speler.
            */
 
-          let defensiveStrength =
-            0;
-
-          const historicalClan =
-            previous?.lastCwlClan ??
-            null;
-
-          const currentClanScores =
-            defensiveStrengthByClan.get(
-              normalizeTag(
-                member.currentClanTag
-              )
-            );
-
-          defensiveStrength =
-            currentClanScores?.get(
-              playerTag
-            ) || 0;
-
-          if (
-            defensiveStrength ===
-              0 &&
-            historicalClan
-          ) {
-            const historicalClanConfig =
-              PHOENIX.clans.find(
-                (clan) =>
-                  clan.name.toLowerCase() ===
-                  historicalClan.toLowerCase()
-              );
-
-            if (
-              historicalClanConfig
-            ) {
-              const clanScores =
-                defensiveStrengthByClan.get(
-                  normalizeTag(
-                    historicalClanConfig.tag
-                  )
-                );
-
-              defensiveStrength =
-                clanScores?.get(
-                  playerTag
-                ) || 0;
-            }
-          }
+          let defensiveStrength = 0;
 
           /*
            * -------------------------------------------------
@@ -1008,6 +1403,9 @@ export async function POST(
             defenceStars,
             defensiveStrength,
             defensiveStrengthOverride,
+            defencePerformance,
+            defenceAttackCount,
+            defenceStarsConceded,
             starsPerAttack,
             difficultyBonus:
               bonus,
@@ -1015,11 +1413,108 @@ export async function POST(
               previous?.lastCwlClan ||
               null,
 
+            currentClanName:
+              member.currentClanName,
+
+            currentClanTag:
+              member.currentClanTag,
+
             cwlScore:
               cwlData.cwlScore,
 
+            promotionEligible:
+              cwlData.cwlScore >= 2100 &&
+              defenceAttackCount > 0 &&
+              defenceStarsConceded <= 2,
+
+            promotionTargetClan:
+              lastCwlClanName
+                ?.toLowerCase() === "tdg ii"
+                ? "The Dutch Giant"
+                : lastCwlClanName
+                    ?.toLowerCase() === "tdg mini"
+                  ? "TDG II"
+                  : lastCwlClanName
+                      ?.toLowerCase() === "tdg micro"
+                    ? "TDG Mini"
+                    : null,
+
+            degradationEligible:
+              attacksCount >= 6 &&
+              (
+                stars /
+                attacksCount *
+                7
+              ) <
+                (
+                  lastCwlClanName
+                    ?.toLowerCase() === "the dutch giant"
+                    ? 18
+                    : lastCwlClanName
+                        ?.toLowerCase() === "tdg ii"
+                      ? 17
+                      : lastCwlClanName
+                          ?.toLowerCase() === "tdg mini"
+                        ? 17
+                        : 0
+                ),
+
+            degradationTargetClan:
+              lastCwlClanName
+                ?.toLowerCase() === "the dutch giant"
+                ? "TDG II"
+                : lastCwlClanName
+                    ?.toLowerCase() === "tdg ii"
+                  ? "TDG Mini"
+                  : lastCwlClanName
+                      ?.toLowerCase() === "tdg mini"
+                    ? "TDG Micro"
+                    : null,
+
+            cwlStars:
+              stars,
+
+            cwlAttacks:
+              attacksCount,
+
+            cwlEquivalentStars:
+              attacksCount > 0
+                ? Number(
+                    (
+                      stars /
+                      attacksCount *
+                      7
+                    ).toFixed(2)
+                  )
+                : 0,
+
             regularWarScore:
               cwlData.regularWarScore,
+
+            regularWarAttacks: (() => {
+              const attacks =
+                cwlData.regularWar.attackScores;
+
+              return {
+                oneStar: attacks.filter(
+                  (attack) => attack.stars === 1
+                ).length,
+
+                twoStar: attacks.filter(
+                  (attack) => attack.stars === 2
+                ).length,
+
+                threeStar: attacks.filter(
+                  (attack) => attack.stars >= 3
+                ).length,
+
+                zeroStar: attacks.filter(
+                  (attack) => attack.stars === 0
+                ).length,
+
+                total: attacks.length,
+              };
+            })(),
 
             manualReview:
               cwlData.manualReview,
@@ -1110,13 +1605,38 @@ export async function POST(
     const total =
       candidates.length;
 
+    /*
+     * -----------------------------------------------------
+     * CWL FORMATREGELS
+     * -----------------------------------------------------
+     *
+     * V15 heeft minimaal 17 beschikbare spelers nodig.
+     * V30 heeft minimaal 34 beschikbare spelers nodig.
+     *
+     * Mini + Micro kunnen allebei V30 spelen.
+     * Daarvoor zijn dus minimaal 68 spelers nodig:
+     *
+     *   Mini  = 34
+     *   Micro = 34
+     *
+     * Met minder dan 68 spelers mag de generator
+     * NOOIT een V30-opstelling voorstellen.
+     */
+
+    const V15_MIN_PLAYERS = 17;
+    const V30_MIN_PLAYERS = 34;
+
+    const canRunBothV30 =
+      total >=
+      V30_MIN_PLAYERS * 2;
+
     const miniFormat =
-      total >= 66
+      canRunBothV30
         ? "V30"
         : "V15";
 
     const microFormat =
-      total >= 66
+      canRunBothV30
         ? "V30"
         : "V15";
 
@@ -1132,8 +1652,8 @@ export async function POST(
           )?.tag || "",
         format: "V15",
         starters: 15,
-        minReserves: 2,
-        maxReserves: 2,
+        minReserves: 0,
+        maxReserves: 0,
       },
 
       {
@@ -1147,8 +1667,8 @@ export async function POST(
           )?.tag || "",
         format: "V15",
         starters: 15,
-        minReserves: 1,
-        maxReserves: 2,
+        minReserves: 0,
+        maxReserves: 0,
       },
 
       {
@@ -1165,14 +1685,8 @@ export async function POST(
           miniFormat === "V30"
             ? 30
             : 15,
-        minReserves:
-          miniFormat === "V30"
-            ? 3
-            : 1,
-        maxReserves:
-          miniFormat === "V30"
-            ? 4
-            : 2,
+        minReserves: 0,
+        maxReserves: 0,
       },
 
       {
@@ -1189,14 +1703,8 @@ export async function POST(
           microFormat === "V30"
             ? 30
             : 15,
-        minReserves:
-          microFormat === "V30"
-            ? 3
-            : 1,
-        maxReserves:
-          microFormat === "V30"
-            ? 4
-            : 2,
+        minReserves: 0,
+        maxReserves: 0,
       },
     ];
 
@@ -1216,75 +1724,560 @@ export async function POST(
         })
       );
 
-    const priorityOrder = [
-      0,
-      1,
-      2,
-      3,
+    /*
+     * -----------------------------------------------------
+     * CWL INDELING
+     * -----------------------------------------------------
+     *
+     * DE HISTORISCHE CWL-CLAN IS LEIDEND.
+     *
+     * currentClanName/currentClanTag worden hier
+     * bewust NIET gebruikt.
+     *
+     * Na CWL kunnen spelers terug naar Main verhuizen.
+     * Voor de volgende CWL-indeling blijven zij
+     * gekoppeld aan de clan waarin zij hun laatste
+     * CWL hebben gespeeld.
+     *
+     * V15:
+     *   1-15  = starters
+     *   16-17 = reserves
+     *
+     * V30:
+     *   1-30  = starters
+     *   31-34 = reserves
+     *
+     * Promotie:
+     *   >= 21 CWL-equivalent
+     *   <= 2 defence stars conceded
+     *   alleen direct één clan omhoog
+     *   maximaal reserve in hogere clan
+     *
+     * Degradatie:
+     *   Main < 18 CWL-equivalent
+     *   II/Mini < 17 CWL-equivalent
+     *   alleen direct één clan omlaag
+     *
+     * Onvoldoende spelers:
+     *   hogere clans krijgen eerst hun minimum.
+     *
+     * Voorbeeld 55 spelers:
+     *   Main  = 17
+     *   II    = 17
+     *   Mini  = 21
+     *   Micro = 0
+     */
+
+    const clanOrder = [
+      "The Dutch Giant",
+      "TDG II",
+      "TDG Mini",
+      "TDG Micro",
     ];
 
-    let index = 0;
+    const clanIndexByName =
+      new Map(
+        clanOrder.map(
+          (name, index) => [
+            name.toLowerCase(),
+            index,
+          ]
+        )
+      );
+
+    const starterLimit = (
+      clan: typeof assignments[number]
+    ) =>
+      clan.format === "V30"
+        ? 30
+        : 15;
+
+    const reserveLimit = (
+      clan: typeof assignments[number]
+    ) =>
+      clan.format === "V30"
+        ? 4
+        : 2;
+
+    const maximumPlayers = (
+      clan: typeof assignments[number]
+    ) =>
+      starterLimit(clan) +
+      reserveLimit(clan);
+
+    /*
+     * Kandidaten groeperen op hun LAATSTE CWL-clan.
+     *
+     * Een speler zonder historische CWL-clan kan
+     * niet automatisch promoveren/degraderen en
+     * wordt later als vrije kandidaat behandeld.
+     */
+
+    const playersByCwlClan =
+      new Map<
+        string,
+        Candidate[]
+      >();
 
     for (
-      const clanIndex of
-      priorityOrder
+      const player of candidates
     ) {
-      const clan =
+      const key =
+        player.lastCwlClan
+          ?.toLowerCase() ||
+        "";
+
+      if (
+        !playersByCwlClan.has(key)
+      ) {
+        playersByCwlClan.set(
+          key,
+          []
+        );
+      }
+
+      playersByCwlClan
+        .get(key)!
+        .push(player);
+    }
+
+    /*
+     * Sterktevolgorde binnen een historische clan.
+     */
+
+    for (
+      const players of
+      playersByCwlClan.values()
+    ) {
+      players.sort(
+        (a, b) => {
+          if (
+            b.townHall !==
+            a.townHall
+          ) {
+            return (
+              b.townHall -
+              a.townHall
+            );
+          }
+
+          if (
+            b.score !==
+            a.score
+          ) {
+            return (
+              b.score -
+              a.score
+            );
+          }
+
+          if (
+            a.availability ===
+              "FULL" &&
+            b.availability !==
+              "FULL"
+          ) {
+            return -1;
+          }
+
+          if (
+            b.availability ===
+              "FULL" &&
+            a.availability !==
+              "FULL"
+          ) {
+            return 1;
+          }
+
+          return a.name.localeCompare(
+            b.name
+          );
+        }
+      );
+    }
+
+    const assigned =
+      new Set<string>();
+
+    /*
+     * Eerst degradatie verwerken.
+     *
+     * Een degradatiekandidaat verlaat zijn
+     * historische clan en gaat één niveau omlaag.
+     */
+
+    for (
+      let sourceIndex = 0;
+      sourceIndex <
+        clanOrder.length - 1;
+      sourceIndex++
+    ) {
+      const sourceName =
+        clanOrder[sourceIndex];
+
+      const target =
         assignments[
-          clanIndex
+          sourceIndex + 1
         ];
 
-      const normalCapacity =
-        clan.starters +
-        clan.maxReserves;
+      const sourcePlayers =
+        playersByCwlClan.get(
+          sourceName.toLowerCase()
+        ) || [];
 
-      while (
-        index <
-          candidates.length &&
-        clan.players.length <
-          normalCapacity
+      const degradations =
+        sourcePlayers
+          .filter(
+            (player) =>
+              player.degradationEligible &&
+              player.degradationTargetClan
+                ?.toLowerCase() ===
+                target.name.toLowerCase()
+          )
+          .sort(
+            (a, b) =>
+              a.score - b.score
+          );
+
+      for (
+        const player of
+        degradations
       ) {
-        clan.players.push(
-          candidates[index]
+        if (
+          target.players.length >=
+          maximumPlayers(target)
+        ) {
+          break;
+        }
+
+        target.players.push(
+          player
         );
 
-        index++;
+        assigned.add(
+          player.playerTag
+        );
+      }
+    }
+
+    /*
+     * Daarna de normale spelers in hun
+     * historische CWL-clan.
+     *
+     * Promotie- en degradatiekandidaten worden
+     * hierbij overgeslagen.
+     */
+
+    for (
+      let clanIndex = 0;
+      clanIndex <
+        clanOrder.length;
+      clanIndex++
+    ) {
+      const clan =
+        assignments[clanIndex];
+
+      const players =
+        playersByCwlClan.get(
+          clan.name.toLowerCase()
+        ) || [];
+
+      for (
+        const player of
+        players
+      ) {
+        if (
+          assigned.has(
+            player.playerTag
+          )
+        ) {
+          continue;
+        }
+
+        if (
+          player.promotionEligible ||
+          player.degradationEligible
+        ) {
+          continue;
+        }
+
+        if (
+          clan.players.length >=
+          maximumPlayers(clan)
+        ) {
+          break;
+        }
+
+        clan.players.push(
+          player
+        );
+
+        assigned.add(
+          player.playerTag
+        );
+      }
+    }
+
+    /*
+     * Promotie.
+     *
+     * Alleen één niveau omhoog.
+     *
+     * Promotiekandidaten worden uitsluitend
+     * als reserve toegevoegd.
+     */
+
+    for (
+      let sourceIndex = 1;
+      sourceIndex <
+        clanOrder.length;
+      sourceIndex++
+    ) {
+      const sourceName =
+        clanOrder[sourceIndex];
+
+      const target =
+        assignments[
+          sourceIndex - 1
+        ];
+
+      const sourcePlayers =
+        playersByCwlClan.get(
+          sourceName.toLowerCase()
+        ) || [];
+
+      const promotionCandidates =
+        sourcePlayers
+          .filter(
+            (player) =>
+              player.promotionEligible &&
+              player.promotionTargetClan
+                ?.toLowerCase() ===
+                target.name.toLowerCase()
+          )
+          .filter(
+            (player) =>
+              !assigned.has(
+                player.playerTag
+              )
+          )
+          .sort(
+            (a, b) =>
+              b.score - a.score
+          );
+
+      const targetStarterLimit =
+        starterLimit(target);
+
+      const targetReserveLimit =
+        reserveLimit(target);
+
+      /*
+       * Eerst zorgen dat promoties nooit
+       * starters verdringen.
+       *
+       * Daarom mogen alleen plaatsen
+       * na de startergrens worden gebruikt.
+       */
+
+      let reserveCount =
+        Math.max(
+          0,
+          target.players.length -
+            targetStarterLimit
+        );
+
+      for (
+        const player of
+        promotionCandidates
+      ) {
+        if (
+          reserveCount >=
+          targetReserveLimit
+        ) {
+          break;
+        }
+
+        target.players.push(
+          player
+        );
+
+        assigned.add(
+          player.playerTag
+        );
+
+        reserveCount++;
       }
     }
 
     /*
      * -----------------------------------------------------
-     * APPLIED OVERFLOW
+     * MINIMUMBEZETTING
+     * -----------------------------------------------------
+     *
+     * Main en TDG II moeten eerst minimaal
+     * 17 spelers hebben wanneer er genoeg
+     * kandidaten zijn.
+     *
+     * Daarna wordt Mini gevuld.
+     *
+     * Dit voorkomt dat bijvoorbeeld 55 spelers
+     * eindigen als:
+     *
+     *   Main 15
+     *   II   15
+     *   Mini 15
+     *
+     * Correct:
+     *
+     *   Main 17
+     *   II   17
+     *   Mini 21
+     */
+
+    const minimumForV15 = 17;
+
+    for (
+      let clanIndex = 0;
+      clanIndex < 2;
+      clanIndex++
+    ) {
+      const clan =
+        assignments[clanIndex];
+
+      if (
+        clan.format === "V30"
+      ) {
+        continue;
+      }
+
+      while (
+        clan.players.length <
+          minimumForV15 &&
+        assigned.size <
+          candidates.length
+      ) {
+        const next =
+          candidates
+            .filter(
+              (player) =>
+                !assigned.has(
+                  player.playerTag
+                )
+            )
+            .sort(
+              (a, b) =>
+                b.score - a.score
+            )[0];
+
+        if (!next) {
+          break;
+        }
+
+        clan.players.push(
+          next
+        );
+
+        assigned.add(
+          next.playerTag
+        );
+      }
+    }
+
+    /*
+     * -----------------------------------------------------
+     * RESTERENDE SPELERS
+     * -----------------------------------------------------
+     *
+     * Na Main + II gaat alles naar Mini.
+     *
+     * Daarna pas Micro.
+     *
+     * De 55-spelerssituatie wordt hierdoor:
+     *
+     *   Main 17
+     *   II   17
+     *   Mini 21
+     */
+
+    for (
+      let clanIndex = 2;
+      clanIndex <
+        assignments.length;
+      clanIndex++
+    ) {
+      const clan =
+        assignments[clanIndex];
+
+      const remaining =
+        candidates
+          .filter(
+            (player) =>
+              !assigned.has(
+                player.playerTag
+              )
+          )
+          .sort(
+            (a, b) =>
+              b.score - a.score
+          );
+
+      for (
+        const player of
+        remaining
+      ) {
+        if (
+          clan.players.length >=
+          maximumPlayers(clan)
+        ) {
+          break;
+        }
+
+        clan.players.push(
+          player
+        );
+
+        assigned.add(
+          player.playerTag
+        );
+      }
+
+      if (
+        assigned.size >=
+        candidates.length
+      ) {
+        break;
+      }
+    }
+
+    /*
+     * -----------------------------------------------------
+     * POSITIE + ROL
      * -----------------------------------------------------
      */
 
-    if (
-      mode === "APPLIED" &&
-      index <
-        candidates.length
+    for (
+      const clan of
+      assignments
     ) {
-      let clanIndex = 0;
+      clan.players.forEach(
+        (player, playerIndex) => {
+          const position =
+            playerIndex + 1;
 
-      while (
-        index <
-        candidates.length
-      ) {
-        const clan =
-          assignments[
-            clanIndex %
-              assignments.length
-          ];
-
-        clan.players.push(
-          candidates[index]
-        );
-
-        clan.overflow =
-          true;
-
-        index++;
-        clanIndex++;
-      }
+          Object.assign(
+            player,
+            {
+              position,
+              role:
+                position <=
+                starterLimit(clan)
+                  ? "STARTER"
+                  : "RESERVE",
+            }
+          );
+        }
+      );
     }
 
     /*

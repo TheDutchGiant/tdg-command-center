@@ -21,6 +21,12 @@ const CLAN_ORDER = [
   },
 ];
 
+function normalizeTag(tag: string) {
+  return tag
+    .replace(/^#/, "")
+    .toUpperCase();
+}
+
 export async function GET() {
   try {
     await requireAdmin();
@@ -57,6 +63,129 @@ export async function GET() {
       });
     }
 
+    /*
+     * ---------------------------------------------------------
+     * REGULAR CW HISTORIE
+     * ---------------------------------------------------------
+     *
+     * Belangrijk:
+     * de historie wordt gekoppeld aan de clan waarin
+     * de oorlog gespeeld werd.
+     *
+     * Daardoor blijft bijvoorbeeld:
+     *
+     * TDG II → Jan → 4 gemist
+     *
+     * bestaan wanneer Jan later naar TDG Mini gaat.
+     */
+
+    const [
+      missedAttackRecords,
+      regularWarAttacks,
+    ] = await Promise.all([
+      prisma.missedAttack.findMany({
+        orderBy: {
+          warEndTime: "asc",
+        },
+      }),
+
+      prisma.regularWarAttack.findMany({
+        include: {
+          war: {
+            select: {
+              warTag: true,
+              clanTag: true,
+              clanName: true,
+              warEndTime: true,
+            },
+          },
+        },
+        orderBy: {
+          war: {
+            warEndTime: "asc",
+          },
+        },
+      }),
+    ]);
+
+    const missedByPlayerClan =
+      new Map<string, number>();
+
+    for (const record of missedAttackRecords) {
+      const key =
+        `${normalizeTag(record.playerTag)}|${normalizeTag(record.clanTag)}`;
+
+      missedByPlayerClan.set(
+        key,
+        (missedByPlayerClan.get(key) || 0) +
+          record.missedAttacks
+      );
+    }
+
+    const attacksByPlayerClan =
+      new Map<
+        string,
+        Array<{
+          warTag: string;
+          attackNumber: number;
+          attackerTownHall: number;
+          defenderName: string;
+          defenderTownHall: number;
+          stars: number;
+          destruction: number;
+          score: number;
+          warEndTime: Date;
+        }>
+      >();
+
+    for (const attack of regularWarAttacks) {
+      const clanTag =
+        normalizeTag(
+          attack.war.clanTag
+        );
+
+      const key =
+        `${normalizeTag(attack.playerTag)}|${clanTag}`;
+
+      const existing =
+        attacksByPlayerClan.get(key) || [];
+
+      existing.push({
+        warTag:
+          attack.war.warTag,
+
+        attackNumber:
+          attack.attackNumber,
+
+        attackerTownHall:
+          attack.attackerTownHall,
+
+        defenderName:
+          attack.defenderName,
+
+        defenderTownHall:
+          attack.defenderTownHall,
+
+        stars:
+          attack.stars,
+
+        destruction:
+          attack.destruction,
+
+        score:
+          attack.stars * 100 +
+          attack.destruction,
+
+        warEndTime:
+          attack.war.warEndTime,
+      });
+
+      attacksByPlayerClan.set(
+        key,
+        existing
+      );
+    }
+
     const clanOrder = new Map(
       CLAN_ORDER.map(
         (clan, index) => [
@@ -73,10 +202,14 @@ export async function GET() {
       [...plan.clanPlans]
         .sort((a, b) => {
           const aMeta =
-            clanOrder.get(a.clanTag);
+            clanOrder.get(
+              a.clanTag
+            );
 
           const bMeta =
-            clanOrder.get(b.clanTag);
+            clanOrder.get(
+              b.clanTag
+            );
 
           return (
             (aMeta?.index ?? 999) -
@@ -86,6 +219,11 @@ export async function GET() {
         .map((clan) => {
           const meta =
             clanOrder.get(
+              clan.clanTag
+            );
+
+          const clanTag =
+            normalizeTag(
               clan.clanTag
             );
 
@@ -104,37 +242,121 @@ export async function GET() {
 
             players:
               clan.assignments.map(
-                (assignment) => ({
-                  id:
-                    assignment.id,
+                (assignment) => {
+                  const playerTag =
+                    normalizeTag(
+                      assignment.playerTag
+                    );
 
-                  playerTag:
-                    assignment.playerTag,
+                  const historyKey =
+                    `${playerTag}|${clanTag}`;
 
-                  name:
-                    assignment.playerName ||
-                    assignment.player
-                      ?.currentName ||
-                    assignment.playerTag,
+                  const regularAttacks =
+                    attacksByPlayerClan.get(
+                      historyKey
+                    ) || [];
 
-                  position:
-                    assignment.position,
+                  const missedAttacks =
+                    missedByPlayerClan.get(
+                      historyKey
+                    ) || 0;
 
-                  role:
-                    assignment.role,
+                  return {
+                    id:
+                      assignment.id,
 
-                  source:
-                    assignment.source,
+                    playerTag:
+                      assignment.playerTag,
 
-                  score:
-                    assignment.score,
+                    name:
+                      assignment.playerName ||
+                      assignment.player
+                        ?.currentName ||
+                      assignment.playerTag,
 
-                  townHall:
-                    assignment.townHall,
+                    position:
+                      assignment.position,
 
-                  availability:
-                    assignment.availability,
-                })
+                    role:
+                      assignment.role,
+
+                    source:
+                      assignment.source,
+
+                    score:
+                      assignment.score,
+
+                    townHall:
+                      assignment.townHall,
+
+                    availability:
+                      assignment.availability,
+
+                    /*
+                     * CWL-HISTORIE
+                     *
+                     * Deze waarden worden door de generator
+                     * opgeslagen in CwlAssignment en moeten
+                     * hier expliciet naar de frontend.
+                     */
+                    cwlStars:
+                      assignment.stars,
+
+                    cwlAttacks:
+                      assignment.attacks,
+
+                    cwlStarsPerAttack:
+                      assignment.attacks > 0
+                        ? Number(
+                            (
+                              assignment.stars /
+                              assignment.attacks
+                            ).toFixed(2)
+                          )
+                        : 0,
+
+                    difficultyBonus:
+                      assignment.difficultyBonus,
+
+                    defenceStars:
+                      assignment.defenceStars,
+
+                    missedAttacks,
+
+
+                    regularWarAttacks:
+                      regularAttacks.map(
+                        (attack) => ({
+                          warTag:
+                            attack.warTag,
+
+                          attackNumber:
+                            attack.attackNumber,
+
+                          attackerTownHall:
+                            attack.attackerTownHall,
+
+                          defenderName:
+                            attack.defenderName,
+
+                          defenderTownHall:
+                            attack.defenderTownHall,
+
+                          stars:
+                            attack.stars,
+
+                          destruction:
+                            attack.destruction,
+
+                          score:
+                            attack.score,
+
+                          warEndTime:
+                            attack.warEndTime,
+                        })
+                      ),
+                  };
+                }
               ),
           };
         });
@@ -143,10 +365,18 @@ export async function GET() {
       success: true,
 
       plan: {
-        id: plan.id,
-        season: plan.season,
-        status: plan.status,
-        version: plan.version,
+        id:
+          plan.id,
+
+        season:
+          plan.season,
+
+        status:
+          plan.status,
+
+        version:
+          plan.version,
+
         updatedAt:
           plan.updatedAt,
 

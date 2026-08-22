@@ -53,7 +53,7 @@ function getDifficultyBonus(
 }
 
 export default async function AdminCwlPage() {
-  await requireAdmin();
+  const current = await requireAdmin();
 
   const season = new Date()
     .toISOString()
@@ -348,154 +348,92 @@ export default async function AdminCwlPage() {
           </p>
         </header>
 
-        {/* Statistieken */}
-        <section className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat
-            label="Aanmeldingen"
-            value={
-              applications.length
-            }
-          />
+        {/* CWL AANMELDINGEN + BANNER */}
+        <section className="mb-4">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
 
-          <Stat
-            label="Volledig"
-            value={fullCount}
-          />
+            {/* AANMELDINGEN */}
+            <div className="min-w-0">
+              <div className="mb-2 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold">
+                    🟢 CWL aanmeldingen
+                  </h2>
 
-          <Stat
-            label="Beperkt"
-            value={limitedCount}
-          />
+                  <p className="mt-0.5 text-[9px] text-white/30">
+                    Aangemelde spelers voor CWL {season}.
+                  </p>
+                </div>
 
-          <Stat
-            label="Bekende spelers"
-            value={
-              playerStats.length
-            }
-          />
-        </section>
+                <span className="rounded-md border border-white/10 px-2 py-1 text-[9px] font-bold text-white/40">
+                  {applications.length}
+                </span>
+              </div>
 
-        {/* CWL aanmeldingenbeheer */}
-        <section className="mb-7">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">
-                📋 CWL aanmeldingen
-              </h2>
+              {applications.length === 0 ? (
+                <Empty text="Nog geen CWL-aanmeldingen." />
+              ) : (
+                <div className="max-h-[260px] overflow-y-auto rounded-lg border border-white/10 bg-white/[0.02]">
+                  <div className="grid grid-cols-1 gap-px sm:grid-cols-2">
+                    {applications.map(
+                      (application) => (
+                        <div
+                          key={application.id}
+                          className="flex min-w-0 items-center gap-2 border-b border-white/5 bg-black/20 px-2.5 py-1.5"
+                        >
+                          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">
+                            {application.clashName}
+                          </span>
 
-              <p className="mt-1 text-[10px] text-white/30">
-                Controleer gastaanmeldingen en keur ze goed of af.
-              </p>
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-[7px] font-bold ${
+                              application.availability === "FULL"
+                                ? "bg-green-500/10 text-green-300"
+                                : "bg-yellow-500/10 text-yellow-300"
+                            }`}
+                          >
+                            {application.availability === "FULL"
+                              ? "VOLLEDIG"
+                              : "BEPERKT"}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <span className="text-[10px] text-white/30">
-              {applications.length}
-            </span>
+            {/* VISUELE CWL-BANNER */}
+            <div className="hidden min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] lg:block">
+              <img
+                src="/images/admin/cwl-beheer.png"
+                alt="TDG staat klaar voor de komende CWL"
+                className="h-full min-h-[260px] w-full object-cover"
+              />
+            </div>
+
           </div>
 
-          {applications.length === 0 ? (
-            <Empty text="Nog geen CWL-aanmeldingen." />
-          ) : (
-            <div className="space-y-2">
-              {applications.map((application) => (
-                <CwlApplicationCard
-                  key={application.id}
-                  application={{
-                    id: application.id,
-                    playerTag: application.playerTag,
-                    clashName: application.clashName,
-                    availability: application.availability,
-                    status: application.status,
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          {/* Banner onder de lijst op mobiel */}
+          <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] lg:hidden">
+            <img
+              src="/images/admin/cwl-beheer.png"
+              alt="TDG staat klaar voor de komende CWL"
+              className="h-auto max-h-[260px] w-full object-cover"
+            />
+          </div>
         </section>
 
         {/* CWL voorstelgenerator */}
         <CwlProposalGenerator />
 
         {/* CWL draft editor */}
-        <CwlDraftEditor />
-
-        {/* Aangemeld */}
-        <section className="mt-7">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">
-                🟢 Aangemeld
-              </h2>
-
-              <p className="mt-1 text-[10px] text-white/30">
-                Spelers die zichzelf
-                hebben aangemeld.
-              </p>
-            </div>
-
-            <span className="text-[10px] text-white/30">
-              {
-                applicationsStats.length
-              }
-            </span>
-          </div>
-
-          {applicationsStats.length ===
-          0 ? (
-            <Empty
-              text="Nog geen aanmeldingen."
-            />
-          ) : (
-            <div className="space-y-2">
-              {applicationsStats.map(
-                (player) => (
-                  <PlayerCard
-                    key={
-                      player.playerTag
-                    }
-                    player={player}
-                  />
-                )
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* Niet aangemeld */}
-        <section className="mt-7">
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold">
-              ⚠️ Bekende spelers zonder
-              aanmelding
-            </h2>
-
-            <p className="mt-1 text-[10px] text-white/30">
-              Deze spelers zijn bekend
-              bij Phoenix, maar hebben
-              zich niet aangemeld.
-            </p>
-          </div>
-
-          {notAppliedStats.length ===
-          0 ? (
-            <Empty
-              text="Geen bekende spelers zonder aanmelding."
-            />
-          ) : (
-            <div className="space-y-2">
-              {notAppliedStats.map(
-                (player) => (
-                  <PlayerCard
-                    key={
-                      player.playerTag
-                    }
-                    player={player}
-                  />
-                )
-              )}
-            </div>
-          )}
-        </section>
+        <CwlDraftEditor
+          isSuperadmin={
+            current.admin.role === "SUPERADMIN"
+          }
+        />
 
       </div>
     </main>

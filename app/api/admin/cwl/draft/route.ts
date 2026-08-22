@@ -21,6 +21,16 @@ export async function POST(request: Request) {
     const season = String(body.season);
 
     const draft = await prisma.$transaction(async (tx) => {
+      const existingPlan = await tx.cwlPlan.findUnique({
+        where: { season },
+      });
+
+      if (existingPlan?.status === "FINAL") {
+        throw new Error(
+          "Deze CWL-indeling is definitief en kan niet opnieuw als concept worden opgeslagen."
+        );
+      }
+
       const plan = await tx.cwlPlan.upsert({
         where: { season },
         update: {

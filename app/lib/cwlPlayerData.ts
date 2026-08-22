@@ -87,49 +87,33 @@ function normalizeTag(tag: string) {
 
 function getCwlAttackScore(
   stars: number,
-  attackerTownHall: number,
-  defenderTownHall: number
+  _attackerTownHall: number,
+  _defenderTownHall: number
 ): number {
-  const difference =
-    defenderTownHall - attackerTownHall;
+  /*
+   * ---------------------------------------------------------
+   * CWL OFFENCE
+   * ---------------------------------------------------------
+   *
+   * 100 punten per behaalde ster.
+   *
+   * 3 sterren = 300 punten
+   * 2 sterren = 200 punten
+   * 1 ster   = 100 punten
+   * 0 sterren = 0 punten
+   *
+   * Maximale CWL offence:
+   * 7 wars × 3 sterren × 100 = 2100 punten.
+   *
+   * Town Hall verschil wordt hier bewust niet meer
+   * als scoremodifier gebruikt. De volledige aanvalshistorie
+   * blijft beschikbaar voor de gedetailleerde beoordeling.
+   */
 
-  if (stars >= 3) {
-    if (difference >= 4) return 1200;
-    if (difference === 3) return 1150;
-    if (difference === 2) return 1100;
-    if (difference === 1) return 1050;
-    if (difference === 0) return 1000;
-    if (difference === -1) return 950;
-    return 900;
-  }
-
-  if (stars === 2) {
-    if (difference >= 4) return 1000;
-    if (difference === 3) return 975;
-    if (difference === 2) return 950;
-    if (difference === 1) return 925;
-    if (difference === 0) return 900;
-    if (difference === -1) return 800;
-    return 700;
-  }
-
-  if (stars === 1) {
-    if (difference >= 4) return 850;
-    if (difference === 3) return 825;
-    if (difference === 2) return 800;
-    if (difference === 1) return 775;
-    if (difference === 0) return 700;
-    if (difference === -1) return 600;
-    return 500;
-  }
-
-  if (difference >= 4) return 700;
-  if (difference === 3) return 675;
-  if (difference === 2) return 650;
-  if (difference === 1) return 625;
-  if (difference === 0) return 550;
-  if (difference === -1) return 400;
-  return 300;
+  return Math.max(
+    0,
+    Math.min(3, stars)
+  ) * 100;
 }
 
 /*
