@@ -49,9 +49,25 @@ export async function createAdminSession(
 
   const sessionId = crypto.randomBytes(32).toString("hex");
 
+  const admin = await prisma.adminUser.findUnique({
+    where: {
+      id: adminId,
+    },
+    select: {
+      role: true,
+    },
+  });
+
+  if (!admin) {
+    throw new Error("ADMIN_NOT_FOUND");
+  }
+
   const now = new Date();
+
   const expiresAt =
-    getIdleExpirationDate(now);
+    admin.role === "SUPERADMIN"
+      ? new Date("2099-12-31T23:59:59.999Z")
+      : getIdleExpirationDate(now);
 
   await prisma.adminSession.create({
     data: {
@@ -104,13 +120,16 @@ export async function getCurrentAdmin() {
   const now = new Date();
 
   const idleExpiration =
-    getIdleExpirationDate(
-      session.lastSeenAt
-    );
+    session.admin.role === "SUPERADMIN"
+      ? null
+      : getIdleExpirationDate(
+          session.lastSeenAt
+        );
 
   const sessionExpired =
     session.expiresAt <= now ||
-    idleExpiration <= now;
+    (idleExpiration !== null &&
+      idleExpiration <= now);
 
   if (
     session.revokedAt ||
@@ -130,7 +149,9 @@ export async function getCurrentAdmin() {
   }
 
   const newExpiresAt =
-    getIdleExpirationDate(now);
+    session.admin.role === "SUPERADMIN"
+      ? session.expiresAt
+      : getIdleExpirationDate(now);
 
   const updatedSession =
     await prisma.adminSession.update({

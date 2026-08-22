@@ -1,11 +1,19 @@
 import { redirect } from "next/navigation";
 import { getCurrentAdmin } from "@/app/lib/auth/session";
 import { getPermissionLevels } from "@/app/lib/auth/permissions";
+import { destroyCurrentSession } from "@/app/lib/auth/session";
 
 type PermissionLevel =
   | "READ"
   | "EDIT"
   | "DELETE";
+
+async function logout() {
+  "use server";
+
+  await destroyCurrentSession();
+  redirect("/admin/login");
+}
 
 export default async function AdminPage() {
   const current = await getCurrentAdmin();
@@ -65,6 +73,15 @@ export default async function AdminPage() {
               >
                 ⬅️ Legacy Hall
               </a>
+
+              <form action={logout}>
+                <button
+                  type="submit"
+                  className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:border-red-400/40 hover:bg-red-500/20 hover:text-red-200"
+                >
+                  🚪 Logout
+                </button>
+              </form>
 
               <div className="w-fit rounded-xl border border-orange-400/25 bg-orange-500/10 px-3 py-2">
                 <p className="text-[10px] uppercase tracking-wider text-orange-300">
@@ -204,10 +221,14 @@ export default async function AdminPage() {
             />
 
             <InfoItem
-              label="Sessie geldig tot"
-              value={current.session.expiresAt.toLocaleString(
-                "nl-NL"
-              )}
+              label="Sessie"
+              value={
+                isSuperadmin
+                  ? "Blijft actief tot logout"
+                  : current.session.expiresAt.toLocaleString(
+                      "nl-NL"
+                    )
+              }
             />
           </div>
         </section>
