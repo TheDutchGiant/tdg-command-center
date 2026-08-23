@@ -105,12 +105,16 @@ export default async function CWLPage({ params }: Props) {
       ? currentPlan.clanPlans[0]
       : null;
 
+  const now = new Date();
+
   const currentWars = wars.filter(
-    (war) => war.season.season === season
+    (war) =>
+      war.warStartTime <= now &&
+      war.warEndTime >= now
   );
 
   const historyWars = wars.filter(
-    (war) => war.season.season !== season
+    (war) => war.warEndTime < now
   );
 
   const historySeasons = Array.from(
@@ -148,7 +152,7 @@ export default async function CWLPage({ params }: Props) {
         <img
           src="/images/admin/cwl-beheer.png"
           alt="CWL"
-          className="h-40 w-full object-cover sm:h-56"
+          className="h-auto w-full object-contain"
         />
 
         <div className="p-5 sm:p-7">
@@ -218,7 +222,7 @@ export default async function CWLPage({ params }: Props) {
           </p>
 
           <h2 className="mt-1 text-2xl font-bold">
-            {season}
+            Actuele CWL
           </h2>
         </div>
 
@@ -278,7 +282,7 @@ export default async function CWLPage({ params }: Props) {
           </div>
         ) : (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/45">
-            Er zijn nog geen actuele CWL-resultaten beschikbaar.
+            Er is momenteel geen actieve CWL.
           </div>
         )}
       </section>
