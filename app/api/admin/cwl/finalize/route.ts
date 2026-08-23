@@ -4,7 +4,7 @@ import { requireAdmin } from "@/app/lib/auth/session";
 
 export async function POST() {
   try {
-    await requireAdmin();
+    const current = await requireAdmin();
 
     const season = new Date()
       .toISOString()
@@ -43,6 +43,7 @@ export async function POST() {
       data: {
         status: "FINAL",
         finalizedAt: new Date(),
+        finalizedById: current.admin.id,
       },
     });
 
