@@ -34,6 +34,10 @@ const menuItems = [
     href: "stats",
   },
   {
+    name: "🔥 Lore",
+    href: "lore",
+  },
+  {
     name: "⚙️ Instellingen",
     href: "settings",
   },
