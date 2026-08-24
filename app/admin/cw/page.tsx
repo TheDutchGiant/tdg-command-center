@@ -115,8 +115,9 @@ export default async function AdminCwPage() {
           </p>
         </header>
 
-        <div className="space-y-4">
-          {PHOENIX.clans.map(
+        <div className="grid gap-5 lg:grid-cols-3">
+          <div className="space-y-3 lg:col-span-1">
+            {PHOENIX.clans.map(
             (clan) => {
               const clanTag =
                 normalizeTag(
@@ -198,12 +199,8 @@ export default async function AdminCwPage() {
                             }`}
                           >
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold">
+                              <p className="truncate text-xs font-semibold">
                                 {player.playerName}
-                              </p>
-
-                              <p className="mt-0.5 font-mono text-[8px] text-white/25">
-                                {player.playerTag}
                               </p>
                             </div>
 
@@ -243,6 +240,17 @@ export default async function AdminCwPage() {
               );
             }
           )}
+          </div>
+
+          <div className="lg:col-span-2">
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.02]">
+              <img
+                src="/images/admin/cw-losers.png"
+                alt="Gemiste aanvallen"
+                className="h-auto w-full object-contain"
+              />
+            </div>
+          </div>
         </div>
 
       </div>
