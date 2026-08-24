@@ -137,14 +137,23 @@ export default async function CWLPage({ params }: Props) {
           </h1>
         </div>
 
-        <a
-          href={clashClanLink}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white transition hover:bg-white/[0.08]"
-        >
-          🏰 Bekijk clan in Clash of Clans →
-        </a>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <a
+            href="/cwl"
+            className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-black transition hover:bg-orange-400"
+          >
+            🏆 Aanmelden voor CWL →
+          </a>
+
+          <a
+            href={clashClanLink}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white transition hover:bg-white/[0.08]"
+          >
+            🏰 Bekijk clan in Clash of Clans →
+          </a>
+        </div>
       </div>
 
       {/* HUIDIGE CWL / INDELING */}
