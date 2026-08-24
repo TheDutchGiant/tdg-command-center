@@ -242,7 +242,7 @@ export default async function AdminCwPage() {
           )}
           </div>
 
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
             <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.02]">
               <img
                 src="/images/admin/cw-losers.png"
