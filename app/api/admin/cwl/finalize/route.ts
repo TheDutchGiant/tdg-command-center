@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { requireAdmin } from "@/app/lib/auth/session";
+import { sendCwlFinalizedWebhook } from "@/app/lib/discord/cwlWebhook";
 
 export async function POST() {
   try {
@@ -47,6 +48,21 @@ export async function POST() {
       },
     });
 
+    let discordWebhookSent = false;
+
+    try {
+      const webhookResult =
+        await sendCwlFinalizedWebhook();
+
+      discordWebhookSent =
+        webhookResult.sent === true;
+    } catch (webhookError) {
+      console.error(
+        "CWL Discord webhook error:",
+        webhookError
+      );
+    }
+
     return NextResponse.json({
       success: true,
       planId: finalizedPlan.id,
@@ -54,6 +70,7 @@ export async function POST() {
       status: finalizedPlan.status,
       version: finalizedPlan.version,
       finalizedAt: finalizedPlan.finalizedAt,
+      discordWebhookSent,
     });
   } catch (error) {
     console.error("CWL finalize error:", error);
