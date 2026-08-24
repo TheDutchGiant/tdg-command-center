@@ -1,6 +1,7 @@
 import MemberGrid from "@/app/components/MemberGrid";
 import StatusCard from "@/app/components/StatusCard";
 import getClan from "@/app/lib/getClan";
+import { fetchClash } from "@/app/lib/clash";
 
 export default async function ClanPage({
   params,
@@ -10,6 +11,25 @@ export default async function ClanPage({
   const { tag } = await params;
 
   const clan = await getClan(tag);
+
+  let currentWar = null;
+
+  try {
+    currentWar = await fetchClash(
+      `/clans/%23${tag.replace("#", "")}/currentwar`
+    );
+  } catch {
+    currentWar = null;
+  }
+
+  const apiOnline = true;
+
+  const warValue =
+    currentWar?.state === "inWar"
+      ? `${currentWar.opponent?.name ?? "Tegenstander"} · ${currentWar.clan?.stars ?? 0} ⭐ - ⭐ ${currentWar.opponent?.stars ?? 0}`
+      : currentWar?.state === "preparation"
+      ? "War begint binnenkort"
+      : "Geen actieve oorlog";
 
   return (
     <>
@@ -23,12 +43,13 @@ export default async function ClanPage({
             icon="🟢"
             title="API Status"
             value="Online"
+            detail="Clash API bereikbaar"
           />
 
           <StatusCard
             icon="⚔️"
             title="War"
-            value="Binnenkort"
+            value={warValue}
           />
 
           <StatusCard
