@@ -104,20 +104,20 @@ export default function CwlApplicationCard({
               {application.clashName}
             </h3>
 
-            <span className="rounded bg-white/5 px-2 py-0.5 text-[9px] font-bold text-white/60">
+            <span className="shrink-0 whitespace-nowrap rounded bg-white/5 px-1.5 py-0.5 text-[6px] font-bold text-white/60">
               {statusLabel}
             </span>
 
             {application.availability ===
               "FULL" && (
-              <span className="rounded bg-green-500/10 px-2 py-0.5 text-[9px] font-bold text-green-300">
+              <span className="shrink-0 whitespace-nowrap rounded bg-green-500/10 px-1.5 py-0.5 text-[6px] font-bold text-green-300">
                 🟢 VOLLEDIG
               </span>
             )}
 
             {application.availability ===
               "LIMITED" && (
-              <span className="rounded bg-yellow-500/10 px-2 py-0.5 text-[9px] font-bold text-yellow-300">
+              <span className="shrink-0 whitespace-nowrap rounded bg-yellow-500/10 px-1.5 py-0.5 text-[6px] font-bold text-yellow-300">
                 🟡 BEPERKT
               </span>
             )}
@@ -136,7 +136,7 @@ export default function CwlApplicationCard({
         </div>
 
         {status === "PENDING" && (
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex shrink-0 items-center gap-1">
 
             <button
               type="button"
@@ -144,7 +144,7 @@ export default function CwlApplicationCard({
               onClick={() =>
                 changeStatus("APPROVED")
               }
-              className="rounded-lg border border-green-400/25 bg-green-500/10 px-3 py-2 text-[10px] font-bold text-green-300 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-green-400/25 bg-green-500/10 px-1.5 py-1 text-[7px] font-bold text-green-300 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading
                 ? "Bezig..."
@@ -157,7 +157,7 @@ export default function CwlApplicationCard({
               onClick={() =>
                 changeStatus("REJECTED")
               }
-              className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-red-400/25 bg-red-500/10 px-1.5 py-1 text-[7px] font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading
                 ? "Bezig..."
