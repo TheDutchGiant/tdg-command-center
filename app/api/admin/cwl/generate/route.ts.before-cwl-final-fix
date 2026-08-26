@@ -1191,21 +1191,6 @@ export async function POST(
      * -----------------------------------------------------
      * SELECTIEPOOL
      * -----------------------------------------------------
-     *
-     * ALL:
-     *   alle actuele TDG-leden.
-     *
-     * APPLIED:
-     *   uitsluitend geaccepteerde CWL-aanmeldingen:
-     *
-     *   AUTO_APPROVED
-     *   APPROVED
-     *
-     *   Dit mogen ook spelers zijn die momenteel
-     *   buiten de TDG-clans zitten.
-     *
-     *   PENDING en REJECTED worden uitgesloten.
-     * -----------------------------------------------------
      */
 
     let selectedMembers =
@@ -1214,90 +1199,14 @@ export async function POST(
     if (
       mode === "APPLIED"
     ) {
-      const approvedApplications =
-        applications.filter(
-          (application) =>
-            application.status ===
-              "AUTO_APPROVED" ||
-            application.status ===
-              "APPROVED"
-        );
-
       selectedMembers =
-        await Promise.all(
-          approvedApplications.map(
-            async (application) => {
-              const playerTag =
-                normalizeTag(
-                  application.playerTag
-                );
-
-              const currentMember =
-                currentMembers.find(
-                  (member) =>
-                    normalizeTag(
-                      member.tag
-                    ) === playerTag
-                );
-
-              if (
-                currentMember
-              ) {
-                return currentMember;
-              }
-
-              /*
-               * Goedgekeurde externe speler.
-               * Niet in een TDG-clan, maar wel
-               * geaccepteerd voor CWL.
-               */
-              try {
-                const data =
-                  await fetchClash(
-                    `/players/%23${playerTag}`
-                  );
-
-                return {
-                  tag:
-                    data.tag ||
-                    application.playerTag,
-
-                  name:
-                    data.name ||
-                    application.clashName,
-
-                  townHallLevel:
-                    Number(
-                      data.townHallLevel ||
-                      0
-                    ),
-
-                  currentClanName:
-                    "Buiten TDG",
-
-                  currentClanTag:
-                    "",
-                };
-              } catch {
-                return {
-                  tag:
-                    application.playerTag,
-
-                  name:
-                    application.clashName,
-
-                  townHallLevel:
-                    0,
-
-                  currentClanName:
-                    "Buiten TDG",
-
-                  currentClanTag:
-                    "",
-                };
-              }
-            }
-          )
+        currentMembers.filter(
+          (member) =>
+            applicationMap.has(
+              normalizeTag(
+                member.tag
+              )
+            )
         );
     }
 
@@ -2203,258 +2112,69 @@ export async function POST(
 
     /*
      * -----------------------------------------------------
-     * MINIMUMBEZETTING + CLAN GATES
+     * MINIMUMBEZETTING
      * -----------------------------------------------------
      *
-     * AUTOMATISCHE REGELS:
+     * Main en TDG II moeten eerst minimaal
+     * 17 spelers hebben wanneer er genoeg
+     * kandidaten zijn.
      *
-     * 1. Main eerst minimaal 17.
+     * Daarna wordt Mini gevuld.
      *
-     * 2. Daarna TDG II.
+     * Dit voorkomt dat bijvoorbeeld 55 spelers
+     * eindigen als:
      *
-     * 3. TDG II automatisch uitsluitend TH18.
+     *   Main 15
+     *   II   15
+     *   Mini 15
      *
-     * 4. TDG II moet minimaal 17 geschikte TH18's hebben.
+     * Correct:
      *
-     * 5. Pas daarna mag Mini automatisch worden gevuld.
-     *
-     * 6. Mini wordt alleen geopend wanneer er minimaal
-     *    17 spelers voor Mini beschikbaar zijn.
-     *
-     * 7. Micro wordt alleen geopend wanneer er minimaal
-     *    17 spelers voor Micro beschikbaar zijn.
-     *
-     * 8. Als een gate niet gehaald kan worden, blijven
-     *    de lagere clans automatisch leeg.
-     *
-     * 9. Niet geplaatste spelers blijven beschikbaar
-     *    voor een ADMIN MANUAL OVERRIDE.
-     * -----------------------------------------------------
+     *   Main 17
+     *   II   17
+     *   Mini 21
      */
 
     const minimumForV15 = 17;
 
-    const isAutomaticEligible = (
-      player: Candidate,
-      clan: typeof assignments[number]
-    ) => {
+    for (
+      let clanIndex = 0;
+      clanIndex < 2;
+      clanIndex++
+    ) {
+      const clan =
+        assignments[clanIndex];
+
       if (
-        clan.name.toLowerCase() ===
-        "tdg ii"
+        clan.format === "V30"
       ) {
-        return (
-          player.townHall >= 18
-        );
-      }
-
-      return true;
-    };
-
-    const removeFromClan = (
-      clan: typeof assignments[number],
-      playerTag: string
-    ) => {
-      const index =
-        clan.players.findIndex(
-          (player) =>
-            player.playerTag ===
-            playerTag
-        );
-
-      if (index === -1) {
-        return null;
-      }
-
-      const [player] =
-        clan.players.splice(
-          index,
-          1
-        );
-
-      assigned.delete(
-        player.playerTag
-      );
-
-      return player;
-    };
-
-    const clearClan = (
-      clan: typeof assignments[number]
-    ) => {
-      for (
-        const player of
-        clan.players
-      ) {
-        assigned.delete(
-          player.playerTag
-        );
-      }
-
-      clan.players = [];
-    };
-
-    const clearLowerClans = (
-      firstIndex: number
-    ) => {
-      for (
-        let index = firstIndex;
-        index <
-        assignments.length;
-        index++
-      ) {
-        clearClan(
-          assignments[index]
-        );
-      }
-    };
-
-    const lowerClanPlayers = (
-      targetIndex: number
-    ) =>
-      assignments
-        .slice(
-          targetIndex + 1
-        )
-        .flatMap(
-          (clan) =>
-            clan.players
-        );
-
-    const unassignedPlayers = () =>
-      candidates.filter(
-        (player) =>
-          !assigned.has(
-            player.playerTag
-          )
-      );
-
-    const availableForClan = (
-      targetIndex: number
-    ) => {
-      const target =
-        assignments[
-          targetIndex
-        ];
-
-      return [
-        ...lowerClanPlayers(
-          targetIndex
-        ),
-        ...unassignedPlayers(),
-      ]
-        .filter(
-          (player) =>
-            isAutomaticEligible(
-              player,
-              target
-            )
-        )
-        .sort(
-          (a, b) =>
-            b.score -
-            a.score
-        );
-    };
-
-    /*
-     * -----------------------------------------------------
-     * GATE 1 — MAIN
-     * -----------------------------------------------------
-     */
-
-    const main =
-      assignments[0];
-
-    while (
-      main.players.length <
-        minimumForV15
-    ) {
-      const next =
-        availableForClan(0)[0];
-
-      if (!next) {
-        break;
-      }
-
-      for (
-        const clan of
-        assignments.slice(1)
-      ) {
-        removeFromClan(
-          clan,
-          next.playerTag
-        );
-      }
-
-      main.players.push(
-        next
-      );
-
-      assigned.add(
-        next.playerTag
-      );
-    }
-
-    if (
-      main.players.length <
-      minimumForV15
-    ) {
-      clearLowerClans(1);
-    } else {
-      /*
-       * ---------------------------------------------------
-       * GATE 2 — TDG II
-       * ---------------------------------------------------
-       *
-       * Eerst alle niet-TH18 spelers uit TDG II
-       * verwijderen. Deze worden NIET automatisch
-       * teruggeplaatst in TDG II.
-       */
-
-      const tdgII =
-        assignments[1];
-
-      const invalidTdgII =
-        tdgII.players.filter(
-          (player) =>
-            !isAutomaticEligible(
-              player,
-              tdgII
-            )
-        );
-
-      for (
-        const player of
-        invalidTdgII
-      ) {
-        removeFromClan(
-          tdgII,
-          player.playerTag
-        );
+        continue;
       }
 
       while (
-        tdgII.players.length <
-          minimumForV15
+        clan.players.length <
+          minimumForV15 &&
+        assigned.size <
+          candidates.length
       ) {
         const next =
-          availableForClan(1)[0];
+          candidates
+            .filter(
+              (player) =>
+                !assigned.has(
+                  player.playerTag
+                )
+            )
+            .sort(
+              (a, b) =>
+                b.score - a.score
+            )[0];
 
         if (!next) {
           break;
         }
 
-        for (
-          const clan of
-          assignments.slice(2)
-        ) {
-          removeFromClan(
-            clan,
-            next.playerTag
-          );
-        }
-
-        tdgII.players.push(
+        clan.players.push(
           next
         );
 
@@ -2462,138 +2182,71 @@ export async function POST(
           next.playerTag
         );
       }
+    }
 
-      if (
-        tdgII.players.length <
-        minimumForV15
-      ) {
-        /*
-         * TDG II kan geen 17 geschikte TH18's halen.
-         *
-         * Mini + Micro blijven automatisch leeg.
-         */
-        clearLowerClans(2);
-      } else {
-        /*
-         * -------------------------------------------------
-         * GATE 3 — MINI
-         * -------------------------------------------------
-         *
-         * We kijken eerst hoeveel spelers er
-         * daadwerkelijk over zijn na Main + II.
-         *
-         * Minder dan 17?
-         * Dan blijft Mini leeg.
-         */
+    /*
+     * -----------------------------------------------------
+     * RESTERENDE SPELERS
+     * -----------------------------------------------------
+     *
+     * Na Main + II gaat alles naar Mini.
+     *
+     * Daarna pas Micro.
+     *
+     * De 55-spelerssituatie wordt hierdoor:
+     *
+     *   Main 17
+     *   II   17
+     *   Mini 21
+     */
 
-        const mini =
-          assignments[2];
+    for (
+      let clanIndex = 2;
+      clanIndex <
+        assignments.length;
+      clanIndex++
+    ) {
+      const clan =
+        assignments[clanIndex];
 
-        const micro =
-          assignments[3];
-
-        const remainingCount =
-          lowerClanPlayers(2).length +
-          unassignedPlayers().length;
-
-        if (
-          remainingCount <
-          minimumForV15
-        ) {
-          clearClan(mini);
-          clearClan(micro);
-        } else {
-          /*
-           * Mini mag nu automatisch gevuld worden.
-           */
-          const miniCandidates =
-            availableForClan(2);
-
-          for (
-            const player of
-            miniCandidates
-          ) {
-            if (
-              mini.players.length >=
-              maximumPlayers(mini)
-            ) {
-              break;
-            }
-
-            if (
-              assigned.has(
+      const remaining =
+        candidates
+          .filter(
+            (player) =>
+              !assigned.has(
                 player.playerTag
               )
-            ) {
-              continue;
-            }
+          )
+          .sort(
+            (a, b) =>
+              b.score - a.score
+          );
 
-            for (
-              const clan of
-              assignments.slice(3)
-            ) {
-              removeFromClan(
-                clan,
-                player.playerTag
-              );
-            }
-
-            mini.players.push(
-              player
-            );
-
-            assigned.add(
-              player.playerTag
-            );
-          }
-
-          /*
-           * -------------------------------------------------
-           * GATE 4 — MICRO
-           * -------------------------------------------------
-           */
-
-          const microRemaining =
-            unassignedPlayers().length;
-
-          if (
-            microRemaining <
-            minimumForV15
-          ) {
-            clearClan(micro);
-          } else {
-            const microCandidates =
-              availableForClan(3);
-
-            for (
-              const player of
-              microCandidates
-            ) {
-              if (
-                micro.players.length >=
-                maximumPlayers(micro)
-              ) {
-                break;
-              }
-
-              if (
-                assigned.has(
-                  player.playerTag
-                )
-              ) {
-                continue;
-              }
-
-              micro.players.push(
-                player
-              );
-
-              assigned.add(
-                player.playerTag
-              );
-            }
-          }
+      for (
+        const player of
+        remaining
+      ) {
+        if (
+          clan.players.length >=
+          maximumPlayers(clan)
+        ) {
+          break;
         }
+
+        clan.players.push(
+          player
+        );
+
+        assigned.add(
+          player.playerTag
+        );
+      }
+
+      if (
+        assigned.size >=
+        candidates.length
+      ) {
+        break;
       }
     }
 

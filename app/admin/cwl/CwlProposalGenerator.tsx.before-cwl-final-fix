@@ -82,9 +82,6 @@ export default function CwlProposalGenerator() {
   const [overrideLoading, setOverrideLoading] =
     useState<string | null>(null);
 
-  const [manualAdding, setManualAdding] =
-    useState<string | null>(null);
-
   async function generate(
     mode: Mode
   ) {
@@ -214,82 +211,6 @@ export default function CwlProposalGenerator() {
     }
   }
 
-  async function manuallyAddPlayer(
-    player: Player,
-    clan: Clan
-  ) {
-    const key =
-      `${player.playerTag}:${clan.tag}`;
-
-    setManualAdding(key);
-    setError("");
-
-    try {
-      const response =
-        await fetch(
-          "/api/admin/cwl/draft/add",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body:
-              JSON.stringify({
-                playerTag:
-                  player.playerTag,
-                name:
-                  player.name,
-                townHall:
-                  player.townHall,
-                availability:
-                  player.availability,
-                score:
-                  player.score,
-                stars:
-                  player.stars,
-                attacks:
-                  player.attacks,
-                missedAttacks:
-                  player.missedAttacks,
-                difficultyBonus:
-                  player.difficultyBonus,
-                defenceStars:
-                  player.defenceStars,
-                targetClanTag:
-                  clan.tag,
-              }),
-          }
-        );
-
-      const data =
-        await response.json();
-
-      if (
-        !response.ok ||
-        !data.success
-      ) {
-        setError(
-          data.error ||
-            "Speler kon niet handmatig worden toegevoegd."
-        );
-        return;
-      }
-
-      /*
-       * De draft editor en generator moeten de
-       * nieuwe MANUAL assignment direct tonen.
-       */
-      window.location.reload();
-    } catch {
-      setError(
-        "Er kon geen verbinding met Phoenix worden gemaakt."
-      );
-    } finally {
-      setManualAdding(null);
-    }
-  }
-
   return (
     <section className="mt-6 rounded-xl border border-orange-400/15 bg-orange-500/[0.03] p-4">
 
@@ -407,66 +328,21 @@ export default function CwlProposalGenerator() {
               </h4>
 
               <p className="mt-1 text-[10px] text-white/35">
-                Deze spelers konden automatisch niet worden geplaatst.
-                Een admin kan bewust een clan kiezen als override.
+                Deze spelers vallen buiten de
+                normale selectiecapaciteit.
               </p>
 
-              <div className="mt-2 space-y-1.5">
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 {proposal.unassigned.map(
                   (player) => (
-                    <div
+                    <span
                       key={
                         player.playerTag
                       }
-                      className="rounded-md border border-white/10 bg-black/20 p-2"
+                      className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-[10px]"
                     >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">
-                          {player.name}
-                        </span>
-
-                        <span className="shrink-0 rounded bg-purple-500/10 px-1.5 py-0.5 text-[8px] font-bold text-purple-300">
-                          TH{player.townHall}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {proposal.clans.map(
-                          (clan) => {
-                            const key =
-                              `${player.playerTag}:${clan.tag}`;
-
-                            const busy =
-                              manualAdding ===
-                              key;
-
-                            return (
-                              <button
-                                key={
-                                  clan.tag
-                                }
-                                type="button"
-                                disabled={
-                                  manualAdding !==
-                                  null
-                                }
-                                onClick={() =>
-                                  manuallyAddPlayer(
-                                    player,
-                                    clan
-                                  )
-                                }
-                                className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[8px] font-bold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {busy
-                                  ? "Toevoegen..."
-                                  : `➕ ${clan.name}`}
-                              </button>
-                            );
-                          }
-                        )}
-                      </div>
-                    </div>
+                      {player.name}
+                    </span>
                   )
                 )}
               </div>
