@@ -1,6 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
 import { requireAdmin } from "@/app/lib/auth/session";
-import CwlProposalGenerator from "./CwlProposalGenerator";
 import CwlDraftEditor from "./CwlDraftEditor";
 import CwlApplicationCard from "./CwlApplicationCard";
 
@@ -424,9 +423,6 @@ export default async function AdminCwlPage() {
             />
           </div>
         </section>
-
-        {/* CWL voorstelgenerator */}
-        <CwlProposalGenerator />
 
         {/* CWL draft editor */}
         <CwlDraftEditor

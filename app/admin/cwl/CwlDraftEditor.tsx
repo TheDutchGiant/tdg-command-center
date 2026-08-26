@@ -36,6 +36,7 @@ type Draft = {
   status: "DRAFT" | "FINAL";
   version: number;
   clans: Clan[];
+  unassigned: Player[];
 };
 
 export default function CwlDraftEditor({
@@ -60,6 +61,9 @@ export default function CwlDraftEditor({
 
   const [moving, setMoving] =
     useState(false);
+
+  const [manualAdding, setManualAdding] =
+    useState<string | null>(null);
 
   const [finalizing, setFinalizing] =
     useState(false);
@@ -187,6 +191,67 @@ export default function CwlDraftEditor({
       );
     } finally {
       setMoving(false);
+    }
+  }
+
+  async function manuallyAddPlayer(
+    player: Player,
+    clan: Clan
+  ) {
+    if (isFinal || manualAdding) {
+      return;
+    }
+
+    const key =
+      `${player.playerTag}:${clan.clanTag}`;
+
+    setManualAdding(key);
+    setError("");
+
+    try {
+      const response =
+        await fetch(
+          "/api/admin/cwl/draft/add",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              playerTag:
+                player.playerTag,
+              name:
+                player.name,
+              townHall:
+                player.townHall,
+              targetClanTag:
+                clan.clanTag,
+            }),
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        setError(
+          data.error ||
+            "Speler kon niet worden toegevoegd."
+        );
+        return;
+      }
+
+      await loadDraft();
+    } catch {
+      setError(
+        "Speler kon niet worden toegevoegd."
+      );
+    } finally {
+      setManualAdding(null);
     }
   }
 
@@ -366,7 +431,7 @@ export default function CwlDraftEditor({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         {draft.clans.map((clan) => (
           <section
             key={clan.id}
@@ -445,6 +510,80 @@ export default function CwlDraftEditor({
           </section>
         ))}
       </div>
+
+      <section className="min-w-0 rounded-lg border border-yellow-400/20 bg-yellow-500/[0.04] p-2.5">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-bold text-yellow-200">
+              ⚠️ Niet ingedeeld
+            </h3>
+            <p className="mt-1 text-[8px] text-white/30">
+              {draft.unassigned.length} spelers
+            </p>
+          </div>
+
+          <span className="rounded-md border border-yellow-400/20 px-1.5 py-0.5 text-[8px] text-yellow-200">
+            {draft.unassigned.length}
+          </span>
+        </div>
+
+        <div className="max-h-[360px] space-y-1 overflow-y-auto pr-1">
+          {draft.unassigned.length === 0 ? (
+            <div className="rounded-md border border-white/10 bg-black/20 p-3 text-[9px] text-white/30">
+              Alle spelers zijn geplaatst.
+            </div>
+          ) : (
+            draft.unassigned.map((player) => (
+              <div
+                key={player.playerTag}
+                className="rounded-md border border-white/10 bg-black/20 p-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-[9px] font-semibold">
+                    {player.name}
+                  </span>
+
+                  {player.townHall && (
+                    <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[7px] font-bold text-purple-300">
+                      TH{player.townHall}
+                    </span>
+                  )}
+                </div>
+
+                {!isFinal && (
+                  <div className="mt-2 grid grid-cols-1 gap-1">
+                    {draft.clans.map((clan) => {
+                      const key =
+                        `${player.playerTag}:${clan.clanTag}`;
+
+                      return (
+                        <button
+                          key={clan.clanTag}
+                          type="button"
+                          disabled={
+                            manualAdding !== null
+                          }
+                          onClick={() =>
+                            manuallyAddPlayer(
+                              player,
+                              clan
+                            )
+                          }
+                          className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-2 py-1.5 text-[8px] font-bold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
+                        >
+                          {manualAdding === key
+                            ? "Toevoegen..."
+                            : `➕ ${clan.clanName}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
 
       {!isFinal && (
         <div className="mt-5 rounded-lg border border-orange-400/20 bg-orange-500/[0.05] p-3">

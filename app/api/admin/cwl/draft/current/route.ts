@@ -82,6 +82,7 @@ export async function GET() {
     const [
       missedAttackRecords,
       regularWarAttacks,
+      approvedApplications,
     ] = await Promise.all([
       prisma.missedAttack.findMany({
         orderBy: {
@@ -104,6 +105,21 @@ export async function GET() {
           war: {
             warEndTime: "asc",
           },
+        },
+      }),
+
+      prisma.cwlApplication.findMany({
+        where: {
+          season: plan.season,
+          status: {
+            in: [
+              "APPROVED",
+              "AUTO_APPROVED",
+            ],
+          },
+        },
+        orderBy: {
+          submittedAt: "asc",
         },
       }),
     ]);
@@ -361,6 +377,62 @@ export async function GET() {
           };
         });
 
+    /*
+     * ---------------------------------------------------------
+     * NIET INGEDEELD
+     * ---------------------------------------------------------
+     *
+     * Alle goedgekeurde aanmeldingen minus spelers die
+     * daadwerkelijk in de huidige draft staan.
+     */
+
+    const assignedTags =
+      new Set(
+        clans.flatMap(
+          (clan) =>
+            clan.players.map(
+              (player) =>
+                normalizeTag(
+                  player.playerTag
+                )
+            )
+        )
+      );
+
+    const unassigned =
+      approvedApplications
+        .filter(
+          (application) =>
+            !assignedTags.has(
+              normalizeTag(
+                application.playerTag
+              )
+            )
+        )
+        .map(
+          (application, index) => ({
+            id:
+              -(index + 1),
+
+            playerTag:
+              application.playerTag,
+
+            name:
+              application.clashName ||
+              application.playerTag,
+
+            position: 0,
+
+            score: 0,
+
+            missedAttacks: 0,
+
+            regularWarAttacks: [],
+
+            townHall: null,
+          })
+        );
+
     return NextResponse.json({
       success: true,
 
@@ -381,6 +453,8 @@ export async function GET() {
           plan.updatedAt,
 
         clans,
+
+        unassigned,
       },
     });
   } catch (error) {
