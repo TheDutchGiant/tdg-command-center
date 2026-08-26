@@ -1,5 +1,6 @@
 import { prisma } from "@/app/lib/prisma";
 import { requireAdmin } from "@/app/lib/auth/session";
+import CwlProposalGenerator from "./CwlProposalGenerator";
 import CwlDraftEditor from "./CwlDraftEditor";
 import CwlApplicationCard from "./CwlApplicationCard";
 
@@ -372,7 +373,7 @@ export default async function AdminCwlPage() {
               {applications.length === 0 ? (
                 <Empty text="Nog geen CWL-aanmeldingen." />
               ) : (
-                <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                <div className="max-h-[300px] space-y-1 overflow-y-auto pr-1">
                   {applications.map(
                     (application) => (
                       <CwlApplicationCard
@@ -411,6 +412,9 @@ export default async function AdminCwlPage() {
             />
           </div>
         </section>
+
+        {/* CWL voorstelgenerator */}
+        <CwlProposalGenerator />
 
         {/* CWL draft editor */}
         <CwlDraftEditor
