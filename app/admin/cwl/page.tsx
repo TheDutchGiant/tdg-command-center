@@ -372,33 +372,21 @@ export default async function AdminCwlPage() {
               {applications.length === 0 ? (
                 <Empty text="Nog geen CWL-aanmeldingen." />
               ) : (
-                <div className="max-h-[260px] overflow-y-auto rounded-lg border border-white/10 bg-white/[0.02]">
-                  <div className="grid grid-cols-1 gap-px sm:grid-cols-2">
-                    {applications.map(
-                      (application) => (
-                        <div
-                          key={application.id}
-                          className="flex min-w-0 items-center gap-2 border-b border-white/5 bg-black/20 px-2.5 py-1.5"
-                        >
-                          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">
-                            {application.clashName}
-                          </span>
-
-                          <span
-                            className={`shrink-0 rounded px-1.5 py-0.5 text-[7px] font-bold ${
-                              application.availability === "FULL"
-                                ? "bg-green-500/10 text-green-300"
-                                : "bg-yellow-500/10 text-yellow-300"
-                            }`}
-                          >
-                            {application.availability === "FULL"
-                              ? "VOLLEDIG"
-                              : "BEPERKT"}
-                          </span>
-                        </div>
-                      )
-                    )}
-                  </div>
+                <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                  {applications.map(
+                    (application) => (
+                      <CwlApplicationCard
+                        key={application.id}
+                        application={{
+                          id: application.id,
+                          playerTag: application.playerTag,
+                          clashName: application.clashName,
+                          availability: application.availability,
+                          status: application.status,
+                        }}
+                      />
+                    )
+                  )}
                 </div>
               )}
             </div>
