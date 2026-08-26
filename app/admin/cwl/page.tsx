@@ -373,21 +373,23 @@ export default async function AdminCwlPage() {
               {applications.length === 0 ? (
                 <Empty text="Nog geen CWL-aanmeldingen." />
               ) : (
-                <div className="max-h-[300px] space-y-1 overflow-y-auto pr-1">
-                  {applications.map(
-                    (application) => (
-                      <CwlApplicationCard
-                        key={application.id}
-                        application={{
-                          id: application.id,
-                          playerTag: application.playerTag,
-                          clashName: application.clashName,
-                          availability: application.availability,
-                          status: application.status,
-                        }}
-                      />
-                    )
-                  )}
+                <div className="max-h-[480px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+                    {applications.map(
+                      (application) => (
+                        <CwlApplicationCard
+                          key={application.id}
+                          application={{
+                            id: application.id,
+                            playerTag: application.playerTag,
+                            clashName: application.clashName,
+                            availability: application.availability,
+                            status: application.status,
+                          }}
+                        />
+                      )
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -94,13 +94,13 @@ export default function CwlApplicationCard({
           : "🟡 WACHT OP GOEDKEURING";
 
   return (
-    <article className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <article className="rounded-lg border border-white/10 bg-white/[0.02] p-2">
+      <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center lg:justify-between">
 
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
 
-            <h3 className="text-sm font-semibold">
+            <h3 className="text-[11px] font-semibold">
               {application.clashName}
             </h3>
 
@@ -124,7 +124,7 @@ export default function CwlApplicationCard({
 
           </div>
 
-          <p className="mt-1 font-mono text-[9px] text-white/30">
+          <p className="mt-0.5 font-mono text-[8px] text-white/30">
             {application.playerTag}
           </p>
 
