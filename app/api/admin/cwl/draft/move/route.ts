@@ -14,7 +14,19 @@ export async function POST(request: Request) {
     const targetPlayerTag =
       String(body.targetPlayerTag || "").trim();
 
-    if (!playerTag || !targetPlayerTag) {
+    const targetClanTag =
+      String(body.targetClanTag || "")
+        .trim()
+        .replace(/^#/, "")
+        .toUpperCase();
+
+    const isDirectMove =
+      Boolean(targetClanTag);
+
+    if (
+      !playerTag ||
+      (!targetPlayerTag && !targetClanTag)
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -24,7 +36,10 @@ export async function POST(request: Request) {
       );
     }
 
-    if (playerTag === targetPlayerTag) {
+    if (
+      !isDirectMove &&
+      playerTag === targetPlayerTag
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -77,6 +92,17 @@ export async function POST(request: Request) {
     let sourceClan = null;
     let targetClan = null;
 
+    if (isDirectMove) {
+      targetClan =
+        plan.clanPlans.find(
+          (clan) =>
+            clan.clanTag
+              .replace(/^#/, "")
+              .toUpperCase() ===
+            targetClanTag
+        ) || null;
+    }
+
     for (const clan of plan.clanPlans) {
       for (const assignment of clan.assignments) {
         if (assignment.playerTag === playerTag) {
@@ -85,6 +111,7 @@ export async function POST(request: Request) {
         }
 
         if (
+          !isDirectMove &&
           assignment.playerTag ===
           targetPlayerTag
         ) {
@@ -105,7 +132,21 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!targetAssignment || !targetClan) {
+    if (!targetClan) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "De doelclan bestaat niet.",
+        },
+        { status: 404 }
+      );
+    }
+
+    if (
+      !isDirectMove &&
+      !targetAssignment
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -124,6 +165,93 @@ export async function POST(request: Request) {
             "Beide spelers zitten al in dezelfde clan.",
         },
         { status: 400 }
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * DIRECT VERPLAATSEN
+     * ---------------------------------------------------------
+     *
+     * Eén speler verhuist naar een andere clan.
+     * Er wordt niemand anders gewisseld.
+     */
+
+    if (isDirectMove) {
+      if (
+        targetClan.assignments.length >=
+        34
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "De doelclan heeft al 34 spelers.",
+          },
+          { status: 409 }
+        );
+      }
+
+      const newPosition =
+        targetClan.assignments.reduce(
+          (
+            highest,
+            assignment
+          ) =>
+            Math.max(
+              highest,
+              assignment.position
+            ),
+          0
+        ) + 1;
+
+      await prisma.cwlAssignment.update({
+        where: {
+          id:
+            sourceAssignment.id,
+        },
+        data: {
+          clanPlanId:
+            targetClan.id,
+
+          position:
+            newPosition,
+
+          role:
+            newPosition <=
+            targetClan.starters
+              ? "STARTER"
+              : "RESERVE",
+
+          source:
+            "MANUAL",
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: "MOVE",
+      });
+    }
+
+    /*
+     * Vanaf hier is dit altijd de bestaande
+     * WISSEL-functionaliteit.
+     *
+     * Bij een directe verplaatsing zijn we hierboven
+     * al teruggekeerd.
+     */
+    if (
+      !sourceAssignment ||
+      !targetAssignment
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "De spelers konden niet worden gevonden voor de wissel.",
+        },
+        { status: 404 }
       );
     }
 

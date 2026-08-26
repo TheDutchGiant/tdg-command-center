@@ -154,27 +154,31 @@ export async function POST(
     }
 
     /*
-     * Maximaal 10 handmatige extra spelers
-     * per clan in de CWL-draft.
+     * ---------------------------------------------------------
+     * HANDMATIGE CWL-PLAATSEN
+     * ---------------------------------------------------------
      *
-     * Dit zijn draft-bufferplaatsen en geen
-     * verhoging van de normale automatische
-     * CWL-bezetting.
+     * Een admin mag bewust een volledige V30-indeling
+     * handmatig opbouwen.
+     *
+     * De automatische generator blijft zijn eigen
+     * voorwaarden gebruiken. Deze route is juist bedoeld
+     * voor handmatige overrules.
+     *
+     * Maximaal 34 spelers per clan.
      */
 
-    const manualCount =
-      targetClan.assignments.filter(
-        (assignment) =>
-          assignment.source ===
-          "MANUAL"
-      ).length;
+    const MANUAL_MAX_PLAYERS = 34;
 
-    if (manualCount >= 10) {
+    if (
+      targetClan.assignments.length >=
+      MANUAL_MAX_PLAYERS
+    ) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "Deze clan heeft de maximale 10 handmatige draftplaatsen bereikt.",
+            "Deze clan heeft al 34 spelers. Er kunnen geen extra spelers meer worden toegevoegd.",
         },
         {
           status: 409,

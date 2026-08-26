@@ -56,6 +56,9 @@ export default function CwlDraftEditor({
   const [movingPlayer, setMovingPlayer] =
     useState<string | null>(null);
 
+  const [moveTargetClan, setMoveTargetClan] =
+    useState<string | null>(null);
+
   const [targetPlayer, setTargetPlayer] =
     useState<string | null>(null);
 
@@ -136,11 +139,19 @@ export default function CwlDraftEditor({
   const isFinal =
     draft.status === "FINAL";
 
-  async function movePlayer() {
+  async function movePlayer(
+    targetClanTag?: string
+  ) {
     if (
       !movingPlayer ||
-      !targetPlayer ||
       isFinal
+    ) {
+      return;
+    }
+
+    if (
+      !targetClanTag &&
+      !targetPlayer
     ) {
       return;
     }
@@ -158,12 +169,20 @@ export default function CwlDraftEditor({
               "Content-Type":
                 "application/json",
             },
-            body: JSON.stringify({
-              playerTag:
-                movingPlayer,
-              targetPlayerTag:
-                targetPlayer,
-            }),
+            body: JSON.stringify(
+              targetClanTag
+                ? {
+                    playerTag:
+                      movingPlayer,
+                    targetClanTag,
+                  }
+                : {
+                    playerTag:
+                      movingPlayer,
+                    targetPlayerTag:
+                      targetPlayer,
+                  }
+            ),
           }
         );
 
@@ -182,6 +201,7 @@ export default function CwlDraftEditor({
       }
 
       setMovingPlayer(null);
+      setMoveTargetClan(null);
       setTargetPlayer(null);
 
       await loadDraft();
@@ -497,6 +517,8 @@ export default function CwlDraftEditor({
                     warningText={warningText}
                     movingPlayer={movingPlayer}
                     setMovingPlayer={setMovingPlayer}
+                    moveTargetClan={moveTargetClan}
+                    setMoveTargetClan={setMoveTargetClan}
                     targetPlayer={targetPlayer}
                     setTargetPlayer={setTargetPlayer}
                     draft={draft}
@@ -509,15 +531,14 @@ export default function CwlDraftEditor({
             </div>
           </section>
         ))}
-      </div>
 
-      <section className="min-w-0 rounded-lg border border-yellow-400/20 bg-yellow-500/[0.04] p-2.5">
-        <div className="mb-2 flex items-center justify-between">
+              <section className="min-w-0 rounded-lg border border-yellow-400/20 bg-yellow-500/[0.04] p-2">
+        <div className="mb-1 flex items-center justify-between">
           <div>
             <h3 className="text-xs font-bold text-yellow-200">
               ⚠️ Niet ingedeeld
             </h3>
-            <p className="mt-1 text-[8px] text-white/30">
+            <p className="text-[7px] text-white/30">
               {draft.unassigned.length} spelers
             </p>
           </div>
@@ -527,7 +548,7 @@ export default function CwlDraftEditor({
           </span>
         </div>
 
-        <div className="max-h-[360px] space-y-1 overflow-y-auto pr-1">
+        <div className="max-h-[360px] space-y-1 overflow-y-auto pr-0.5">
           {draft.unassigned.length === 0 ? (
             <div className="rounded-md border border-white/10 bg-black/20 p-3 text-[9px] text-white/30">
               Alle spelers zijn geplaatst.
@@ -536,7 +557,7 @@ export default function CwlDraftEditor({
             draft.unassigned.map((player) => (
               <div
                 key={player.playerTag}
-                className="rounded-md border border-white/10 bg-black/20 p-2"
+                className="rounded-md border border-white/10 bg-black/20 p-1.5"
               >
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 truncate text-[9px] font-semibold">
@@ -551,7 +572,7 @@ export default function CwlDraftEditor({
                 </div>
 
                 {!isFinal && (
-                  <div className="mt-2 grid grid-cols-1 gap-1">
+                  <div className="mt-1 grid grid-cols-2 gap-1">
                     {draft.clans.map((clan) => {
                       const key =
                         `${player.playerTag}:${clan.clanTag}`;
@@ -569,7 +590,7 @@ export default function CwlDraftEditor({
                               clan
                             )
                           }
-                          className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-2 py-1.5 text-[8px] font-bold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
+                          className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-1 py-1 text-[7px] font-bold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
                         >
                           {manualAdding === key
                             ? "Toevoegen..."
@@ -584,6 +605,7 @@ export default function CwlDraftEditor({
           )}
         </div>
       </section>
+      </div>
 
       {!isFinal && (
         <div className="mt-5 rounded-lg border border-orange-400/20 bg-orange-500/[0.05] p-3">
@@ -622,6 +644,8 @@ function DraftPlayerRow({
   warningText,
   movingPlayer,
   setMovingPlayer,
+  moveTargetClan,
+  setMoveTargetClan,
   targetPlayer,
   setTargetPlayer,
   draft,
@@ -817,23 +841,94 @@ function DraftPlayerRow({
             )}
 
             {!isFinal && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMovingPlayer(
-                    player.playerTag
-                  );
-                  setTargetPlayer(null);
-                }}
-                className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[8px] font-bold text-cyan-200"
-              >
-                ↔ Wisselen
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMovingPlayer(
+                      player.playerTag
+                    );
+                    setMoveTargetClan(null);
+                    setTargetPlayer(null);
+                  }}
+                  className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[8px] font-bold text-cyan-200"
+                >
+                  ↔ Wisselen
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMovingPlayer(
+                      player.playerTag
+                    );
+                    setMoveTargetClan("");
+                    setTargetPlayer(null);
+                  }}
+                  className="rounded-md border border-green-400/20 bg-green-500/10 px-2 py-1 text-[8px] font-bold text-green-200"
+                >
+                  → Verplaatsen
+                </button>
+              </div>
             )}
           </div>
 
           {!isFinal &&
-            isMoving && (
+            isMoving &&
+            moveTargetClan !== null && (
+              <div className="mt-2 border-t border-white/10 pt-2">
+                <p className="mb-1.5 text-[8px] font-bold uppercase tracking-wider text-green-200/70">
+                  → Kies doelclan
+                </p>
+
+                <div className="grid grid-cols-2 gap-1">
+                  {draft.clans
+                    .filter(
+                      (targetClan: any) =>
+                        targetClan.id !== clan.id
+                    )
+                    .map((targetClan: any) => (
+                      <button
+                        key={targetClan.id}
+                        type="button"
+                        onClick={() => {
+                          setMoveTargetClan(
+                            targetClan.clanTag
+                          );
+                          movePlayer(
+                            targetClan.clanTag
+                          );
+                        }}
+                        disabled={moving}
+                        className="rounded-md border border-green-400/20 bg-green-500/10 px-2 py-2 text-[8px] font-bold text-green-200 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="block truncate">
+                          {targetClan.clanName}
+                        </span>
+                        <span className="mt-0.5 block text-[7px] text-white/35">
+                          {targetClan.players.length}/34
+                        </span>
+                      </button>
+                    ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMovingPlayer(null);
+                    setMoveTargetClan(null);
+                    setTargetPlayer(null);
+                  }}
+                  className="mt-2 rounded-md border border-white/10 px-3 py-1.5 text-[8px] text-white/50 hover:bg-white/5"
+                >
+                  Annuleren
+                </button>
+              </div>
+            )}
+
+          {!isFinal &&
+            isMoving &&
+            moveTargetClan === null && (
               <div className="mt-2 border-t border-white/10 pt-2">
                 <p className="mb-1.5 text-[8px] font-bold uppercase tracking-wider text-cyan-200/70">
                   ↔ Wisselen met
@@ -897,6 +992,7 @@ function DraftPlayerRow({
                     type="button"
                     onClick={() => {
                       setMovingPlayer(null);
+                      setMoveTargetClan(null);
                       setTargetPlayer(null);
                     }}
                     className="rounded-md border border-white/10 px-3 py-1.5 text-[9px] text-white/50 hover:bg-white/5"
