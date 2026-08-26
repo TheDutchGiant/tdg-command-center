@@ -153,6 +153,35 @@ export async function POST(
       );
     }
 
+    /*
+     * Maximaal 10 handmatige extra spelers
+     * per clan in de CWL-draft.
+     *
+     * Dit zijn draft-bufferplaatsen en geen
+     * verhoging van de normale automatische
+     * CWL-bezetting.
+     */
+
+    const manualCount =
+      targetClan.assignments.filter(
+        (assignment) =>
+          assignment.source ===
+          "MANUAL"
+      ).length;
+
+    if (manualCount >= 10) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Deze clan heeft de maximale 10 handmatige draftplaatsen bereikt.",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
     const position =
       targetClan.assignments.reduce(
         (

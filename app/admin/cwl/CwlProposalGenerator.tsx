@@ -399,9 +399,7 @@ export default function CwlProposalGenerator() {
             )}
           </div>
 
-          {proposal.unassigned.length >
-            0 && (
-            <section className="mt-4 rounded-lg border border-yellow-400/20 bg-yellow-500/[0.04] p-3">
+          <section className="mt-4 rounded-lg border border-yellow-400/20 bg-yellow-500/[0.04] p-3">
               <h4 className="text-xs font-bold text-yellow-200">
                 ⚠️ Niet geplaatst
               </h4>
@@ -411,8 +409,13 @@ export default function CwlProposalGenerator() {
                 Een admin kan bewust een clan kiezen als override.
               </p>
 
-              <div className="mt-2 space-y-1.5">
-                {proposal.unassigned.map(
+              {proposal.unassigned.length === 0 ? (
+                <div className="mt-2 rounded-md border border-white/10 bg-black/20 p-3 text-[10px] text-white/30">
+                  Alle aangemelde spelers zijn automatisch geplaatst.
+                </div>
+              ) : (
+                <div className="mt-2 space-y-1.5">
+                  {proposal.unassigned.map(
                   (player) => (
                     <div
                       key={
@@ -468,10 +471,10 @@ export default function CwlProposalGenerator() {
                       </div>
                     </div>
                   )
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </section>
-          )}
 
         </div>
       )}
