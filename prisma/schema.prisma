@@ -542,8 +542,7 @@ model CwlDefensiveStrengthOverride {
   @@index([playerTag])
 }
 
-
-/*
+/**
  * --------------------------------------------------------------------------
  * TDG RANDOM ARMY CHALLENGE
  * --------------------------------------------------------------------------
@@ -563,21 +562,21 @@ enum RandomChallengeEntryStatus {
 }
 
 model RandomChallenge {
-  id          Int                   @id @default(autoincrement())
-  number      Int                   @unique
-  title       String
-  status      RandomChallengeStatus @default(DRAFT)
-  townHall    Int
-  difficulty  String
-  baseId      Int?
-  army        Json
-  rules       String?
-  startsAt    DateTime?
-  endsAt      DateTime?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  id         Int                   @id @default(autoincrement())
+  number     Int                   @unique
+  title      String
+  status     RandomChallengeStatus @default(DRAFT)
+  townHall   Int
+  difficulty String
+  baseId     Int?
+  army       Json
+  rules      String?
+  startsAt   DateTime?
+  endsAt     DateTime?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
 
-  entries     RandomChallengeEntry[]
+  entries RandomChallengeEntry[]
 
   @@index([status])
   @@index([startsAt])
@@ -585,20 +584,20 @@ model RandomChallenge {
 }
 
 model RandomChallengeEntry {
-  id            Int                        @id @default(autoincrement())
-  challengeId   Int
-  playerTag     String
-  playerName    String
-  status        RandomChallengeEntryStatus @default(PENDING)
+  id             Int                        @id @default(autoincrement())
+  challengeId    Int
+  playerTag      String
+  playerName     String
+  status         RandomChallengeEntryStatus @default(PENDING)
   screenshotPath String?
-  ocrResult     Json?
-  adminNote     String?
-  reviewedBy    String?
-  submittedAt   DateTime                   @default(now())
-  reviewedAt    DateTime?
+  ocrResult      Json?
+  adminNote      String?
+  reviewedBy     String?
+  submittedAt    DateTime                   @default(now())
+  reviewedAt     DateTime?
 
-  challenge     RandomChallenge             @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  result        RandomChallengeResult?
+  challenge RandomChallenge        @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  result    RandomChallengeResult?
 
   @@unique([challengeId, playerTag])
   @@index([challengeId])
@@ -607,17 +606,17 @@ model RandomChallengeEntry {
 }
 
 model RandomChallengeResult {
-  id            Int                   @id @default(autoincrement())
-  entryId       Int                   @unique
-  stars         Int                   @default(0)
-  destruction   Float                 @default(0)
-  timeSeconds   Int?
-  score         Float                 @default(0)
-  rank          Int?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  id          Int      @id @default(autoincrement())
+  entryId     Int      @unique
+  stars       Int      @default(0)
+  destruction Float    @default(0)
+  timeSeconds Int?
+  score       Float    @default(0)
+  rank        Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  entry         RandomChallengeEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entry RandomChallengeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([score])
   @@index([rank])
