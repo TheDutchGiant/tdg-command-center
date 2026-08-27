@@ -464,15 +464,44 @@ export async function getTownHallCapabilities(
         )
       : [];
 
-  const heroesById = new Map(
-    data.heroes.map((hero) => [
-      String(hero.id),
-      hero,
-    ])
-  );
+  /*
+   * Hero Hall gebruikt interne hero IDs zoals
+   * "barbarianKing", terwijl de game-data soms
+   * een andere ID/naamnotatie gebruikt.
+   *
+   * Daarom koppelen we eerst op ID en daarna
+   * op een genormaliseerde versie van ID/naam.
+   */
+  const normalizeHeroKey = (
+    value: unknown
+  ) =>
+    String(value ?? "")
+      .replace(/[^a-z0-9]/gi, "")
+      .toLowerCase();
+
+  const heroesByKey = new Map<
+    string,
+    GameDataItem
+  >();
+
+  for (const hero of data.heroes) {
+    heroesByKey.set(
+      normalizeHeroKey(hero.id),
+      hero
+    );
+
+    heroesByKey.set(
+      normalizeHeroKey(hero.name),
+      hero
+    );
+  }
 
   const heroes = heroIds
-    .map((id) => heroesById.get(id))
+    .map((id) =>
+      heroesByKey.get(
+        normalizeHeroKey(id)
+      )
+    )
     .filter(
       (hero): hero is GameDataItem =>
         Boolean(hero)
