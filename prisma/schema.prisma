@@ -621,3 +621,39 @@ model RandomChallengeResult {
   @@index([score])
   @@index([rank])
 }
+
+/**
+ * --------------------------------------------------------------------------
+ * TDG DISCOVERY ARMIES
+ * --------------------------------------------------------------------------
+ * Actuele army-dataset voor de TDG Discovery Challenge.
+ * De dataset wordt periodiek volledig ververst vanuit ClashKing.
+ * --------------------------------------------------------------------------
+ */
+
+enum DiscoveryTier {
+  L1
+  L2
+  L3
+}
+
+model DiscoveryArmy {
+  id              Int           @id @default(autoincrement())
+  tier            DiscoveryTier
+  fingerprint     String
+  armyShareCode   String?
+  troops          Json
+  spells          Json
+  siegeMachine    Json?
+  heroes          Json
+  pets            Json
+  usageCount      Int           @default(0)
+  usagePercentage Float         @default(0)
+  source           String        @default("ClashKing")
+  importedAt      DateTime      @default(now())
+
+  @@unique([tier, fingerprint])
+  @@index([tier])
+  @@index([tier, usageCount])
+}
+
