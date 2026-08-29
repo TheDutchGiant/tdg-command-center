@@ -1,17 +1,30 @@
 import { prisma } from "@/app/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
-const WAR_REPORT_URL =
-  "https://api.warreport.app/armies";
+const WAR_REPORT_BASE_URL =
+  "https://api.warreport.app";
 
-type WarReportArmy = {
+const MAX_DAYS = 31;
+const TOP_ARMIES_PER_DAY = 1000;
+
+type BattleStatsArmy = {
   name?: string;
-  canonicalKey?: string;
   armyShareCode?: string;
-  armyLink?: string;
+  usageCount?: number;
   playerCount?: number;
-  useCount?: number;
-  percentage?: number;
+};
+
+type BattleStatsDay = {
+  date: string;
+  totalAttacks?: number;
+  armies?: BattleStatsArmy[];
+};
+
+type BattleStatsSpan = {
+  from: string;
+  to: string;
+  days: BattleStatsDay[];
+  missing: string[];
 };
 
 function numberValue(value: unknown): number {
@@ -28,8 +41,10 @@ function stringValue(value: unknown): string | null {
     : null;
 }
 
-export async function importDiscoveryArmies() {
-  const response = await fetch(WAR_REPORT_URL, {
+async function fetchJson<T>(
+  url: string
+): Promise<T> {
+  const response = await fetch(url, {
     headers: {
       Accept: "application/json",
       "User-Agent": "TDG-Phoenix/1.0",
@@ -39,122 +54,244 @@ export async function importDiscoveryArmies() {
 
   if (!response.ok) {
     throw new Error(
-      `War Report gaf HTTP ${response.status}`
+      `War Report gaf HTTP ${response.status} voor ${url}`
     );
   }
 
-  const payload =
-    (await response.json()) as unknown;
+  return response.json() as Promise<T>;
+}
 
-  if (!Array.isArray(payload)) {
+async function getAvailableDates(): Promise<string[]> {
+  const dates =
+    await fetchJson<string[]>(
+      `${WAR_REPORT_BASE_URL}/battle-stats/dates`
+    );
+
+  if (!Array.isArray(dates)) {
     throw new Error(
-      "War Report gaf geen array met armies terug."
+      "War Report gaf geen geldige lijst met Legend-dagen terug."
     );
   }
 
-  const armies = payload
-    .map((row): WarReportArmy | null => {
-      if (
-        typeof row !== "object" ||
-        row === null
-      ) {
-        return null;
-      }
-
-      return row as WarReportArmy;
-    })
-    .filter(
-      (row): row is WarReportArmy =>
-        row !== null
+  return dates
+    .filter((date) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(date)
     )
-    .map((row) => {
-      const armyShareCode =
-        stringValue(row.armyShareCode);
+    .sort()
+    .slice(-MAX_DAYS);
+}
 
-      const fingerprint =
-        stringValue(row.canonicalKey) ??
-        armyShareCode;
+async function getBattleStats(
+  dates: string[]
+): Promise<BattleStatsSpan> {
+  if (dates.length === 0) {
+    throw new Error(
+      "War Report heeft geen beschikbare Legend-dagen."
+    );
+  }
 
-      if (!armyShareCode || !fingerprint) {
-        return null;
+  const from = dates[0];
+  const to = dates[dates.length - 1];
+
+  return fetchJson<BattleStatsSpan>(
+    `${WAR_REPORT_BASE_URL}/battle-stats?from=${from}&to=${to}&top=${TOP_ARMIES_PER_DAY}&heroes=true`
+  );
+}
+
+export async function importDiscoveryArmies() {
+  const dates =
+    await getAvailableDates();
+
+  const data =
+    await getBattleStats(dates);
+
+  if (
+    !Array.isArray(data.days) ||
+    data.days.length === 0
+  ) {
+    throw new Error(
+      "War Report leverde geen Battle Stats-dagen op."
+    );
+  }
+
+  const totalAttacks =
+    data.days.reduce(
+      (sum, day) =>
+        sum + numberValue(day.totalAttacks),
+      0
+    );
+
+  if (totalAttacks <= 0) {
+    throw new Error(
+      "War Report gaf 0 totale aanvallen terug."
+    );
+  }
+
+  type AggregatedArmy = {
+    name: string;
+    armyShareCode: string;
+    usageCount: number;
+    daysSeen: number;
+    lastName: string;
+  };
+
+  const aggregated =
+    new Map<string, AggregatedArmy>();
+
+  for (const day of data.days) {
+    const seenToday =
+      new Set<string>();
+
+    for (const army of day.armies ?? []) {
+      const code =
+        stringValue(
+          army.armyShareCode
+        );
+
+      if (!code) {
+        continue;
       }
 
-      return {
-        tier: "L1" as const,
-        fingerprint,
-        armyShareCode,
-        usageCount: Math.max(
+      const usage =
+        Math.max(
           0,
           Math.round(
-            numberValue(row.useCount)
+            numberValue(
+              army.usageCount
+            )
           )
-        ),
-        usagePercentage:
-          numberValue(row.percentage),
+        );
 
-        /*
-         * De decoder is op dit moment nog niet betrouwbaar.
-         * Daarom slaan we de ruwe army tijdelijk veilig op.
-         * De volgende stap vult troops/spells/heroes/pets
-         * vanuit de share code correct aan.
-         */
-        troops:
-          [] as unknown[],
-        spells:
-          [] as unknown[],
-        siegeMachine:
-          null as unknown | null,
-        heroes:
-          [] as unknown[],
-        pets:
-          [] as unknown[],
-        source:
-          "WarReport",
-      };
-    })
-    .filter(
-      (
-        row
-      ): row is {
-        tier: "L1";
-        fingerprint: string;
-        armyShareCode: string;
-        usageCount: number;
-        usagePercentage: number;
-        troops: unknown[];
-        spells: unknown[];
-        siegeMachine: unknown | null;
-        heroes: unknown[];
-        pets: unknown[];
-        source: string;
-      } =>
-        row !== null
-    );
+      const existing =
+        aggregated.get(code);
 
-  if (armies.length === 0) {
-    throw new Error(
-      "War Report leverde geen bruikbare armies op."
-    );
-  }
+      if (!existing) {
+        aggregated.set(code, {
+          name:
+            stringValue(
+              army.name
+            ) ??
+            "Unknown Army",
 
-  const unique =
-    new Map<
-      string,
-      (typeof armies)[number]
-    >();
+          armyShareCode: code,
 
-  for (const army of armies) {
-    const key =
-      `${army.tier}:${army.fingerprint}`;
+          usageCount:
+            usage,
 
-    if (!unique.has(key)) {
-      unique.set(key, army);
+          daysSeen:
+            usage > 0 ? 1 : 0,
+
+          lastName:
+            stringValue(
+              army.name
+            ) ??
+            "Unknown Army",
+        });
+      } else {
+        existing.usageCount += usage;
+
+        existing.lastName =
+          stringValue(
+            army.name
+          ) ??
+          existing.lastName;
+      }
+
+      if (
+        usage > 0 &&
+        !seenToday.has(code)
+      ) {
+        seenToday.add(code);
+
+        const row =
+          aggregated.get(code);
+
+        if (
+          row &&
+          row.daysSeen > 0
+        ) {
+          /*
+           * De eerste waarneming is al bij
+           * aanmaak geteld. Voor bestaande
+           * armies tellen we hier de extra dag.
+           */
+          if (
+            row.daysSeen <
+            data.days.length
+          ) {
+            row.daysSeen += 1;
+          }
+        }
+      }
     }
   }
 
-  const uniqueArmies =
-    [...unique.values()];
+  /*
+   * De daysSeen-logica hierboven is expres
+   * niet leidend voor de einddata: we tellen
+   * hieronder exact per composition over de
+   * beschikbare dagen.
+   */
+  const exactDaysSeen =
+    new Map<string, number>();
 
+  for (const day of data.days) {
+    const codesToday =
+      new Set(
+        (day.armies ?? [])
+          .map(
+            (army) =>
+              stringValue(
+                army.armyShareCode
+              )
+          )
+          .filter(
+            (code): code is string =>
+              code !== null
+          )
+      );
+
+    for (const code of codesToday) {
+      exactDaysSeen.set(
+        code,
+        (exactDaysSeen.get(code) ?? 0) +
+          1
+      );
+    }
+  }
+
+  const armies =
+    [...aggregated.values()]
+      .map((army) => ({
+        ...army,
+        daysSeen:
+          exactDaysSeen.get(
+            army.armyShareCode
+          ) ?? 0,
+        usagePercentage:
+          (army.usageCount /
+            totalAttacks) *
+          100,
+      }))
+      .sort(
+        (a, b) =>
+          b.usageCount -
+          a.usageCount
+      );
+
+  if (armies.length === 0) {
+    throw new Error(
+      "Geen bruikbare unieke armies gevonden."
+    );
+  }
+
+  /*
+   * Nieuwe maandelijkse dataset:
+   * alle oude L1-records worden vervangen.
+   *
+   * We starten een nieuwe Off-Meta-cyclus
+   * met alle armies als nog niet gebruikt.
+   */
   await prisma.discoveryArmy.deleteMany({
     where: {
       tier: "L1",
@@ -162,40 +299,67 @@ export async function importDiscoveryArmies() {
   });
 
   await prisma.discoveryArmy.createMany({
-    data:
-      uniqueArmies.map((army) => ({
-        tier: army.tier,
-        fingerprint:
-          army.fingerprint,
-        armyShareCode:
-          army.armyShareCode,
+    data: armies.map((army) => ({
+      tier: "L1",
 
-        troops:
-          army.troops as Prisma.InputJsonValue,
-        spells:
-          army.spells as Prisma.InputJsonValue,
-        siegeMachine:
-          army.siegeMachine as Prisma.InputJsonValue,
-        heroes:
-          army.heroes as Prisma.InputJsonValue,
-        pets:
-          army.pets as Prisma.InputJsonValue,
+      name:
+        army.name,
 
-        usageCount:
-          army.usageCount,
-        usagePercentage:
-          army.usagePercentage,
-        source:
-          army.source,
-      })),
+      fingerprint:
+        army.armyShareCode,
+
+      armyShareCode:
+        army.armyShareCode,
+
+      troops:
+        [] as Prisma.InputJsonValue,
+
+      spells:
+        [] as Prisma.InputJsonValue,
+
+      siegeMachine: Prisma.JsonNull,
+
+      heroes:
+        [] as Prisma.InputJsonValue,
+
+      pets:
+        [] as Prisma.InputJsonValue,
+
+      usageCount:
+        army.usageCount,
+
+      usagePercentage:
+        army.usagePercentage,
+
+      daysSeen:
+        army.daysSeen,
+
+      source:
+        "WarReport",
+
+      cycle:
+        1,
+
+      isUsed:
+        false,
+
+      lastUsedAt:
+        null,
+    })),
   });
 
   return {
-    source:
-      "WarReport",
-    imported:
-      uniqueArmies.length,
-    L1:
-      uniqueArmies.length,
+    source: "WarReport",
+    days:
+      data.days.length,
+    from:
+      data.from,
+    to:
+      data.to,
+    missing:
+      data.missing ?? [],
+    totalAttacks,
+    uniqueArmies:
+      armies.length,
   };
 }

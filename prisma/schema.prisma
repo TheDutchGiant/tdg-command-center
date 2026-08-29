@@ -640,6 +640,7 @@ enum DiscoveryTier {
 model DiscoveryArmy {
   id              Int           @id @default(autoincrement())
   tier            DiscoveryTier
+  name            String
   fingerprint     String
   armyShareCode   String?
   troops          Json
@@ -649,11 +650,18 @@ model DiscoveryArmy {
   pets            Json
   usageCount      Int           @default(0)
   usagePercentage Float         @default(0)
+  daysSeen        Int           @default(0)
   source           String        @default("ClashKing")
   importedAt      DateTime      @default(now())
+
+  cycle           Int           @default(1)
+  isUsed          Boolean       @default(false)
+  lastUsedAt      DateTime?
 
   @@unique([tier, fingerprint])
   @@index([tier])
   @@index([tier, usageCount])
+  @@index([tier, isUsed])
+  @@index([tier, cycle])
 }
 
