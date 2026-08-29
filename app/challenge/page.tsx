@@ -1,6 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import { ensureActiveChallenge } from "@/app/lib/challenge/ensureActiveChallenge";
 import ChallengeSubmitForm from "@/app/components/challenge/ChallengeSubmitForm";
+import OffMetaGenerator from "@/app/components/challenge/OffMetaGenerator";
 import type { GeneratedArmy } from "@/app/lib/challenge/randomArmy";
 
 export const dynamic = "force-dynamic";
@@ -243,6 +244,8 @@ export default async function ChallengePage() {
             </p>
           )}
         </header>
+
+        <OffMetaGenerator />
 
         <section className="grid gap-4 lg:grid-cols-2">
 
