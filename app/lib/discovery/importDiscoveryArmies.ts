@@ -1,7 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
-const CLASHKING_BASE_URL = "https://api.clashking.xyz";
+const CLASHKING_BASE_URL = process.env.CLASHKING_API_URL || "https://api.clashking.xyz";
 
 type DiscoveryTier = "L1" | "L2" | "L3";
 
