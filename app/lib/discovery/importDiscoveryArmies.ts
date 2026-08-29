@@ -13,6 +13,7 @@ const DATA_ROOT =
 
 type GameItem = {
   id?: string | number;
+  dataId?: string | number;
   name?: string;
 };
 
@@ -111,22 +112,39 @@ async function readCategory(
   );
 }
 
-function byId(
-  items: GameItem[]
+function byGameCode(
+  items: GameItem[],
+  baseDataId: number
 ): Map<string, GameItem> {
-  return new Map(
-    items
-      .filter(
-        (item) =>
-          item.id !== undefined
-      )
-      .map(
-        (item) => [
-          String(item.id),
-          item,
-        ]
-      )
-  );
+  const result =
+    new Map<string, GameItem>();
+
+  for (const item of items) {
+    if (item.dataId === undefined) {
+      continue;
+    }
+
+    const numericDataId =
+      Number(item.dataId);
+
+    if (!Number.isFinite(numericDataId)) {
+      continue;
+    }
+
+    const gameCode =
+      numericDataId - baseDataId;
+
+    if (gameCode < 0) {
+      continue;
+    }
+
+    result.set(
+      String(gameCode),
+      item
+    );
+  }
+
+  return result;
 }
 
 function nameOf(
@@ -594,22 +612,40 @@ export async function importDiscoveryArmies() {
 
   const maps = {
     troops:
-      byId(troopsData),
+      byGameCode(
+        troopsData,
+        4000000
+      ),
 
     spells:
-      byId(spellsData),
+      byGameCode(
+        spellsData,
+        26000000
+      ),
 
     siegeMachines:
-      byId(siegeData),
+      byGameCode(
+        siegeData,
+        4000000
+      ),
 
     heroes:
-      byId(heroesData),
+      byGameCode(
+        heroesData,
+        28000000
+      ),
 
     pets:
-      byId(petsData),
+      byGameCode(
+        petsData,
+        73000000
+      ),
 
     equipment:
-      byId(equipmentData),
+      byGameCode(
+        equipmentData,
+        90000000
+      ),
   };
 
   const data =
