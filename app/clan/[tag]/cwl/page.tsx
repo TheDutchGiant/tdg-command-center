@@ -80,6 +80,8 @@ export default async function CWLPage({ params }: Props) {
     }
   }
 
+  const normalizedClanTag = `#${tag.replace("#", "")}`;
+
   const currentPlan = await prisma.cwlPlan.findUnique({
     where: {
       season,
@@ -87,7 +89,7 @@ export default async function CWLPage({ params }: Props) {
     include: {
       clanPlans: {
         where: {
-          clanTag: tag,
+          clanTag: normalizedClanTag,
         },
         include: {
           assignments: {
