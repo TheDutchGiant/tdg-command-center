@@ -171,7 +171,7 @@ function parseStack(
     .map((part) => {
       const match =
         part.match(
-          /^(\\d+)x(\\d+)$/
+          /^(\d+)x(\d+)$/
         );
 
       if (!match) {
@@ -258,7 +258,7 @@ function decodeHeroes(
   ) {
     const match =
       token.match(
-        /^(\\d+)(m\\d+)?(?:p(\\d+))?(?:e(\\d+(?:_\\d+)*))?$/
+        /^(\d+)(m\d+)?(?:p(\d+))?(?:e(\d+(?:_\d+)*))?$/
       );
 
     if (!match) {
