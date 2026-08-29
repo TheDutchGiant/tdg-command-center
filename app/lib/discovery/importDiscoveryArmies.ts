@@ -23,6 +23,23 @@ type BattleStatsArmy = {
   usageCount?: number;
 };
 
+type CatalogItem = {
+  id: number;
+  name: string;
+  iconPath: string | null;
+  isSuperTroop: boolean;
+};
+
+type CatalogMaps = {
+  troops: Map<string, CatalogItem>;
+  spells: Map<string, CatalogItem>;
+  siegeMachines: Map<string, CatalogItem>;
+  heroes: Map<string, CatalogItem>;
+  pets: Map<string, CatalogItem>;
+  equipment: Map<string, CatalogItem>;
+};
+
+
 type BattleStatsDay = {
   date: string;
   totalAttacks?: number;
@@ -36,37 +53,57 @@ type BattleStatsSpan = {
   missing: string[];
 };
 
+type DecodedArmyItem = {
+  id: string;
+  name: string;
+  quantity: number;
+
+  catalogItemId?: number | null;
+  code?: string;
+  iconPath?: string | null;
+  isSuperTroop?: boolean;
+};
+
+type DecodedHeroEquipment = {
+  id: string;
+  name: string;
+
+  catalogItemId?: number | null;
+  code?: string;
+  iconPath?: string | null;
+  isSuperTroop?: boolean;
+};
+
+type DecodedHero = {
+  id: string;
+  name: string;
+
+  catalogItemId?: number | null;
+  code?: string;
+  iconPath?: string | null;
+  isSuperTroop?: boolean;
+  variant?: string | null;
+
+  equipment: DecodedHeroEquipment[];
+};
+
 type DecodedArmy = {
-  troops: {
-    id: string;
-    name: string;
-    quantity: number;
-  }[];
+  troops: DecodedArmyItem[];
 
-  spells: {
-    id: string;
-    name: string;
-    quantity: number;
-  }[];
+  spells: DecodedArmyItem[];
 
-  siegeMachine: {
-    id: string;
-    name: string;
-    quantity: number;
-  } | null;
+  siegeMachine: DecodedArmyItem | null;
 
-  heroes: {
-    id: string;
-    name: string;
-    equipment: {
-      id: string;
-      name: string;
-    }[];
-  }[];
+  heroes: DecodedHero[];
 
   pets: {
     id: string;
     name: string;
+
+    catalogItemId?: number | null;
+    code?: string;
+    iconPath?: string | null;
+    isSuperTroop?: boolean;
   }[];
 };
 
@@ -155,6 +192,89 @@ function nameOf(
     ? String(item.name)
     : "Unknown #" + id;
 }
+
+async function loadCatalogMaps(): Promise<CatalogMaps> {
+  const mappings =
+    await prisma.gameArmyCodeMap.findMany({
+      where: {
+        source: "ClashArmy",
+      },
+
+      include: {
+        catalogItem: true,
+      },
+    });
+
+  const maps: CatalogMaps = {
+    troops: new Map(),
+    spells: new Map(),
+    siegeMachines: new Map(),
+    heroes: new Map(),
+    pets: new Map(),
+    equipment: new Map(),
+  };
+
+  for (const mapping of mappings) {
+    const item: CatalogItem = {
+      id:
+        mapping.catalogItem.id,
+
+      name:
+        mapping.catalogItem.name,
+
+      iconPath:
+        mapping.catalogItem.iconPath,
+
+      isSuperTroop:
+        mapping.catalogItem.isSuperTroop,
+    };
+
+    if (mapping.type === "TROOP") {
+      maps.troops.set(
+        String(mapping.code),
+        item
+      );
+    }
+
+    if (mapping.type === "SPELL") {
+      maps.spells.set(
+        String(mapping.code),
+        item
+      );
+    }
+
+    if (mapping.type === "SIEGE_MACHINE") {
+      maps.siegeMachines.set(
+        String(mapping.code),
+        item
+      );
+    }
+
+    if (mapping.type === "HERO") {
+      maps.heroes.set(
+        String(mapping.code),
+        item
+      );
+    }
+
+    if (mapping.type === "PET") {
+      maps.pets.set(
+        String(mapping.code),
+        item
+      );
+    }
+
+    if (mapping.type === "HERO_EQUIPMENT") {
+      maps.equipment.set(
+        String(mapping.code),
+        item
+      );
+    }
+  }
+
+  return maps;
+}
+
 
 function parseStack(
   encoded: string
@@ -486,6 +606,263 @@ function decodeArmyShareCode(
   };
 }
 
+
+function catalogItemValue(
+  item: CatalogItem | undefined,
+  code: string
+) {
+  if (!item) {
+    return {
+      id: code,
+      catalogItemId: null,
+      code,
+      name: `Unknown #${code}`,
+      iconPath: null,
+      isSuperTroop: false,
+    };
+  }
+
+  return {
+    id:
+      String(item.id),
+
+    catalogItemId:
+      item.id,
+
+    code,
+
+    name:
+      item.name,
+
+    iconPath:
+      item.iconPath,
+
+    isSuperTroop:
+      item.isSuperTroop,
+  };
+}
+
+function decodeArmyShareCodeWithCatalog(
+  armyShareCode: string,
+  maps: CatalogMaps
+): DecodedArmy {
+  let code =
+    armyShareCode.trim();
+
+  if (
+    code.includes(
+      "?army="
+    )
+  ) {
+    code =
+      code.substring(
+        code.indexOf(
+          "?army="
+        ) + 6
+      );
+  }
+
+  try {
+    code =
+      decodeURIComponent(
+        code
+      );
+  } catch {
+    // Ruwe share-code behouden.
+  }
+
+  const troopRows =
+    parseStack(
+      getSection(
+        code,
+        "u"
+      )
+    );
+
+  const troops: DecodedArmy["troops"] = [];
+
+  let siegeMachine:
+    DecodedArmy["siegeMachine"] = null;
+
+  for (
+    const row of troopRows
+  ) {
+    const siege =
+      maps.siegeMachines.get(
+        row.id
+      );
+
+    if (siege) {
+      siegeMachine = {
+        ...catalogItemValue(
+          siege,
+          row.id
+        ),
+
+        quantity:
+          row.quantity,
+      };
+
+      continue;
+    }
+
+    const troop =
+      catalogItemValue(
+        maps.troops.get(
+          row.id
+        ),
+        row.id
+      );
+
+    troops.push({
+      ...troop,
+
+      quantity:
+        row.quantity,
+    });
+  }
+
+  const spells =
+    parseStack(
+      getSection(
+        code,
+        "s"
+      )
+    ).map(
+      (row) => ({
+        ...catalogItemValue(
+          maps.spells.get(
+            row.id
+          ),
+          row.id
+        ),
+
+        quantity:
+          row.quantity,
+      })
+    );
+
+  const heroes:
+    DecodedArmy["heroes"] = [];
+
+  const pets:
+    DecodedArmy["pets"] = [];
+
+  const heroSection =
+    getSection(
+      code,
+      "h"
+    );
+
+  for (
+    const token of heroSection
+      .split("-")
+      .filter(Boolean)
+  ) {
+    const match =
+      token.match(
+        /^(\d+)(m\d+)?(?:p(\d+))?(?:e(\d+(?:_\d+)*))?$/
+      );
+
+    if (!match) {
+      continue;
+    }
+
+    const heroCode =
+      match[1];
+
+    const mode =
+      match[2] ?? "";
+
+    const petCode =
+      match[3];
+
+    const equipmentCodes =
+      match[4]
+        ? match[4].split("_")
+        : [];
+
+    const hero =
+      catalogItemValue(
+        maps.heroes.get(
+          heroCode
+        ),
+        heroCode
+      );
+
+    heroes.push({
+      ...hero,
+
+      id:
+        hero.catalogItemId !== null
+          ? String(
+              hero.catalogItemId
+            )
+          : heroCode,
+
+      name:
+        heroCode === "2" &&
+        mode === "m1"
+          ? "Flying Grand Warden"
+          : hero.name,
+
+      variant:
+        mode || null,
+
+      equipment:
+        equipmentCodes.map(
+          (equipmentCode) => ({
+            ...catalogItemValue(
+              maps.equipment.get(
+                equipmentCode
+              ),
+              equipmentCode
+            ),
+
+            id:
+              equipmentCode,
+          })
+        ),
+    } as DecodedArmy["heroes"][number]);
+
+    if (
+      petCode &&
+      !pets.some(
+        (pet) =>
+          pet.id ===
+          petCode
+      )
+    ) {
+      const pet =
+        catalogItemValue(
+          maps.pets.get(
+            petCode
+          ),
+          petCode
+        );
+
+      pets.push({
+        ...pet,
+
+        id:
+          pet.catalogItemId !== null
+            ? String(
+                pet.catalogItemId
+              )
+            : petCode,
+      });
+    }
+  }
+
+  return {
+    troops,
+    spells,
+    siegeMachine,
+    heroes,
+    pets,
+  };
+}
+
 function numberValue(
   value: unknown
 ): number {
@@ -610,43 +987,8 @@ export async function importDiscoveryArmies() {
     getAvailableDates(),
   ]);
 
-  const maps = {
-    troops:
-      byGameCode(
-        troopsData,
-        4000000
-      ),
-
-    spells:
-      byGameCode(
-        spellsData,
-        26000000
-      ),
-
-    siegeMachines:
-      byGameCode(
-        siegeData,
-        4000000
-      ),
-
-    heroes:
-      byGameCode(
-        heroesData,
-        28000000
-      ),
-
-    pets:
-      byGameCode(
-        petsData,
-        73000000
-      ),
-
-    equipment:
-      byGameCode(
-        equipmentData,
-        90000000
-      ),
-  };
+  const maps =
+    await loadCatalogMaps();
 
   const data =
     await getBattleStats(
@@ -740,7 +1082,7 @@ export async function importDiscoveryArmies() {
 
         try {
           decoded =
-            decodeArmyShareCode(
+            decodeArmyShareCodeWithCatalog(
               code,
               maps
             );

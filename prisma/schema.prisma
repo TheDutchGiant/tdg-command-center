@@ -665,3 +665,75 @@ model DiscoveryArmy {
   @@index([tier, cycle])
 }
 
+/**
+ * --------------------------------------------------------------------------
+ * PHOENIX GAME CATALOG
+ * --------------------------------------------------------------------------
+ * Vaste interne woordenlijst van alle Clash-content die Phoenix gebruikt.
+ *
+ * Phoenix gebruikt zijn eigen numerieke ID's. Externe game-data (zoals
+ * dataId's of army-share-codes) zijn alleen mappings naar deze catalogus.
+ * --------------------------------------------------------------------------
+ */
+
+enum GameCatalogType {
+  TROOP
+  SPELL
+  SIEGE_MACHINE
+  HERO
+  PET
+  HERO_EQUIPMENT
+}
+
+model GameCatalogItem {
+  id            Int             @id @default(autoincrement())
+  type          GameCatalogType
+  name          String
+  slug          String
+  dataId        Int?
+  iconPath      String?
+  isSuperTroop  Boolean         @default(false)
+  baseItemId    Int?
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  baseItem      GameCatalogItem?  @relation("SuperTroopBase", fields: [baseItemId], references: [id])
+  superVariants GameCatalogItem[] @relation("SuperTroopBase")
+  armyCodes     GameArmyCodeMap[]
+
+  @@unique([type, slug])
+  @@index([type])
+  @@index([dataId])
+  @@index([baseItemId])
+}
+
+
+
+/**
+ * --------------------------------------------------------------------------
+ * PHOENIX ARMY CODE MAPPING
+ * --------------------------------------------------------------------------
+ * Koppelt externe Army Share Code-ID's aan onze eigen GameCatalogItem IDs.
+ *
+ * De generator werkt uitsluitend met Phoenix catalogus-ID's.
+ * De broncode van een externe provider is hier alleen een mapping.
+ * --------------------------------------------------------------------------
+ */
+
+model GameArmyCodeMap {
+  id             Int              @id @default(autoincrement())
+  source         String
+  type           GameCatalogType
+  code           Int
+  catalogItemId  Int
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  catalogItem GameCatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+
+  @@unique([source, type, code])
+  @@index([source])
+  @@index([type])
+  @@index([catalogItemId])
+}
