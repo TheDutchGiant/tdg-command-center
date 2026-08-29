@@ -52,7 +52,11 @@ function getIconPath(
     return null;
   }
 
-  return `${GAME_DATA}/${item.iconPath}`;
+  const normalizedPath =
+    item.iconPath
+      .replace(/^images\/home\//, "");
+
+  return `${GAME_DATA}/${normalizedPath}`;
 }
 
 function ItemCard({
