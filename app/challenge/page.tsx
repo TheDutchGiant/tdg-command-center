@@ -102,33 +102,39 @@ const SPELL_IDS: Record<string, number> = {
   "Revive Spell": 98,
 };
 
-function getArmyIconPath(
-  iconPath?: string | null
-) {
-  if (!iconPath) return null;
+type CatalogDisplayItem = {
+  name: string;
+  iconPath: string | null;
+  isSuperTroop: boolean;
+};
 
-  return `/game-data/${iconPath.replace(
-    /^images\/home\//,
+function getCatalogIconPath(
+  item?: CatalogDisplayItem
+) {
+  if (!item?.iconPath) return null;
+
+  return `/game-data/${item.iconPath.replace(
+    /^images\\/home\\//,
     ""
   )}`;
 }
 
 function RandomArmyItem({
   item,
+  catalog,
 }: {
   item: {
-    name?: string;
+    name: string;
     quantity?: number;
-    iconPath?: string | null;
-    isSuperTroop?: boolean;
   };
+  catalog?: CatalogDisplayItem;
 }) {
-  const icon = getArmyIconPath(item.iconPath);
+  const icon = getCatalogIconPath(catalog);
 
   return (
     <div
       className="relative flex aspect-square min-w-0 items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
-      title={item.name ?? ""}
+      title={item.name}
     >
       {icon ? (
         <img
@@ -148,7 +154,7 @@ function RandomArmyItem({
         </span>
       )}
 
-      {item.isSuperTroop && (
+      {catalog?.isSuperTroop && (
         <span className="absolute left-0.5 top-0.5 rounded bg-purple-500/80 px-0.5 text-[6px] font-black leading-3 text-white">
           S
         </span>
@@ -159,13 +165,13 @@ function RandomArmyItem({
 
 function RandomArmyItems({
   items,
+  catalogByName,
 }: {
   items: {
-    name?: string;
+    name: string;
     quantity?: number;
-    iconPath?: string | null;
-    isSuperTroop?: boolean;
   }[];
+  catalogByName: Map<string, CatalogDisplayItem>;
 }) {
   if (!items.length) return null;
 
@@ -173,8 +179,9 @@ function RandomArmyItems({
     <div className="grid grid-cols-6 gap-1">
       {items.map((item, index) => (
         <RandomArmyItem
-          key={`${item.name ?? "item"}-${index}`}
+          key={`${item.name}-${index}`}
           item={item}
+          catalog={catalogByName.get(item.name)}
         />
       ))}
     </div>
@@ -269,6 +276,28 @@ export default async function ChallengePage() {
 
   const armyLink =
     buildArmyLink(army);
+
+  // Phoenix Game Catalogus is de centrale bron
+  // voor namen, iconen en SuperTroop-status.
+  const catalogItems =
+    await prisma.gameCatalogItem.findMany({
+      where: {
+        active: true,
+      },
+      select: {
+        name: true,
+        iconPath: true,
+        isSuperTroop: true,
+      },
+    });
+
+  const catalogByName =
+    new Map<string, CatalogDisplayItem>(
+      catalogItems.map((item) => [
+        item.name,
+        item,
+      ])
+    );
 
   return (
     <main className="min-h-screen bg-neutral-950 px-3 py-5 text-white sm:px-5 sm:py-6">
@@ -400,15 +429,23 @@ export default async function ChallengePage() {
 
               <RandomArmyItems
                 items={army.troops ?? []}
+                catalogByName={catalogByName}
               />
 
               <RandomArmyItems
                 items={army.spells ?? []}
+                catalogByName={catalogByName}
               />
 
               {army.siegeMachine && (
                 <RandomArmyItems
-                  items={[army.siegeMachine]}
+                  items={[
+                    {
+                      name: army.siegeMachine.name,
+                      quantity: 1,
+                    },
+                  ]}
+                  catalogByName={catalogByName}
                 />
               )}
 
@@ -416,70 +453,93 @@ export default async function ChallengePage() {
                 army.heroes.length > 0 && (
                   <div className="grid grid-cols-4 gap-1">
                     {army.heroes.map(
-                      (hero, index) => (
-                        <div
-                          key={`${hero.name ?? "hero"}-${index}`}
-                          className="flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
-                          title={hero.name ?? ""}
-                        >
-                          {getArmyIconPath(
-                            hero.iconPath
-                          ) ? (
-                            <img
-                              src={getArmyIconPath(
-                                hero.iconPath
-                              )!}
-                              alt=""
-                              className="h-8 w-8 object-contain"
-                            />
-                          ) : (
-                            <span className="text-[8px] text-white/20">
-                              ?
-                            </span>
-                          )}
+                      (hero, index) => {
+                        const heroCatalog =
+                          catalogByName.get(
+                            hero.name
+                          );
 
-                          {hero.equipment &&
-                            hero.equipment.length > 0 && (
-                              <div className="mt-0.5 flex items-center justify-center gap-0.5">
-                                {hero.equipment
-                                  .slice(0, 2)
-                                  .map(
-                                    (
-                                      equipment,
-                                      equipmentIndex
-                                    ) => (
-                                      <div
-                                        key={`${equipment.name ?? "equipment"}-${equipmentIndex}`}
-                                        className="flex h-4 w-4 items-center justify-center"
-                                        title={
-                                          equipment.name ??
-                                          ""
-                                        }
-                                      >
-                                        {getArmyIconPath(
-                                          equipment.iconPath
-                                        ) ? (
-                                          <img
-                                            src={getArmyIconPath(
-                                              equipment.iconPath
-                                            )!}
-                                            alt=""
-                                            className="h-4 w-4 object-contain"
-                                          />
-                                        ) : null}
-                                      </div>
-                                    )
-                                  )}
-                              </div>
+                        return (
+                          <div
+                            key={`${hero.name}-${index}`}
+                            className="flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
+                            title={hero.name}
+                          >
+                            {getCatalogIconPath(
+                              heroCatalog
+                            ) ? (
+                              <img
+                                src={
+                                  getCatalogIconPath(
+                                    heroCatalog
+                                  )!
+                                }
+                                alt=""
+                                className="h-8 w-8 object-contain"
+                              />
+                            ) : (
+                              <span className="text-[8px] text-white/20">
+                                ?
+                              </span>
                             )}
-                        </div>
-                      )
+
+                            {hero.equipment &&
+                              hero.equipment.length > 0 && (
+                                <div className="mt-0.5 flex items-center justify-center gap-0.5">
+                                  {hero.equipment
+                                    .slice(0, 2)
+                                    .map(
+                                      (
+                                        equipment,
+                                        equipmentIndex
+                                      ) => {
+                                        const equipmentCatalog =
+                                          catalogByName.get(
+                                            equipment.name
+                                          );
+
+                                        const equipmentIcon =
+                                          getCatalogIconPath(
+                                            equipmentCatalog
+                                          );
+
+                                        return (
+                                          <div
+                                            key={`${equipment.name}-${equipmentIndex}`}
+                                            className="flex h-4 w-4 items-center justify-center"
+                                            title={
+                                              equipment.name
+                                            }
+                                          >
+                                            {equipmentIcon ? (
+                                              <img
+                                                src={
+                                                  equipmentIcon
+                                                }
+                                                alt=""
+                                                className="h-4 w-4 object-contain"
+                                              />
+                                            ) : (
+                                              <span className="text-[6px] text-white/20">
+                                                ?
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      }
+                                    )}
+                                </div>
+                              )}
+                          </div>
+                        );
+                      }
                     )}
                   </div>
                 )}
 
               <RandomArmyItems
                 items={army.pets ?? []}
+                catalogByName={catalogByName}
               />
             </div>
 
