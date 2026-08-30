@@ -681,12 +681,28 @@ function decodeArmyShareCodeWithCatalog(
 
   const troops: DecodedArmy["troops"] = [];
 
+  /*
+   * ClashArmy gebruikt de i-sectie voor de gekozen
+   * Siege Machine. Voor oudere/afwijkende codes
+   * blijven we daarnaast zoeken in de u-sectie.
+   */
+  const siegeRows =
+    parseStack(
+      getSection(
+        code,
+        "i"
+      )
+    );
+
   let siegeMachine:
     DecodedArmy["siegeMachine"] = null;
 
-  for (
-    const row of troopRows
+  if (
+    siegeRows.length > 0
   ) {
+    const row =
+      siegeRows[0];
+
     const siege =
       maps.siegeMachines.get(
         row.id
@@ -696,6 +712,34 @@ function decodeArmyShareCodeWithCatalog(
       siegeMachine = {
         ...catalogItemValue(
           siege,
+          row.id
+        ),
+
+        quantity:
+          row.quantity,
+      };
+    }
+  }
+
+  for (
+    const row of troopRows
+  ) {
+    const legacySiege =
+      maps.siegeMachines.get(
+        row.id
+      );
+
+    /*
+     * Fallback voor oudere army-codes waarin
+     * de Siege Machine nog in u stond.
+     */
+    if (
+      !siegeMachine &&
+      legacySiege
+    ) {
+      siegeMachine = {
+        ...catalogItemValue(
+          legacySiege,
           row.id
         ),
 
