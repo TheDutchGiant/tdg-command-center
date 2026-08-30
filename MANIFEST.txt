@@ -1,0 +1,28 @@
+TDG Phoenix - server-ready icon package
+
+The original filenames supplied by the user are preserved under:
+backup-original-names/
+
+Runtime copies are placed under public/game-data/ using the paths
+Phoenix currently expects.
+
+Super Troops: 17
+Siege Machines: 9
+Hero Equipment: 3
+Total supplied assets: 29
+
+Not included in the uploaded ZIP:
+- Ruin Witch
+- Angry Spell
+
+Important:
+- Existing Phoenix files should not be overwritten blindly.
+- Inferno Dragon is given a separate backup path so it does not overwrite
+  the Super Dragon icon. The catalog mapping should be corrected later
+  if Phoenix currently points both to the same path.
+
+Added from user-supplied icon cards:
+- Super Archer -> public/game-data/troops/archer/super/icon.png
+- Angry Spell -> public/game-data/spells/angry-spell/icon.png
+
+The original 92x96 supplied cards are retained under backup-original-names/.

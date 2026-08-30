@@ -8,18 +8,21 @@ type ArmyItem = {
   quantity?: number;
   iconPath?: string | null;
   isSuperTroop?: boolean;
+  catalogItemId?: number | null;
 };
 
 type EquipmentItem = {
   id?: string;
   name?: string;
   iconPath?: string | null;
+  catalogItemId?: number | null;
 };
 
 type HeroItem = {
   id?: string;
   name?: string;
   iconPath?: string | null;
+  catalogItemId?: number | null;
   equipment?: EquipmentItem[];
 };
 
@@ -43,19 +46,62 @@ type OffMetaArmy = {
 
 const GAME_DATA = "/game-data";
 
-function getIconPath(
+function getIconCandidates(
   item?: {
     iconPath?: string | null;
   } | null
-): string | null {
+): string[] {
   if (!item?.iconPath) {
-    return null;
+    return [];
   }
 
-  return `${GAME_DATA}/${item.iconPath.replace(
+  const normalized = item.iconPath.replace(
     /^images\/home\//,
     ""
-  )}`;
+  );
+
+  const candidates = [
+    normalized,
+
+    // Super Troop variant:
+    // troops/miner/super/icon.png
+    // ↔ troops/miner/super-icon.png
+    normalized.replace(
+      /\/super\/icon\.png$/,
+      "/super-icon.png"
+    ),
+
+    normalized.replace(
+      /\/super-icon\.png$/,
+      "/super/icon.png"
+    ),
+
+    // Sommige oude/nieuwe assets gebruiken een
+    // variant-directory in plaats van super.
+    normalized.replace(
+      /\/super\/icon\.png$/,
+      "/super/icon.webp"
+    ),
+
+    normalized.replace(
+      /\/super-icon\.png$/,
+      "/super-icon.webp"
+    ),
+
+    normalized.replace(
+      /\/icon\.png$/,
+      "/icon.webp"
+    ),
+  ];
+
+  return [
+    ...new Set(
+      candidates.map(
+        (candidate) =>
+          `${GAME_DATA}/${candidate}`
+      )
+    ),
+  ];
 }
 
 function Icon({
@@ -68,7 +114,7 @@ function Icon({
   } | null;
   size?: "small" | "normal";
 }) {
-  const icon = getIconPath(item);
+  const candidates = getIconCandidates(item);
 
   const imageClass =
     size === "small"
@@ -80,43 +126,48 @@ function Icon({
       ? "h-9 w-9"
       : "h-12 w-12";
 
+  const [candidateIndex, setCandidateIndex] =
+    useState(0);
+
+  const icon =
+    candidates[candidateIndex] ?? null;
+
+  if (!icon) {
+    return (
+      <div
+        className={`flex ${boxClass} shrink-0 items-center justify-center`}
+      >
+        <span className="text-xs text-white/20">
+          ?
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex ${boxClass} shrink-0 items-center justify-center`}
     >
-      {icon ? (
-        <img
-          src={icon}
-          alt=""
-          className={imageClass}
-          onError={(event) => {
-            event.currentTarget.style.display =
-              "none";
-
-            const fallback =
-              event.currentTarget.parentElement?.querySelector(
-                "[data-icon-fallback]"
-              );
-
-            if (fallback) {
-              fallback.classList.remove(
-                "hidden"
-              );
+      <img
+        src={icon}
+        alt=""
+        className={imageClass}
+        onError={() => {
+          setCandidateIndex((current) => {
+            if (current + 1 < candidates.length) {
+              return current + 1;
             }
-          }}
-        />
-      ) : null}
 
-      <span
-        data-icon-fallback
-        className={
-          icon
-            ? "hidden text-xs text-white/20"
-            : "text-xs text-white/20"
-        }
-      >
-        ?
-      </span>
+            return current;
+          });
+        }}
+      />
+
+      {candidateIndex >= candidates.length && (
+        <span className="text-xs text-white/20">
+          ?
+        </span>
+      )}
     </div>
   );
 }
