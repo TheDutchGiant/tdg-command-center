@@ -108,7 +108,7 @@ function getArmyIconPath(
   if (!iconPath) return null;
 
   return `/game-data/${iconPath.replace(
-    /^images\\/home\\//,
+    /^images\/home\//,
     ""
   )}`;
 }
