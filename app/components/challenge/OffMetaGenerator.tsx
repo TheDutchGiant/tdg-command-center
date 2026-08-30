@@ -438,13 +438,22 @@ export default function OffMetaGenerator() {
                   </p>
 
                   <div className="flex">
-                    <CompactItem
-                      item={{
-                        ...army.siegeMachine,
-                        quantity:
-                          army.siegeMachine.quantity ?? 1,
-                      }}
-                    />
+                    <div
+                      className="relative flex h-16 w-16 items-center justify-center rounded-lg border border-white/10 bg-black/20"
+                      title={
+                        army.siegeMachine.name ??
+                        "Siege Machine"
+                      }
+                    >
+                      <Icon
+                        item={army.siegeMachine}
+                        size="small"
+                      />
+
+                      <span className="absolute bottom-1 right-1 rounded-md bg-black/80 px-1.5 py-0.5 text-[9px] font-black leading-none text-white">
+                        ×{army.siegeMachine.quantity ?? 1}
+                      </span>
+                    </div>
                   </div>
                 </section>
               )}
