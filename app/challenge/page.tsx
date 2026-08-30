@@ -124,12 +124,14 @@ function RandomArmyItem({
   catalog,
 }: {
   item: {
+    id: string;
     name: string;
     quantity?: number;
   };
   catalog?: CatalogDisplayItem;
 }) {
-  const icon = getCatalogIconPath(catalog);
+  const icon =
+    getCatalogIconPath(catalog);
 
   return (
     <div
@@ -165,13 +167,14 @@ function RandomArmyItem({
 
 function RandomArmyItems({
   items,
-  catalogByName,
+  catalogByDataId,
 }: {
   items: {
+    id: string;
     name: string;
     quantity?: number;
   }[];
-  catalogByName: Map<string, CatalogDisplayItem>;
+  catalogByDataId: Map<string, CatalogDisplayItem>;
 }) {
   if (!items.length) return null;
 
@@ -179,9 +182,11 @@ function RandomArmyItems({
     <div className="grid grid-cols-6 gap-1">
       {items.map((item, index) => (
         <RandomArmyItem
-          key={`${item.name}-${index}`}
+          key={`${item.id}-${index}`}
           item={item}
-          catalog={catalogByName.get(item.name)}
+          catalog={catalogByDataId.get(
+            String(item.id)
+          )}
         />
       ))}
     </div>
@@ -285,19 +290,28 @@ export default async function ChallengePage() {
         active: true,
       },
       select: {
+        dataId: true,
         name: true,
         iconPath: true,
         isSuperTroop: true,
       },
     });
 
-  const catalogByName =
-    new Map<string, CatalogDisplayItem>(
-      catalogItems.map((item) => [
-        item.name,
-        item,
-      ])
+  const catalogByDataId =
+    new Map<string, CatalogDisplayItem>();
+
+  for (const item of catalogItems) {
+    if (item.dataId === null) continue;
+
+    catalogByDataId.set(
+      String(item.dataId),
+      {
+        name: item.name,
+        iconPath: item.iconPath,
+        isSuperTroop: item.isSuperTroop,
+      }
     );
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 px-3 py-5 text-white sm:px-5 sm:py-6">
@@ -429,23 +443,24 @@ export default async function ChallengePage() {
 
               <RandomArmyItems
                 items={army.troops ?? []}
-                catalogByName={catalogByName}
+                catalogByDataId={catalogByDataId}
               />
 
               <RandomArmyItems
                 items={army.spells ?? []}
-                catalogByName={catalogByName}
+                catalogByDataId={catalogByDataId}
               />
 
               {army.siegeMachine && (
                 <RandomArmyItems
                   items={[
                     {
+                      id: army.siegeMachine.id,
                       name: army.siegeMachine.name,
                       quantity: 1,
                     },
                   ]}
-                  catalogByName={catalogByName}
+                  catalogByDataId={catalogByDataId}
                 />
               )}
 
@@ -455,8 +470,8 @@ export default async function ChallengePage() {
                     {army.heroes.map(
                       (hero, index) => {
                         const heroCatalog =
-                          catalogByName.get(
-                            hero.name
+                          catalogByDataId.get(
+                            String(hero.id)
                           );
 
                         return (
@@ -494,8 +509,8 @@ export default async function ChallengePage() {
                                         equipmentIndex
                                       ) => {
                                         const equipmentCatalog =
-                                          catalogByName.get(
-                                            equipment.name
+                                          catalogByDataId.get(
+                                            String(equipment.id)
                                           );
 
                                         const equipmentIcon =
@@ -539,7 +554,7 @@ export default async function ChallengePage() {
 
               <RandomArmyItems
                 items={army.pets ?? []}
-                catalogByName={catalogByName}
+                catalogByDataId={catalogByDataId}
               />
             </div>
 
