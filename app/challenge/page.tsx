@@ -262,8 +262,28 @@ export default async function ChallengePage() {
   const challenge =
     await ensureActiveChallenge();
 
+  if (!challenge) {
+    throw new Error(
+      "Geen actieve TDG Challenge beschikbaar.",
+    );
+  }
+
+  /*
+   * Tijdelijke compatibiliteitslaag:
+   * de pagina gebruikt voorlopig de eerste locked
+   * variant. De echte 3-keuze UI volgt hierna.
+   */
+  const activeVariant =
+    challenge.variants[0];
+
+  if (!activeVariant) {
+    throw new Error(
+      "De Random Army varianten zijn nog niet gegenereerd.",
+    );
+  }
+
   const army =
-    challenge.army as unknown as GeneratedArmy;
+    activeVariant.army as unknown as GeneratedArmy;
 
   const base = challenge.baseId
     ? await prisma.base.findUnique({
@@ -418,7 +438,7 @@ export default async function ChallengePage() {
 
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[8px] text-white/40 sm:text-[10px]">
                 <span>
-                  {challenge.difficulty.replaceAll("_", " ")}
+                  {activeVariant.difficulty.replaceAll("_", " ")}
                 </span>
 
                 {endsAt && (

@@ -238,7 +238,9 @@ export async function POST(
           },
           OR: [
             {
-              endsAt: null,
+              endsAt: {
+                gt: new Date(),
+              },
             },
             {
               endsAt: {
@@ -248,7 +250,7 @@ export async function POST(
           ],
         },
         orderBy: {
-          number: "desc",
+          startsAt: "desc",
         },
       });
 

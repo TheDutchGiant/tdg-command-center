@@ -1,12 +1,24 @@
 import { prisma } from "@/app/lib/prisma";
 import {
-  generateRandomArmy,
-  type Difficulty,
+  mutateGeneratedArmy,
+  generateMutationPercentages,
+  type MutationDifficulty,
+} from "./mutationEngine";
+import {
+  getTownHallCapabilities,
+  type GameDataItem,
+} from "./gameData";
+import type {
+  GeneratedArmy,
+  GeneratedHero,
+  GeneratedStackItem,
+  GeneratedSpellItem,
 } from "./randomArmy";
 
 const CHALLENGE_DURATION_DAYS = 7;
+const GENERATION_DELAY_HOURS = 24;
 
-const DIFFICULTIES: Difficulty[] = [
+const DIFFICULTIES: MutationDifficulty[] = [
   "OH_MY_GOD",
   "OH_HELL_NO",
   "FUCK_MY_LIFE",
@@ -15,54 +27,510 @@ const DIFFICULTIES: Difficulty[] = [
 const TOWN_HALLS = [13, 14, 15, 16, 17, 18];
 
 function randomItem<T>(items: T[]): T {
+  if (!items.length) {
+    throw new Error("Kan geen random item kiezen uit een lege lijst.");
+  }
+
   return items[
     Math.floor(Math.random() * items.length)
   ];
 }
 
-export async function ensureActiveChallenge() {
-  const now = new Date();
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isFinite(value)
+    ? value
+    : null;
+}
 
-  const active =
-    await prisma.randomChallenge.findFirst({
-      where: {
-        status: "ACTIVE",
-        startsAt: {
-          lte: now,
-        },
-        OR: [
-          { endsAt: null },
-          { endsAt: { gt: now } },
-        ],
-      },
-      orderBy: {
-        number: "desc",
-      },
-    });
+function stringValue(value: unknown): string | null {
+  return typeof value === "string"
+    ? value
+    : null;
+}
 
-  if (active) {
-    return active;
+function normalize(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
+}
+
+function itemHousingSpace(
+  item: GameDataItem,
+): number {
+  const direct =
+    numberValue(item.housingSpace);
+
+  if (direct !== null) {
+    return direct;
   }
 
-  const latest =
-    await prisma.randomChallenge.findFirst({
-      orderBy: {
-        number: "desc",
-      },
+  const levels = Array.isArray(item.levels)
+    ? (item.levels as GameDataItem[])
+    : [];
+
+  for (const level of levels) {
+    const value =
+      numberValue(level.housingSpace);
+
+    if (value !== null) {
+      return value;
+    }
+  }
+
+  return 1;
+}
+
+function findGameItem(
+  item: Record<string, unknown>,
+  pool: GameDataItem[],
+): GameDataItem | undefined {
+  const keys = [
+    item.id,
+    item.name,
+    item.code,
+    item.catalogItemId,
+  ]
+    .filter(
+      (value) =>
+        value !== undefined &&
+        value !== null,
+    )
+    .map(normalize)
+    .filter(Boolean);
+
+  return pool.find((candidate) => {
+    const candidateKeys = [
+      candidate.id,
+      candidate.name,
+      candidate.dataId,
+    ]
+      .filter(
+        (value) =>
+          value !== undefined &&
+          value !== null,
+      )
+      .map(normalize);
+
+    return keys.some(
+      (key) =>
+        candidateKeys.includes(key),
+    );
+  });
+}
+
+function buildTroops(
+  value: unknown,
+  pool: GameDataItem[],
+): GeneratedStackItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        !Array.isArray(item),
+    )
+    .map((raw) => {
+      const item =
+        raw as Record<string, unknown>;
+
+      const source =
+        findGameItem(item, pool);
+
+      return {
+        id: String(
+          item.id ??
+            item.name ??
+            source?.id ??
+            "unknown",
+        ),
+        name: String(
+          item.name ??
+            source?.name ??
+            item.id ??
+            "Unknown",
+        ),
+        quantity: Math.max(
+          1,
+          Math.floor(
+            numberValue(
+              item.quantity,
+            ) ?? 1,
+          ),
+        ),
+        housingSpace:
+          itemHousingSpace(
+            source ?? item,
+          ),
+      };
     });
+}
 
-  const townHall =
-    randomItem(TOWN_HALLS);
+function buildSpells(
+  value: unknown,
+  pool: GameDataItem[],
+): GeneratedSpellItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
 
-  const difficulty =
-    randomItem(DIFFICULTIES);
+  return value
+    .filter(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        !Array.isArray(item),
+    )
+    .map((raw) => {
+      const item =
+        raw as Record<string, unknown>;
 
-  const army =
-    await generateRandomArmy(
+      const source =
+        findGameItem(item, pool);
+
+      return {
+        id: String(
+          item.id ??
+            item.name ??
+            source?.id ??
+            "unknown",
+        ),
+        name: String(
+          item.name ??
+            source?.name ??
+            item.id ??
+            "Unknown",
+        ),
+        quantity: Math.max(
+          1,
+          Math.floor(
+            numberValue(
+              item.quantity,
+            ) ?? 1,
+          ),
+        ),
+        housingSpace:
+          itemHousingSpace(
+            source ?? item,
+          ),
+      };
+    });
+}
+
+function buildHeroes(
+  value: unknown,
+): GeneratedHero[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        !Array.isArray(item),
+    )
+    .map((raw) => {
+      const item =
+        raw as Record<string, unknown>;
+
+      const equipment =
+        Array.isArray(item.equipment)
+          ? item.equipment
+              .filter(
+                (entry) =>
+                  entry &&
+                  typeof entry ===
+                    "object" &&
+                  !Array.isArray(entry),
+              )
+              .map((entry) => {
+                const equipment =
+                  entry as Record<
+                    string,
+                    unknown
+                  >;
+
+                return {
+                  id: String(
+                    equipment.id ??
+                      equipment.name ??
+                      "unknown",
+                  ),
+                  name: String(
+                    equipment.name ??
+                      equipment.id ??
+                      "Unknown",
+                  ),
+                };
+              })
+          : [];
+
+      return {
+        id: String(
+          item.id ??
+            item.name ??
+            "unknown",
+        ),
+        name: String(
+          item.name ??
+            item.id ??
+            "Unknown",
+        ),
+        equipment,
+      };
+    });
+}
+
+function buildPets(
+  value: unknown,
+): {
+  id: string;
+  name: string;
+}[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        !Array.isArray(item),
+    )
+    .map((raw) => {
+      const item =
+        raw as Record<string, unknown>;
+
+      return {
+        id: String(
+          item.id ??
+            item.name ??
+            "unknown",
+        ),
+        name: String(
+          item.name ??
+            item.id ??
+            "Unknown",
+        ),
+      };
+    });
+}
+
+async function buildSourceArmy(
+  discovery: {
+    name: string;
+    armyShareCode: string | null;
+    troops: unknown;
+    spells: unknown;
+    heroes: unknown;
+    pets: unknown;
+    siegeMachine: unknown;
+  },
+  townHall: number,
+): Promise<GeneratedArmy> {
+  const capabilities =
+    await getTownHallCapabilities(
       townHall,
-      difficulty
     );
 
+  const troops =
+    buildTroops(
+      discovery.troops,
+      capabilities.troops,
+    );
+
+  const spells =
+    buildSpells(
+      discovery.spells,
+      capabilities.spells,
+    );
+
+  const heroes =
+    buildHeroes(
+      discovery.heroes,
+    );
+
+  const pets =
+    buildPets(
+      discovery.pets,
+    );
+
+  const siegeSource =
+    discovery.siegeMachine &&
+    typeof discovery.siegeMachine ===
+      "object"
+      ? discovery.siegeMachine as Record<
+          string,
+          unknown
+        >
+      : null;
+
+  const siegeCatalog =
+    siegeSource
+      ? findGameItem(
+          siegeSource,
+          capabilities.siegeMachines,
+        )
+      : null;
+
+  const siege =
+    siegeSource
+      ? {
+          id: String(
+            siegeSource.id ??
+              siegeSource.name ??
+              siegeCatalog?.id ??
+              "unknown",
+          ),
+          name: String(
+            siegeSource.name ??
+              siegeCatalog?.name ??
+              siegeSource.id ??
+              "Unknown",
+          ),
+        }
+      : (() => {
+          const fallback =
+            randomItem(
+              capabilities.siegeMachines,
+            );
+
+          return {
+            id: String(
+              fallback.id ??
+                fallback.name,
+            ),
+            name: String(
+              fallback.name ??
+                fallback.id,
+            ),
+          };
+        })();
+
+  const troopCapacity =
+    troops.reduce(
+      (total, troop) =>
+        total +
+        troop.housingSpace *
+          troop.quantity,
+      0,
+    );
+
+  const spellCapacity =
+    spells.reduce(
+      (total, spell) =>
+        total +
+        spell.housingSpace *
+          spell.quantity,
+      0,
+    );
+
+  return {
+    townHall,
+    difficulty: "OH_MY_GOD",
+
+    troops,
+    troopCapacity,
+
+    spells,
+    spellCapacity,
+
+    siegeMachine: siege,
+
+    heroes,
+    pets,
+
+    clanCastle: {
+      troops: [],
+      troopCapacity:
+        capabilities.clanCastle.troopCapacity,
+      spells: [],
+      spellCapacity:
+        capabilities.clanCastle.spellCapacity,
+      siegeMachine: null,
+    },
+
+    generatedAt:
+      new Date().toISOString(),
+  };
+}
+
+function nextThursdayAt19(
+  now: Date,
+): Date {
+  const result =
+    new Date(now);
+
+  const currentDay =
+    result.getDay();
+
+  let daysUntilThursday =
+    (4 - currentDay + 7) % 7;
+
+  if (
+    currentDay === 4 &&
+    result.getHours() >= 19
+  ) {
+    daysUntilThursday = 7;
+  }
+
+  result.setDate(
+    result.getDate() +
+      daysUntilThursday,
+  );
+
+  result.setHours(
+    19,
+    0,
+    0,
+    0,
+  );
+
+  return result;
+}
+
+async function chooseSourceArmy() {
+  const armies =
+    await prisma.discoveryArmy.findMany({
+      where: {
+        armyShareCode: {
+          not: null,
+        },
+        tier: "L1",
+      },
+      orderBy: [
+        {
+          usageCount:
+            "desc",
+        },
+        {
+          id: "asc",
+        },
+      ],
+      take: 500,
+    });
+
+  if (!armies.length) {
+    throw new Error(
+      "Geen DiscoveryArmies beschikbaar voor de Random Army Challenge.",
+    );
+  }
+
+  return randomItem(
+    armies,
+  );
+}
+
+async function chooseBase(
+  townHall: number,
+) {
   const bases =
     await prisma.base.findMany({
       where: {
@@ -73,49 +541,257 @@ export async function ensureActiveChallenge() {
       },
     });
 
-  const base =
-    bases.length > 0
-      ? randomItem(bases)
-      : null;
+  return bases.length
+    ? randomItem(bases)
+    : null;
+}
 
-  const startsAt = now;
+async function ensureVariants(
+  challenge: {
+    id: number;
+    townHall: number;
+    sourceArmyId: number | null;
+  },
+) {
+  if (
+    challenge.sourceArmyId ===
+    null
+  ) {
+    throw new Error(
+      "Challenge heeft geen sourceArmyId.",
+    );
+  }
 
-  const endsAt = new Date(
-    now.getTime() +
-      CHALLENGE_DURATION_DAYS *
-        24 *
-        60 *
-        60 *
-        1000
-  );
+  const source =
+    await prisma.discoveryArmy.findUnique({
+      where: {
+        id:
+          challenge.sourceArmyId,
+      },
+    });
 
-  return prisma.randomChallenge.create({
-    data: {
-      number:
-        (latest?.number ?? 0) + 1,
+  if (!source) {
+    throw new Error(
+      `DiscoveryArmy ${challenge.sourceArmyId} bestaat niet meer.`,
+    );
+  }
 
-      title:
-        `TDG Random Army Challenge #${
-          (latest?.number ?? 0) + 1
-        }`,
+  const existing =
+    await prisma.randomChallengeVariant.findMany({
+      where: {
+        challengeId:
+          challenge.id,
+      },
+      select: {
+        difficulty: true,
+      },
+    });
 
-      status: "ACTIVE",
+  const existingDifficulties =
+    new Set(
+      existing.map(
+        (variant) =>
+          variant.difficulty,
+      ),
+    );
 
-      townHall,
+  const percentages =
+    generateMutationPercentages();
 
-      difficulty,
+  const baseArmy =
+    await buildSourceArmy(
+      source,
+      challenge.townHall,
+    );
 
-      baseId:
-        base?.id ?? null,
+  for (
+    const percentage of percentages
+  ) {
+    if (
+      existingDifficulties.has(
+        percentage.difficulty,
+      )
+    ) {
+      continue;
+    }
 
-      army,
+    const mutated =
+      await mutateGeneratedArmy(
+        baseArmy,
+        percentage.difficulty,
+        percentage.mutatedPercent,
+      );
 
-      rules:
-        "Iedere deelnemer gebruikt exact dezelfde random army en dezelfde challenge-base. Eén geldige inzending per speler.",
+    await prisma.randomChallengeVariant.create({
+      data: {
+        challengeId:
+          challenge.id,
+        difficulty:
+          percentage.difficulty,
+        mutatedPercent:
+          percentage.mutatedPercent,
+        sourceArmyId:
+          source.id,
+        sourceArmyName:
+          source.name,
+        army:
+          mutated as unknown as object,
+        armyShareCode:
+          null,
+        generatedAt:
+          new Date(),
+        lockedAt:
+          new Date(),
+      },
+    });
+  }
+}
 
-      startsAt,
+export async function ensureActiveChallenge() {
+  const now =
+    new Date();
 
-      endsAt,
-    },
-  });
+  let active =
+    await prisma.randomChallenge.findFirst({
+      where: {
+        status: "ACTIVE",
+        startsAt: {
+          lte: now,
+        },
+        endsAt: {
+          gt: now,
+        },
+      },
+      orderBy: {
+        startsAt: "desc",
+      },
+      include: {
+        variants: true,
+      },
+    });
+
+  /*
+   * Ook een al aangemaakte toekomstige challenge
+   * teruggeven. De pagina kan daarmee de countdown tonen.
+   */
+  if (!active) {
+    active =
+      await prisma.randomChallenge.findFirst({
+        where: {
+          status: "ACTIVE",
+          startsAt: {
+            gt: now,
+          },
+        },
+        orderBy: {
+          startsAt: "asc",
+        },
+        include: {
+          variants: true,
+        },
+      });
+  }
+
+  /*
+   * Geen challenge? Maak de volgende donderdag 19:00.
+   */
+  if (!active) {
+    const latest =
+      await prisma.randomChallenge.findFirst({
+        orderBy: {
+          id: "desc",
+        },
+      });
+
+    const townHall =
+      randomItem(
+        TOWN_HALLS,
+      );
+
+    const source =
+      await chooseSourceArmy();
+
+    const base =
+      await chooseBase(
+        townHall,
+      );
+
+    const startsAt =
+      nextThursdayAt19(
+        now,
+      );
+
+    const generationAt =
+      new Date(
+        startsAt.getTime() +
+          GENERATION_DELAY_HOURS *
+            60 *
+            60 *
+            1000,
+      );
+
+    const endsAt =
+      new Date(
+        startsAt.getTime() +
+          CHALLENGE_DURATION_DAYS *
+            24 *
+            60 *
+            60 *
+            1000,
+      );
+
+    active =
+      await prisma.randomChallenge.create({
+        data: {
+          title:
+            `TDG Random Army Challenge #${
+              (latest?.id ?? 0) + 1
+            }`,
+          townHall,
+          baseId:
+            base?.id ?? null,
+          startsAt,
+          generationAt,
+          endsAt,
+          status:
+            "ACTIVE",
+          sourceArmyId:
+            source.id,
+          sourceArmyName:
+            source.name,
+        },
+        include: {
+          variants: true,
+        },
+      });
+  }
+
+  /*
+   * Alleen na de 24 uur countdown genereren.
+   * Daarna blijven de drie variants locked.
+   */
+  if (
+    now >= active.generationAt &&
+    active.variants.length < 3
+  ) {
+    await ensureVariants({
+      id: active.id,
+      townHall:
+        active.townHall,
+      sourceArmyId:
+        active.sourceArmyId,
+    });
+
+    active =
+      (await prisma.randomChallenge.findUnique({
+        where: {
+          id: active.id,
+        },
+        include: {
+          variants: true,
+        },
+      }))!;
+  }
+
+  return active;
 }

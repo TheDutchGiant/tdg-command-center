@@ -8,14 +8,15 @@ datasource db {
 }
 
 model Base {
-  id          Int      @id @default(autoincrement())
-  townHall    Int
-  category    String
-  name        String
-  description String?
-  baseLink    String
-  createdBy   String
-  createdAt   DateTime @default(now())
+  id               Int               @id @default(autoincrement())
+  townHall         Int
+  category         String
+  name             String
+  description      String?
+  baseLink         String
+  createdBy        String
+  createdAt        DateTime          @default(now())
+  randomChallenges RandomChallenge[]
 }
 
 model Clan {
@@ -562,25 +563,49 @@ enum RandomChallengeEntryStatus {
 }
 
 model RandomChallenge {
-  id         Int                   @id @default(autoincrement())
-  number     Int                   @unique
-  title      String
-  status     RandomChallengeStatus @default(DRAFT)
-  townHall   Int
-  difficulty String
-  baseId     Int?
-  army       Json
-  rules      String?
-  startsAt   DateTime?
-  endsAt     DateTime?
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
+  id             Int      @id @default(autoincrement())
+  title          String
+  townHall       Int
+  baseId         Int?
+  startsAt       DateTime
+  generationAt   DateTime
+  endsAt         DateTime
+  status         String   @default("WAITING")
+  sourceArmyId   Int?
+  sourceArmyName String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  entries RandomChallengeEntry[]
+  base     Base?                    @relation(fields: [baseId], references: [id])
+  results  RandomChallengeResult[]
+  entries  RandomChallengeEntry[]
+  variants RandomChallengeVariant[]
 
   @@index([status])
   @@index([startsAt])
+  @@index([generationAt])
   @@index([endsAt])
+}
+
+model RandomChallengeVariant {
+  id             Int      @id @default(autoincrement())
+  challengeId    Int
+  difficulty     String
+  mutatedPercent Int
+  sourceArmyId   Int
+  sourceArmyName String
+  army           Json
+  armyShareCode  String?
+  generatedAt    DateTime @default(now())
+  lockedAt       DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  challenge RandomChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, difficulty])
+  @@index([challengeId])
+  @@index([difficulty])
 }
 
 model RandomChallengeEntry {
@@ -616,7 +641,9 @@ model RandomChallengeResult {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  entry RandomChallengeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entry             RandomChallengeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  randomChallenge   RandomChallenge?     @relation(fields: [randomChallengeId], references: [id])
+  randomChallengeId Int?
 
   @@index([score])
   @@index([rank])
@@ -651,12 +678,12 @@ model DiscoveryArmy {
   usageCount      Int           @default(0)
   usagePercentage Float         @default(0)
   daysSeen        Int           @default(0)
-  source           String        @default("ClashKing")
+  source          String        @default("ClashKing")
   importedAt      DateTime      @default(now())
 
-  cycle           Int           @default(1)
-  isUsed          Boolean       @default(false)
-  lastUsedAt      DateTime?
+  cycle      Int       @default(1)
+  isUsed     Boolean   @default(false)
+  lastUsedAt DateTime?
 
   @@unique([tier, fingerprint])
   @@index([tier])
@@ -670,7 +697,6 @@ model DiscoveryArmy {
  * PHOENIX GAME CATALOG
  * --------------------------------------------------------------------------
  * Vaste interne woordenlijst van alle Clash-content die Phoenix gebruikt.
- *
  * Phoenix gebruikt zijn eigen numerieke ID's. Externe game-data (zoals
  * dataId's of army-share-codes) zijn alleen mappings naar deze catalogus.
  * --------------------------------------------------------------------------
@@ -686,17 +712,17 @@ enum GameCatalogType {
 }
 
 model GameCatalogItem {
-  id            Int             @id @default(autoincrement())
-  type          GameCatalogType
-  name          String
-  slug          String
-  dataId        Int?
-  iconPath      String?
-  isSuperTroop  Boolean         @default(false)
-  baseItemId    Int?
-  active        Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id           Int             @id @default(autoincrement())
+  type         GameCatalogType
+  name         String
+  slug         String
+  dataId       Int?
+  iconPath     String?
+  isSuperTroop Boolean         @default(false)
+  baseItemId   Int?
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   baseItem      GameCatalogItem?  @relation("SuperTroopBase", fields: [baseItemId], references: [id])
   superVariants GameCatalogItem[] @relation("SuperTroopBase")
@@ -708,27 +734,24 @@ model GameCatalogItem {
   @@index([baseItemId])
 }
 
-
-
 /**
  * --------------------------------------------------------------------------
  * PHOENIX ARMY CODE MAPPING
  * --------------------------------------------------------------------------
  * Koppelt externe Army Share Code-ID's aan onze eigen GameCatalogItem IDs.
- *
  * De generator werkt uitsluitend met Phoenix catalogus-ID's.
  * De broncode van een externe provider is hier alleen een mapping.
  * --------------------------------------------------------------------------
  */
 
 model GameArmyCodeMap {
-  id             Int              @id @default(autoincrement())
-  source         String
-  type           GameCatalogType
-  code           Int
-  catalogItemId  Int
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id            Int             @id @default(autoincrement())
+  source        String
+  type          GameCatalogType
+  code          Int
+  catalogItemId Int
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   catalogItem GameCatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
 
