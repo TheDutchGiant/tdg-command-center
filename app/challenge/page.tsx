@@ -6,7 +6,14 @@ import type { GeneratedArmy } from "@/app/lib/challenge/randomArmy";
 
 export const dynamic = "force-dynamic";
 
-const GAME_DATA = "/game-data";
+const HERO_IDS: Record<string, string> = {
+  "Barbarian King": "0",
+  "Archer Queen": "1",
+  "Grand Warden": "2",
+  "Flying Grand Warden": "2m1",
+  "Royal Champion": "4",
+  "Minion Prince": "6",
+};
 
 const UNIT_IDS: Record<string, number> = {
   Barbarian: 0,
@@ -95,53 +102,6 @@ const SPELL_IDS: Record<string, number> = {
   "Revive Spell": 98,
 };
 
-const HERO_IDS: Record<string, string> = {
-  "Barbarian King": "0",
-  "Archer Queen": "1",
-  "Grand Warden": "2",
-  "Flying Grand Warden": "2m1",
-  "Royal Champion": "4",
-  "Minion Prince": "6",
-};
-
-const ICONS: Record<string, string> = {
-  "Barbarian King": "heroes/barbarian-king/icon.png",
-  "Archer Queen": "heroes/archer-queen/icon.png",
-  "Grand Warden": "heroes/grand-warden/icon.png",
-  "Royal Champion": "heroes/royal-champion/icon.png",
-  "Minion Prince": "heroes/minion-prince/icon.png",
-  "Dragon Duke": "heroes/dragon-duke/icon.png",
-};
-
-function iconPath(item: { id?: string; name?: string }) {
-  const name = item.name ?? item.id ?? "";
-
-  if (ICONS[name]) {
-    return `${GAME_DATA}/${ICONS[name]}`;
-  }
-
-  const slug = (item.id ?? name)
-    .toLowerCase()
-    .replaceAll(" ", "-")
-    .replaceAll(".", "")
-    .replaceAll("’", "")
-    .replaceAll("'", "");
-
-  const category =
-    name.includes("Spell")
-      ? "spells"
-      : name.includes("King") ||
-          name.includes("Queen") ||
-          name.includes("Warden") ||
-          name.includes("Champion") ||
-          name.includes("Prince") ||
-          name.includes("Duke")
-        ? "heroes"
-        : "troops";
-
-  return `${GAME_DATA}/${category}/${slug}/icon.png`;
-}
-
 function buildArmyLink(army: GeneratedArmy) {
   const units = (army.troops ?? [])
     .map((item) => {
@@ -179,22 +139,33 @@ function buildArmyLink(army: GeneratedArmy) {
 
   let armyPart = "";
 
-  if (units) armyPart += `u${units}`;
-  if (spells) armyPart += `s${spells}`;
-  if (heroes) armyPart += `h${heroes}`;
+  if (units) {
+    armyPart += `u${units}`;
+  }
+
+  if (spells) {
+    armyPart += `s${spells}`;
+  }
+
+  if (heroes) {
+    armyPart += `h${heroes}`;
+  }
 
   return `https://link.clashofclans.com/en?action=CopyArmy&army=${armyPart}`;
 }
 
 export default async function ChallengePage() {
-  const challenge = await ensureActiveChallenge();
+  const challenge =
+    await ensureActiveChallenge();
 
   const army =
     challenge.army as unknown as GeneratedArmy;
 
   const base = challenge.baseId
     ? await prisma.base.findUnique({
-        where: { id: challenge.baseId },
+        where: {
+          id: challenge.baseId,
+        },
       })
     : null;
 
@@ -217,272 +188,243 @@ export default async function ChallengePage() {
   const endsAt =
     challenge.endsAt?.toISOString() ?? null;
 
-  const armyLink = buildArmyLink(army);
+  const armyLink =
+    buildArmyLink(army);
 
   return (
-    <main className="min-h-screen bg-neutral-950 px-4 py-8 text-white sm:px-6">
-      <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-neutral-950 px-3 py-5 text-white sm:px-5 sm:py-6">
+      <div className="mx-auto max-w-7xl">
 
-        <div className="mb-5 flex justify-start">
+        <div className="mb-4 flex justify-start">
           <a
             href="/clan/2JLLPVGUU"
-            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-bold text-white/60 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+            className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-bold text-white/55 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
           >
             ⬅️ The Dutch Giant
           </a>
         </div>
 
-        <header className="mb-8 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-orange-300">
+        <header className="mb-5 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-300">
             🔥 TDG Phoenix Challenge
           </p>
 
-          <h1 className="mt-2 text-3xl font-black sm:text-5xl">
+          <h1 className="mt-1 text-3xl font-black sm:text-4xl">
             {challenge.title}
           </h1>
 
-          <p className="mt-3 text-sm text-white/45">
+          <p className="mt-1 text-xs text-white/35">
             TH{challenge.townHall} ·{" "}
-            {challenge.difficulty.replaceAll("_", " ")}
+            {challenge.difficulty.replaceAll(
+              "_",
+              " "
+            )}
           </p>
 
           {endsAt && (
-            <p className="mt-2 text-xs text-orange-300/70">
-              ⏳ Challenge eindigt op{" "}
-              {new Date(endsAt).toLocaleString("nl-NL")}
+            <p className="mt-1 text-[10px] text-orange-300/60">
+              ⏳ Eindigt op{" "}
+              {new Date(
+                endsAt
+              ).toLocaleString("nl-NL")}
             </p>
           )}
         </header>
 
-        <OffMetaGenerator />
+        {/* ====================================================
+            DESKTOP: OFF-META | BASE | RANDOM ARMY
+            MOBIEL: onder elkaar
+           ==================================================== */}
 
-        <section className="grid gap-4 lg:grid-cols-2">
+        <section className="grid items-start gap-4 lg:grid-cols-3">
 
-          <div className="rounded-2xl border border-orange-400/20 bg-orange-500/[0.04] p-5">
+          {/* OFF-META */}
+          <div className="min-w-0">
+            <OffMetaGenerator />
+          </div>
+
+          {/* BASE */}
+          <section className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold">
-                🎲 Random Army
-              </h2>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+                  TDG Challenge
+                </p>
+
+                <h2 className="mt-1 text-lg font-black">
+                  🏰 Challenge Base
+                </h2>
+              </div>
+            </div>
+
+            {base ? (
+              <>
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="text-base font-black">
+                    {base.name}
+                  </p>
+
+                  <p className="mt-1 text-[10px] text-white/35">
+                    TH{base.townHall} ·{" "}
+                    {base.category}
+                  </p>
+                </div>
+
+                <a
+                  href={base.baseLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 block rounded-xl border border-orange-400/25 bg-orange-500/10 px-4 py-3 text-center text-xs font-black text-orange-200 transition hover:bg-orange-500/20"
+                >
+                  🏰 Open Challenge Base
+                </a>
+              </>
+            ) : (
+              <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center">
+                <p className="text-sm font-bold text-white/25">
+                  Geen geschikte base beschikbaar.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* RANDOM ARMY */}
+          <section className="min-w-0 rounded-2xl border border-orange-400/20 bg-orange-500/[0.035] p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+                  Random Army
+                </p>
+
+                <h2 className="mt-1 text-lg font-black">
+                  🎲 Random Army
+                </h2>
+              </div>
 
               <a
                 href={armyLink}
-                className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-3 py-2 text-xs font-black text-orange-200 hover:bg-orange-500/20"
+                className="shrink-0 rounded-lg border border-orange-400/25 bg-orange-500/10 px-3 py-2 text-[10px] font-black text-orange-200 transition hover:bg-orange-500/20"
+              >
+                ⚔️ Clash
+              </a>
+            </div>
+
+            <p className="mt-2 text-[11px] leading-5 text-white/35">
+              Deze army is onderdeel van de huidige
+              challenge.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-base font-black">
+                {army.name ??
+                  "Random Army"}
+              </p>
+
+              <p className="mt-1 text-[10px] text-white/30">
+                Open de army rechtstreeks in Clash of Clans.
+              </p>
+            </div>
+
+            <div className="mt-3">
+              <a
+                href={armyLink}
+                className="block rounded-xl border border-orange-400/25 bg-orange-500/[0.08] px-4 py-3 text-center text-xs font-black text-orange-200 transition hover:bg-orange-500/15"
               >
                 ⚔️ Copy Army
               </a>
             </div>
+          </section>
 
-            <p className="mt-2 text-xs text-white/35">
-              Klik op Copy Army om deze legeropstelling
-              rechtstreeks in Clash of Clans te openen.
-            </p>
+        </section>
 
-            <div className="mt-5 space-y-4">
+        {/* ====================================================
+            MEEDOEN
+           ==================================================== */}
 
-              <ArmySection
-                title="⚔️ Troepen"
-                items={army.troops}
-              />
+        <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">
+                Challenge
+              </p>
 
-              <ArmySection
-                title="🪄 Spells"
-                items={army.spells}
-              />
-
-              <div>
-                <p className="text-xs font-bold text-white/40">
-                  🏰 Siege Machine
-                </p>
-
-                <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                  <ArmyIcon item={army.siegeMachine} />
-                  <span className="text-sm font-semibold">
-                    {army.siegeMachine.name}
-                  </span>
-                </div>
-              </div>
-
-              <ArmySection
-                title="👑 Heroes"
-                items={army.heroes}
-                hero
-              />
-
-              <ArmySection
-                title="🐾 Pets"
-                items={army.pets}
-              />
-
-            </div>
-          </div>
-
-          <div className="space-y-4">
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <h2 className="text-lg font-bold">
-                🏰 Challenge Base
-              </h2>
-
-              {base ? (
-                <>
-                  <p className="mt-3 text-lg font-bold">
-                    {base.name}
-                  </p>
-
-                  <p className="mt-1 text-xs text-white/40">
-                    TH{base.townHall} · {base.category}
-                  </p>
-
-                  <a
-                    href={base.baseLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-block rounded-xl border border-orange-400/25 bg-orange-500/10 px-4 py-3 text-sm font-bold text-orange-200 hover:bg-orange-500/20"
-                  >
-                    🏰 Open Challenge Base
-                  </a>
-                </>
-              ) : (
-                <p className="mt-3 text-sm text-white/40">
-                  Er is geen geschikte base beschikbaar.
-                </p>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <h2 className="text-lg font-bold">
+              <h2 className="mt-1 text-lg font-black">
                 📸 Meedoen
               </h2>
 
-              <p className="mt-3 text-sm leading-6 text-white/50">
-                Doe de challenge met exact deze army
-                en deze base. Upload daarna alleen je
-                screenshot. Phoenix controleert het
-                resultaat automatisch.
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-white/40">
+                Doe de challenge met exact deze
+                army en deze base. Upload daarna
+                alleen je screenshot. Phoenix
+                controleert het resultaat automatisch.
               </p>
-
-              <ChallengeSubmitForm />
             </div>
 
+            <div className="w-full lg:max-w-md">
+              <ChallengeSubmitForm />
+            </div>
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">
+        {/* ====================================================
+            LEADERBOARD
+           ==================================================== */}
+
+        <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-black">
               🏆 Leaderboard
             </h2>
 
-            <span className="text-xs text-white/30">
+            <span className="text-[10px] font-bold text-white/25">
               {entries.length} deelnemers
             </span>
           </div>
 
           {entries.length === 0 ? (
-            <p className="mt-5 text-sm text-white/35">
+            <p className="mt-4 text-xs text-white/30">
               Nog geen gevalideerde resultaten.
             </p>
           ) : (
-            <div className="mt-4 space-y-2">
-              {entries.map((entry, index) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/20 px-3 py-3"
-                >
-                  <span className="w-8 text-center text-sm font-black text-white/40">
-                    #{index + 1}
-                  </span>
+            <div className="mt-3 space-y-1.5">
+              {entries.map(
+                (entry, index) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
+                  >
+                    <span className="w-7 text-center text-xs font-black text-white/30">
+                      #{index + 1}
+                    </span>
 
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                    {entry.playerName}
-                  </span>
+                    <span className="min-w-0 flex-1 truncate text-xs font-bold">
+                      {entry.playerName}
+                    </span>
 
-                  <span className="text-xs font-bold text-white/60">
-                    {entry.result?.stars ?? 0}⭐
-                  </span>
+                    <span className="text-[10px] font-bold text-white/50">
+                      {entry.result?.stars ??
+                        0}
+                      ⭐
+                    </span>
 
-                  <span className="text-xs font-bold text-orange-300">
-                    {entry.result?.destruction ?? 0}%
-                  </span>
+                    <span className="text-[10px] font-bold text-orange-300">
+                      {entry.result?.destruction ??
+                        0}
+                      %
+                    </span>
 
-                  <span className="w-20 text-right text-xs font-black">
-                    {entry.result?.score ?? 0}
-                  </span>
-                </div>
-              ))}
+                    <span className="w-14 text-right text-[10px] font-black">
+                      {entry.result?.score ??
+                        0}
+                    </span>
+                  </div>
+                )
+              )}
             </div>
           )}
         </section>
 
       </div>
     </main>
-  );
-}
-
-function ArmyIcon({
-  item,
-}: {
-  item: {
-    id?: string;
-    name?: string;
-  };
-}) {
-  return (
-    <img
-      src={iconPath(item)}
-      alt=""
-      className="h-10 w-10 object-contain"
-    />
-  );
-}
-
-function ArmySection({
-  title,
-  items,
-  hero = false,
-}: {
-  title: string;
-  items: unknown[];
-  hero?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-bold text-white/40">
-        {title}
-      </p>
-
-      <div className="mt-2 flex flex-wrap gap-2">
-        {items.map((item, index) => {
-          const value =
-            item as {
-              id?: string;
-              name?: string;
-              quantity?: number;
-            };
-
-          return (
-            <div
-              key={`${value.id ?? "item"}-${index}`}
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2 py-1.5"
-            >
-              <ArmyIcon item={value} />
-
-              <div className="leading-tight">
-                <p className="text-[11px] font-bold">
-                  {value.name ?? "Unknown"}
-                </p>
-
-                {!hero &&
-                  typeof value.quantity === "number" && (
-                    <p className="text-[10px] text-white/40">
-                      ×{value.quantity}
-                    </p>
-                  )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
