@@ -52,118 +52,103 @@ function getIconPath(
     return null;
   }
 
-  const normalizedPath =
-    item.iconPath
-      .replace(/^images\/home\//, "");
-
-  return `${GAME_DATA}/${normalizedPath}`;
+  return `${GAME_DATA}/${item.iconPath.replace(
+    /^images\/home\//,
+    ""
+  )}`;
 }
 
-function ItemCard({
+function Icon({
+  item,
+  size = "normal",
+}: {
+  item?: {
+    iconPath?: string | null;
+    name?: string;
+  } | null;
+  size?: "small" | "normal";
+}) {
+  const icon = getIconPath(item);
+
+  const imageClass =
+    size === "small"
+      ? "h-8 w-8 object-contain"
+      : "h-10 w-10 object-contain";
+
+  const boxClass =
+    size === "small"
+      ? "h-9 w-9"
+      : "h-12 w-12";
+
+  return (
+    <div
+      className={`flex ${boxClass} shrink-0 items-center justify-center`}
+    >
+      {icon ? (
+        <img
+          src={icon}
+          alt=""
+          className={imageClass}
+          onError={(event) => {
+            event.currentTarget.style.display =
+              "none";
+
+            const fallback =
+              event.currentTarget.parentElement?.querySelector(
+                "[data-icon-fallback]"
+              );
+
+            if (fallback) {
+              fallback.classList.remove(
+                "hidden"
+              );
+            }
+          }}
+        />
+      ) : null}
+
+      <span
+        data-icon-fallback
+        className={
+          icon
+            ? "hidden text-xs text-white/20"
+            : "text-xs text-white/20"
+        }
+      >
+        ?
+      </span>
+    </div>
+  );
+}
+
+function CompactItem({
   item,
 }: {
   item: ArmyItem;
 }) {
-  const icon = getIconPath(item);
-
   return (
-    <div className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2 transition hover:border-emerald-300/20 hover:bg-white/[0.04]">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-black/30">
-        {icon ? (
-          <img
-            src={icon}
-            alt=""
-            className="h-11 w-11 object-contain"
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-              const fallback =
-                event.currentTarget.parentElement?.querySelector(
-                  "[data-icon-fallback]"
-                );
+    <div
+      className="relative flex aspect-square w-full items-center justify-center rounded-xl border border-white/10 bg-black/20"
+      title={item.name ?? "Unknown"}
+    >
+      <Icon item={item} />
 
-              if (fallback) {
-                fallback.classList.remove("hidden");
-              }
-            }}
-          />
-        ) : null}
-
-        <span
-          data-icon-fallback
-          className={icon ? "hidden text-lg text-white/20" : "text-lg text-white/20"}
-        >
-          ?
+      {typeof item.quantity === "number" && (
+        <span className="absolute bottom-1 right-1 rounded-md bg-black/80 px-1.5 py-0.5 text-[9px] font-black leading-none text-white">
+          ×{item.quantity}
         </span>
-      </div>
+      )}
 
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="max-w-[150px] truncate text-xs font-black">
-            {item.name ?? "Unknown"}
-          </p>
-
-          {item.isSuperTroop && (
-            <span className="shrink-0 rounded-md border border-purple-300/20 bg-purple-400/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-purple-200">
-              Super
-            </span>
-          )}
-        </div>
-
-        {typeof item.quantity === "number" && (
-          <p className="mt-0.5 text-[11px] font-bold text-white/40">
-            ×{item.quantity}
-          </p>
-        )}
-      </div>
+      {item.isSuperTroop && (
+        <span className="absolute left-1 top-1 rounded-md bg-purple-500/80 px-1 py-0.5 text-[7px] font-black leading-none text-white">
+          S
+        </span>
+      )}
     </div>
   );
 }
 
-function EquipmentCard({
-  item,
-}: {
-  item: EquipmentItem;
-}) {
-  const icon = getIconPath(item);
-
-  return (
-    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-white/5 bg-black/20 px-2 py-1.5">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-        {icon ? (
-          <img
-            src={icon}
-            alt=""
-            className="h-8 w-8 object-contain"
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-              const fallback =
-                event.currentTarget.parentElement?.querySelector(
-                  "[data-icon-fallback]"
-                );
-
-              if (fallback) {
-                fallback.classList.remove("hidden");
-              }
-            }}
-          />
-        ) : null}
-
-        <span
-          data-icon-fallback
-          className={icon ? "hidden text-sm text-white/20" : "text-sm text-white/20"}
-        >
-          ?
-        </span>
-      </div>
-
-      <p className="max-w-[130px] truncate text-[10px] font-bold text-white/60">
-        {item.name ?? "Unknown"}
-      </p>
-    </div>
-  );
-}
-
-function ItemSection({
+function CompactSection({
   title,
   items,
 }: {
@@ -176,25 +161,62 @@ function ItemSection({
 
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">
-          {title}
-        </p>
+      <p className="mb-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-white/25">
+        {title}
+      </p>
 
-        <span className="text-[10px] font-bold text-white/20">
-          {items.length}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-3 gap-1.5 min-[420px]:grid-cols-4">
         {items.map((item, index) => (
-          <ItemCard
+          <CompactItem
             key={`${item.id ?? item.name ?? "item"}-${index}`}
             item={item}
           />
         ))}
       </div>
     </section>
+  );
+}
+
+function HeroItem({
+  hero,
+}: {
+  hero: HeroItem;
+}) {
+  return (
+    <div
+      className="relative flex aspect-square items-center justify-center rounded-xl border border-white/10 bg-black/20"
+      title={hero.name ?? "Hero"}
+    >
+      <Icon
+        item={hero}
+        size="normal"
+      />
+
+      {hero.equipment &&
+        hero.equipment.length > 0 && (
+          <div className="absolute -bottom-0.5 -right-0.5 flex gap-0.5">
+            {hero.equipment
+              .slice(0, 2)
+              .map(
+                (equipment, index) => (
+                  <div
+                    key={`${equipment.id ?? equipment.name ?? "equipment"}-${index}`}
+                    className="flex h-5 w-5 items-center justify-center rounded-md border border-white/10 bg-neutral-950"
+                    title={
+                      equipment.name ??
+                      "Equipment"
+                    }
+                  >
+                    <Icon
+                      item={equipment}
+                      size="small"
+                    />
+                  </div>
+                )
+              )}
+          </div>
+        )}
+    </div>
   );
 }
 
@@ -209,79 +231,17 @@ function HeroSection({
 
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">
-          Heroes
-        </p>
+      <p className="mb-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-white/25">
+        Heroes
+      </p>
 
-        <span className="text-[10px] font-bold text-white/20">
-          {heroes.length}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {heroes.map((hero, index) => {
-          const icon = getIconPath(hero);
-
-          return (
-            <div
-              key={`${hero.id ?? hero.name ?? "hero"}-${index}`}
-              className="rounded-xl border border-white/10 bg-white/[0.025] p-2.5"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-black/30">
-                  {icon ? (
-                    <img
-                      src={icon}
-                      alt=""
-                      className="h-11 w-11 object-contain"
-                      onError={(event) => {
-                        event.currentTarget.style.display = "none";
-                        const fallback =
-                          event.currentTarget.parentElement?.querySelector(
-                            "[data-icon-fallback]"
-                          );
-
-                        if (fallback) {
-                          fallback.classList.remove("hidden");
-                        }
-                      }}
-                    />
-                  ) : null}
-
-                  <span
-                    data-icon-fallback
-                    className={
-                      icon
-                        ? "hidden text-lg text-white/20"
-                        : "text-lg text-white/20"
-                    }
-                  >
-                    ?
-                  </span>
-                </div>
-
-                <p className="min-w-0 flex-1 truncate text-xs font-black">
-                  {hero.name ?? "Unknown"}
-                </p>
-              </div>
-
-              {hero.equipment &&
-                hero.equipment.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {hero.equipment.map(
-                      (equipment, equipmentIndex) => (
-                        <EquipmentCard
-                          key={`${equipment.id ?? equipment.name ?? "equipment"}-${equipmentIndex}`}
-                          item={equipment}
-                        />
-                      )
-                    )}
-                  </div>
-                )}
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-2 gap-1.5 min-[420px]:grid-cols-4">
+        {heroes.map((hero, index) => (
+          <HeroItem
+            key={`${hero.id ?? hero.name ?? "hero"}-${index}`}
+            hero={hero}
+          />
+        ))}
       </div>
     </section>
   );
@@ -341,23 +301,21 @@ export default function OffMetaGenerator() {
   }
 
   return (
-    <section className="mb-6 overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.035]">
-      <div className="border-b border-white/10 p-5 sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300/70">
+    <section className="h-full overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.035]">
+      <div className="border-b border-white/10 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-300/70">
               🧪 TDG Discovery
             </p>
 
-            <h2 className="mt-1 text-2xl font-black sm:text-3xl">
+            <h2 className="mt-1 text-lg font-black">
               Off-Meta Army
             </h2>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">
-              Oefen een echte L1-army buiten de 20
-              meest gebruikte compositions. Iedere
-              unieke army wordt binnen een cycle
-              één keer uitgegeven.
+            <p className="mt-1 text-[10px] leading-4 text-white/30">
+              Buiten de 20 meest gebruikte
+              compositions.
             </p>
           </div>
 
@@ -365,91 +323,69 @@ export default function OffMetaGenerator() {
             type="button"
             onClick={generate}
             disabled={loading}
-            className="shrink-0 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-wait disabled:opacity-50"
+            className="shrink-0 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-[10px] font-black text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-wait disabled:opacity-50"
           >
             {loading
-              ? "Army ophalen..."
+              ? "..."
               : army
-                ? "🎲 Nieuwe Off-Meta Army"
-                : "🎲 Geef mij een Off-Meta Army"}
+                ? "🎲 Nieuwe"
+                : "🎲 Geef Army"}
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="m-5 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <div className="m-3 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
           {error}
         </div>
       )}
 
-      {army && (
-        <div className="p-5 sm:p-6">
-          <div className="rounded-2xl border border-white/10 bg-black/20">
-            <div className="flex flex-col gap-4 border-b border-white/10 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
+      {army ? (
+        <div className="p-3">
+          <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-3">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-md border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200">
-                    L1 Off-Meta
-                  </span>
-
-                  <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-white/40">
-                    Cycle {army.cycle}
-                  </span>
-                </div>
-
-                <h3 className="mt-3 text-2xl font-black">
+                <h3 className="truncate text-base font-black">
                   {army.name}
                 </h3>
 
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/35">
-                  <span>
-                    {army.usageCount.toLocaleString(
-                      "nl-NL"
-                    )}{" "}
-                    × gebruikt
-                  </span>
-
-                  <span>
-                    {army.usagePercentage.toLocaleString(
-                      "nl-NL",
-                      {
-                        maximumFractionDigits: 1,
-                      }
-                    )}
-                    % van de aanvallen
-                  </span>
-
-                  <span>
-                    {army.daysSeen} dagen gezien
-                  </span>
-                </div>
+                <p className="mt-1 text-[9px] leading-4 text-white/35">
+                  {army.usageCount.toLocaleString(
+                    "nl-NL"
+                  )}
+                  × gebruikt ·{" "}
+                  {army.daysSeen} dagen · Cycle{" "}
+                  {army.cycle}
+                </p>
               </div>
 
               <a
                 href={army.armyLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 rounded-xl border border-orange-400/25 bg-orange-500/10 px-5 py-3 text-center text-sm font-black text-orange-200 transition hover:bg-orange-500/20"
+                className="shrink-0 rounded-lg border border-orange-400/25 bg-orange-500/10 px-2.5 py-2 text-[9px] font-black text-orange-200 transition hover:bg-orange-500/20"
               >
-                ⚔️ Open deze Army in Clash
+                ⚔️ Clash
               </a>
             </div>
 
-            <div className="space-y-6 p-4 sm:p-5">
-              <ItemSection
+            <div className="mt-3 space-y-3">
+              <CompactSection
                 title="Troepen"
                 items={army.troops}
               />
 
-              <ItemSection
+              <CompactSection
                 title="Spells"
                 items={army.spells}
               />
 
               {army.siegeMachine && (
-                <ItemSection
-                  title="Siege Machine"
-                  items={[army.siegeMachine]}
+                <CompactSection
+                  title="Siege"
+                  items={[
+                    army.siegeMachine,
+                  ]}
                 />
               )}
 
@@ -457,11 +393,24 @@ export default function OffMetaGenerator() {
                 heroes={army.heroes}
               />
 
-              <ItemSection
+              <CompactSection
                 title="Pets"
                 items={army.pets}
               />
             </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-h-[190px] items-center justify-center p-4 text-center">
+          <div>
+            <p className="text-xs font-bold text-white/20">
+              Geef mij een Off-Meta Army
+            </p>
+
+            <p className="mt-1 text-[10px] text-white/15">
+              Iedere army wordt binnen een cycle
+              één keer uitgegeven.
+            </p>
           </div>
         </div>
       )}
