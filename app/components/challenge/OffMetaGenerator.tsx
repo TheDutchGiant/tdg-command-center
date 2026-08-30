@@ -432,12 +432,21 @@ export default function OffMetaGenerator() {
               />
 
               {army.siegeMachine && (
-                <CompactSection
-                  title="Siege"
-                  items={[
-                    army.siegeMachine,
-                  ]}
-                />
+                <section>
+                  <p className="mb-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-white/25">
+                    Siege Machine
+                  </p>
+
+                  <div className="flex">
+                    <CompactItem
+                      item={{
+                        ...army.siegeMachine,
+                        quantity:
+                          army.siegeMachine.quantity ?? 1,
+                      }}
+                    />
+                  </div>
+                </section>
               )}
 
               <HeroSection

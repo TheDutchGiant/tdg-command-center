@@ -227,6 +227,14 @@ function buildArmyLink(army: GeneratedArmy) {
     .filter(Boolean)
     .join("-");
 
+  const siegeName =
+    army.siegeMachine?.name ??
+    army.siegeMachine?.id ??
+    "";
+
+  const siegeId =
+    UNIT_IDS[siegeName];
+
   let armyPart = "";
 
   if (units) {
@@ -235,6 +243,12 @@ function buildArmyLink(army: GeneratedArmy) {
 
   if (spells) {
     armyPart += `s${spells}`;
+  }
+
+  if (
+    siegeId !== undefined
+  ) {
+    armyPart += `i1x${siegeId}`;
   }
 
   if (heroes) {
