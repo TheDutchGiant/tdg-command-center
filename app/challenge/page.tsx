@@ -316,8 +316,7 @@ export default async function ChallengePage() {
 
             <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
               <p className="text-base font-black">
-                {army.name ??
-                  "Random Army"}
+                Random Army
               </p>
 
               <p className="mt-1 text-[10px] text-white/30">
