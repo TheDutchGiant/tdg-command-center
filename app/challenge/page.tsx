@@ -114,7 +114,7 @@ function getCatalogIconPath(
   if (!item?.iconPath) return null;
 
   return `/game-data/${item.iconPath.replace(
-    /^images\\/home\\//,
+    /^images\/home\//,
     ""
   )}`;
 }
