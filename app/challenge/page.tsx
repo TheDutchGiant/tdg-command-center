@@ -223,6 +223,15 @@ export default async function ChallengePage() {
     <main className="min-h-screen bg-neutral-950 px-4 py-8 text-white sm:px-6">
       <div className="mx-auto max-w-6xl">
 
+        <div className="mb-5 flex justify-start">
+          <a
+            href="/clan/2JLLPVGUU"
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-bold text-white/60 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+          >
+            ⬅️ The Dutch Giant
+          </a>
+        </div>
+
         <header className="mb-8 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-orange-300">
             🔥 TDG Phoenix Challenge

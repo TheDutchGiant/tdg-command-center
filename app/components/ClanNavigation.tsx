@@ -86,6 +86,19 @@ export default function ClanNavigation({
               </Link>
             );
           })}
+
+          {tag === "2JLLPVGUU" && (
+            <Link
+              href="/challenge"
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                pathname === "/challenge"
+                  ? "bg-emerald-500 text-black"
+                  : "text-neutral-300 hover:bg-neutral-800 hover:text-emerald-300"
+              }`}
+            >
+              🎲 Challenge
+            </Link>
+          )}
         </div>
 
         <Link
