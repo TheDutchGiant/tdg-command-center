@@ -338,28 +338,13 @@ export default async function ChallengePage() {
           </a>
         </div>
 
-        <header className="mb-5 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-300">
-            🔥 TDG Phoenix Challenge
-          </p>
-
-          <p className="mt-1 text-xs text-white/35">
-            TH{challenge.townHall} ·{" "}
-            {challenge.difficulty.replaceAll(
-              "_",
-              " "
-            )}
-          </p>
-
-          {endsAt && (
-            <p className="mt-1 text-[10px] text-orange-300/60">
-              ⏳ Eindigt op{" "}
-              {new Date(
-                endsAt
-              ).toLocaleString("nl-NL")}
-            </p>
-          )}
-        </header>
+        <div className="mb-5 overflow-hidden rounded-2xl border border-white/10 bg-black/20 shadow-2xl">
+          <img
+            src="/images/challenge/challenge-banner.png"
+            alt="TDG Phoenix Challenge"
+            className="block h-auto w-full object-cover"
+          />
+        </div>
 
         {/* ====================================================
             DESKTOP: OFF-META | BASE | RANDOM ARMY
@@ -424,12 +409,27 @@ export default async function ChallengePage() {
             {/* Challenge titel hoort bij Random Army */}
             <div className="mb-2 border-b border-white/10 pb-2 sm:mb-4 sm:pb-3">
               <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60 sm:text-[10px]">
-                TDG Random Army Challenge
+                🔥 TDG Phoenix Challenge · TH{challenge.townHall}
               </p>
 
               <h2 className="mt-0.5 text-sm font-black sm:text-lg">
                 {challenge.title}
               </h2>
+
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[8px] text-white/40 sm:text-[10px]">
+                <span>
+                  {challenge.difficulty.replaceAll("_", " ")}
+                </span>
+
+                {endsAt && (
+                  <>
+                    <span className="text-white/15">•</span>
+                    <span>
+                      ⏳ {new Date(endsAt).toLocaleString("nl-NL")}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-2">
