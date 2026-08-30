@@ -74,12 +74,26 @@ function ItemCard({
             src={icon}
             alt=""
             className="h-11 w-11 object-contain"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+              const fallback =
+                event.currentTarget.parentElement?.querySelector(
+                  "[data-icon-fallback]"
+                );
+
+              if (fallback) {
+                fallback.classList.remove("hidden");
+              }
+            }}
           />
-        ) : (
-          <span className="text-lg text-white/20">
-            ?
-          </span>
-        )}
+        ) : null}
+
+        <span
+          data-icon-fallback
+          className={icon ? "hidden text-lg text-white/20" : "text-lg text-white/20"}
+        >
+          ?
+        </span>
       </div>
 
       <div className="min-w-0">
@@ -120,12 +134,26 @@ function EquipmentCard({
             src={icon}
             alt=""
             className="h-8 w-8 object-contain"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+              const fallback =
+                event.currentTarget.parentElement?.querySelector(
+                  "[data-icon-fallback]"
+                );
+
+              if (fallback) {
+                fallback.classList.remove("hidden");
+              }
+            }}
           />
-        ) : (
-          <span className="text-sm text-white/20">
-            ?
-          </span>
-        )}
+        ) : null}
+
+        <span
+          data-icon-fallback
+          className={icon ? "hidden text-sm text-white/20" : "text-sm text-white/20"}
+        >
+          ?
+        </span>
       </div>
 
       <p className="max-w-[130px] truncate text-[10px] font-bold text-white/60">
@@ -207,12 +235,30 @@ function HeroSection({
                       src={icon}
                       alt=""
                       className="h-11 w-11 object-contain"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                        const fallback =
+                          event.currentTarget.parentElement?.querySelector(
+                            "[data-icon-fallback]"
+                          );
+
+                        if (fallback) {
+                          fallback.classList.remove("hidden");
+                        }
+                      }}
                     />
-                  ) : (
-                    <span className="text-lg text-white/20">
-                      ?
-                    </span>
-                  )}
+                  ) : null}
+
+                  <span
+                    data-icon-fallback
+                    className={
+                      icon
+                        ? "hidden text-lg text-white/20"
+                        : "text-lg text-white/20"
+                    }
+                  >
+                    ?
+                  </span>
                 </div>
 
                 <p className="min-w-0 flex-1 truncate text-xs font-black">
