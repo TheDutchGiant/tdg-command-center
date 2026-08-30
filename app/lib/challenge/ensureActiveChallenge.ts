@@ -8,6 +8,7 @@ import {
   getTownHallCapabilities,
   type GameDataItem,
 } from "./gameData";
+import { buildArmyLink as buildClashArmyLink } from "./armyLink";
 import type {
   GeneratedArmy,
   GeneratedHero,
@@ -546,6 +547,69 @@ async function chooseBase(
     : null;
 }
 
+function buildVariantShareCode(
+  army: GeneratedArmy,
+): string | null {
+  try {
+    return buildClashArmyLink({
+      troops:
+        army.troops.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+        })),
+
+      spells:
+        army.spells.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+        })),
+
+      siegeMachine:
+        army.siegeMachine
+          ? {
+              name:
+                army.siegeMachine.name,
+              quantity: 1,
+            }
+          : null,
+
+      heroes:
+        army.heroes.map((hero) => ({
+          name: hero.name,
+          equipment: hero.equipment.map(
+            (equipment) =>
+              equipment.name,
+          ),
+        })),
+
+      clanCastleTroops:
+        army.clanCastle.troops.map(
+          (item) => ({
+            name: item.name,
+            quantity:
+              item.quantity,
+          }),
+        ),
+
+      clanCastleSpells:
+        army.clanCastle.spells.map(
+          (item) => ({
+            name: item.name,
+            quantity:
+              item.quantity,
+          }),
+        ),
+    });
+  } catch (error) {
+    console.error(
+      "Kon Clash army-link niet bouwen:",
+      error,
+    );
+
+    return null;
+  }
+}
+
 async function ensureVariants(
   challenge: {
     id: number;
@@ -595,6 +659,43 @@ async function ensureVariants(
       ),
     );
 
+  /*
+   * Bestaande variants die al bestaan maar nog
+   * geen Clash-link hebben, worden alleen aangevuld.
+   *
+   * De locked army zelf wordt NIET opnieuw gegenereerd.
+   */
+  const existingVariants =
+    await prisma.randomChallengeVariant.findMany({
+      where: {
+        challengeId:
+          challenge.id,
+        armyShareCode:
+          null,
+      },
+    });
+
+  for (const variant of existingVariants) {
+    const existingArmy =
+      variant.army as unknown as GeneratedArmy;
+
+    const armyShareCode =
+      buildVariantShareCode(
+        existingArmy,
+      );
+
+    if (armyShareCode) {
+      await prisma.randomChallengeVariant.update({
+        where: {
+          id: variant.id,
+        },
+        data: {
+          armyShareCode,
+        },
+      });
+    }
+  }
+
   const percentages =
     generateMutationPercentages();
 
@@ -622,6 +723,11 @@ async function ensureVariants(
         percentage.mutatedPercent,
       );
 
+    const armyShareCode =
+      buildVariantShareCode(
+        mutated,
+      );
+
     await prisma.randomChallengeVariant.create({
       data: {
         challengeId:
@@ -636,8 +742,7 @@ async function ensureVariants(
           source.name,
         army:
           mutated as unknown as object,
-        armyShareCode:
-          null,
+        armyShareCode,
         generatedAt:
           new Date(),
         lockedAt:

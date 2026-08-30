@@ -2,6 +2,7 @@ import { prisma } from "@/app/lib/prisma";
 import { ensureActiveChallenge } from "@/app/lib/challenge/ensureActiveChallenge";
 import ChallengeSubmitForm from "@/app/components/challenge/ChallengeSubmitForm";
 import OffMetaGenerator from "@/app/components/challenge/OffMetaGenerator";
+import RandomArmyChallenge from "@/app/components/challenge/RandomArmyChallenge";
 import type { GeneratedArmy } from "@/app/lib/challenge/randomArmy";
 
 export const dynamic = "force-dynamic";
@@ -424,179 +425,22 @@ export default async function ChallengePage() {
           </section>
 
           {/* RANDOM ARMY */}
-          <section className="min-w-0 rounded-2xl border border-orange-400/20 bg-orange-500/[0.035] p-2.5 sm:p-5">
-
-            {/* Challenge titel hoort bij Random Army */}
-            <div className="mb-2 border-b border-white/10 pb-2 sm:mb-4 sm:pb-3">
-              <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60 sm:text-[10px]">
-                🔥 TDG Phoenix Challenge · TH{challenge.townHall}
-              </p>
-
-              <h2 className="mt-0.5 text-sm font-black sm:text-lg">
-                {challenge.title}
-              </h2>
-
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[8px] text-white/40 sm:text-[10px]">
-                <span>
-                  {activeVariant.difficulty.replaceAll("_", " ")}
-                </span>
-
-                {endsAt && (
-                  <>
-                    <span className="text-white/15">•</span>
-                    <span>
-                      ⏳ {new Date(endsAt).toLocaleString("nl-NL")}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60 sm:text-[10px]">
-                  Random Army
-                </p>
-
-                <h3 className="mt-0.5 text-sm font-black sm:text-lg">
-                  🎲 Army
-                </h3>
-              </div>
-
-              <a
-                href={armyLink}
-                className="shrink-0 rounded-lg border border-orange-400/25 bg-orange-500/10 px-2 py-1.5 text-[8px] font-black text-orange-200 transition hover:bg-orange-500/20 sm:px-3 sm:py-2 sm:text-[10px]"
-              >
-                ⚔️ Clash
-              </a>
-            </div>
-
-            <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
-
-              <RandomArmyItems
-                items={army.troops ?? []}
-                catalogBySlug={catalogBySlug}
-              />
-
-              <RandomArmyItems
-                items={army.spells ?? []}
-                catalogBySlug={catalogBySlug}
-              />
-
-              {army.siegeMachine && (
-                <RandomArmyItems
-                  items={[
-                    {
-                      id: army.siegeMachine.id,
-                      name: army.siegeMachine.name,
-                      quantity: 1,
-                    },
-                  ]}
-                  catalogBySlug={catalogBySlug}
-                />
-              )}
-
-              {army.heroes &&
-                army.heroes.length > 0 && (
-                  <div className="grid grid-cols-4 gap-1">
-                    {army.heroes.map(
-                      (hero, index) => {
-                        const heroCatalog =
-                          catalogBySlug.get(
-                            hero.id
-                          );
-
-                        return (
-                          <div
-                            key={`${hero.name}-${index}`}
-                            className="flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
-                            title={hero.name}
-                          >
-                            {getCatalogIconPath(
-                              heroCatalog
-                            ) ? (
-                              <img
-                                src={
-                                  getCatalogIconPath(
-                                    heroCatalog
-                                  )!
-                                }
-                                alt=""
-                                className="h-8 w-8 object-contain"
-                              />
-                            ) : (
-                              <span className="text-[8px] text-white/20">
-                                ?
-                              </span>
-                            )}
-
-                            {hero.equipment &&
-                              hero.equipment.length > 0 && (
-                                <div className="mt-0.5 flex items-center justify-center gap-0.5">
-                                  {hero.equipment
-                                    .slice(0, 2)
-                                    .map(
-                                      (
-                                        equipment,
-                                        equipmentIndex
-                                      ) => {
-                                        const equipmentCatalog =
-                                          catalogBySlug.get(
-                                            equipment.id
-                                          );
-
-                                        const equipmentIcon =
-                                          getCatalogIconPath(
-                                            equipmentCatalog
-                                          );
-
-                                        return (
-                                          <div
-                                            key={`${equipment.name}-${equipmentIndex}`}
-                                            className="flex h-4 w-4 items-center justify-center"
-                                            title={
-                                              equipment.name
-                                            }
-                                          >
-                                            {equipmentIcon ? (
-                                              <img
-                                                src={
-                                                  equipmentIcon
-                                                }
-                                                alt=""
-                                                className="h-4 w-4 object-contain"
-                                              />
-                                            ) : (
-                                              <span className="text-[6px] text-white/20">
-                                                ?
-                                              </span>
-                                            )}
-                                          </div>
-                                        );
-                                      }
-                                    )}
-                                </div>
-                              )}
-                          </div>
-                        );
-                      }
-                    )}
-                  </div>
-                )}
-
-              <RandomArmyItems
-                items={army.pets ?? []}
-                catalogBySlug={catalogBySlug}
-              />
-            </div>
-
-            <a
-              href={armyLink}
-              className="mt-2 block rounded-lg border border-orange-400/25 bg-orange-500/[0.08] px-2 py-2 text-center text-[9px] font-black text-orange-200 transition hover:bg-orange-500/15 sm:mt-3 sm:px-4 sm:py-3 sm:text-xs"
-            >
-              ⚔️ Copy Army
-            </a>
-          </section>
+          <RandomArmyChallenge
+            title={challenge.title}
+            townHall={challenge.townHall}
+            generationAt={challenge.generationAt.toISOString()}
+            endsAt={challenge.endsAt.toISOString()}
+            variants={challenge.variants.map((variant) => ({
+              id: variant.id,
+              difficulty: variant.difficulty,
+              mutatedPercent: variant.mutatedPercent,
+              army: variant.army,
+              armyShareCode: variant.armyShareCode,
+              sourceArmyId: variant.sourceArmyId,
+              sourceArmyName: variant.sourceArmyName,
+            }))}
+            catalog={catalogItems}
+          />
 
         </section>
 
