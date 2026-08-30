@@ -355,7 +355,7 @@ export default function OffMetaGenerator() {
     <section className="h-full overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.035]">
       <div className="border-b border-white/10 p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+          <div className="min-w-0 max-sm:hidden">
             <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-300/70">
               🧪 TDG Discovery
             </p>
