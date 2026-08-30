@@ -104,6 +104,7 @@ const SPELL_IDS: Record<string, number> = {
 
 type CatalogDisplayItem = {
   name: string;
+  slug: string;
   iconPath: string | null;
   isSuperTroop: boolean;
 };
@@ -167,14 +168,14 @@ function RandomArmyItem({
 
 function RandomArmyItems({
   items,
-  catalogByDataId,
+  catalogBySlug,
 }: {
   items: {
     id: string;
     name: string;
     quantity?: number;
   }[];
-  catalogByDataId: Map<string, CatalogDisplayItem>;
+  catalogBySlug: Map<string, CatalogDisplayItem>;
 }) {
   if (!items.length) return null;
 
@@ -184,9 +185,7 @@ function RandomArmyItems({
         <RandomArmyItem
           key={`${item.id}-${index}`}
           item={item}
-          catalog={catalogByDataId.get(
-            String(item.id)
-          )}
+          catalog={catalogBySlug.get(item.id)}
         />
       ))}
     </div>
@@ -290,23 +289,22 @@ export default async function ChallengePage() {
         active: true,
       },
       select: {
-        dataId: true,
         name: true,
+        slug: true,
         iconPath: true,
         isSuperTroop: true,
       },
     });
 
-  const catalogByDataId =
+  const catalogBySlug =
     new Map<string, CatalogDisplayItem>();
 
   for (const item of catalogItems) {
-    if (item.dataId === null) continue;
-
-    catalogByDataId.set(
-      String(item.dataId),
+    catalogBySlug.set(
+      item.slug,
       {
         name: item.name,
+        slug: item.slug,
         iconPath: item.iconPath,
         isSuperTroop: item.isSuperTroop,
       }
@@ -443,12 +441,12 @@ export default async function ChallengePage() {
 
               <RandomArmyItems
                 items={army.troops ?? []}
-                catalogByDataId={catalogByDataId}
+                catalogBySlug={catalogBySlug}
               />
 
               <RandomArmyItems
                 items={army.spells ?? []}
-                catalogByDataId={catalogByDataId}
+                catalogBySlug={catalogBySlug}
               />
 
               {army.siegeMachine && (
@@ -460,7 +458,7 @@ export default async function ChallengePage() {
                       quantity: 1,
                     },
                   ]}
-                  catalogByDataId={catalogByDataId}
+                  catalogBySlug={catalogBySlug}
                 />
               )}
 
@@ -470,8 +468,8 @@ export default async function ChallengePage() {
                     {army.heroes.map(
                       (hero, index) => {
                         const heroCatalog =
-                          catalogByDataId.get(
-                            String(hero.id)
+                          catalogBySlug.get(
+                            hero.id
                           );
 
                         return (
@@ -509,8 +507,8 @@ export default async function ChallengePage() {
                                         equipmentIndex
                                       ) => {
                                         const equipmentCatalog =
-                                          catalogByDataId.get(
-                                            String(equipment.id)
+                                          catalogBySlug.get(
+                                            equipment.id
                                           );
 
                                         const equipmentIcon =
@@ -554,7 +552,7 @@ export default async function ChallengePage() {
 
               <RandomArmyItems
                 items={army.pets ?? []}
-                catalogByDataId={catalogByDataId}
+                catalogBySlug={catalogBySlug}
               />
             </div>
 
