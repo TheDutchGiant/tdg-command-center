@@ -102,6 +102,85 @@ const SPELL_IDS: Record<string, number> = {
   "Revive Spell": 98,
 };
 
+function getArmyIconPath(
+  iconPath?: string | null
+) {
+  if (!iconPath) return null;
+
+  return `/game-data/${iconPath.replace(
+    /^images\\/home\\//,
+    ""
+  )}`;
+}
+
+function RandomArmyItem({
+  item,
+}: {
+  item: {
+    name?: string;
+    quantity?: number;
+    iconPath?: string | null;
+    isSuperTroop?: boolean;
+  };
+}) {
+  const icon = getArmyIconPath(item.iconPath);
+
+  return (
+    <div
+      className="relative flex aspect-square min-w-0 items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
+      title={item.name ?? ""}
+    >
+      {icon ? (
+        <img
+          src={icon}
+          alt=""
+          className="h-8 w-8 object-contain"
+        />
+      ) : (
+        <span className="text-[8px] text-white/20">
+          ?
+        </span>
+      )}
+
+      {typeof item.quantity === "number" && (
+        <span className="absolute bottom-0.5 right-0.5 rounded bg-black/80 px-1 text-[7px] font-black leading-3 text-white">
+          ×{item.quantity}
+        </span>
+      )}
+
+      {item.isSuperTroop && (
+        <span className="absolute left-0.5 top-0.5 rounded bg-purple-500/80 px-0.5 text-[6px] font-black leading-3 text-white">
+          S
+        </span>
+      )}
+    </div>
+  );
+}
+
+function RandomArmyItems({
+  items,
+}: {
+  items: {
+    name?: string;
+    quantity?: number;
+    iconPath?: string | null;
+    isSuperTroop?: boolean;
+  }[];
+}) {
+  if (!items.length) return null;
+
+  return (
+    <div className="grid grid-cols-6 gap-1">
+      {items.map((item, index) => (
+        <RandomArmyItem
+          key={`${item.name ?? "item"}-${index}`}
+          item={item}
+        />
+      ))}
+    </div>
+  );
+}
+
 function buildArmyLink(army: GeneratedArmy) {
   const units = (army.troops ?? [])
     .map((item) => {
@@ -209,10 +288,6 @@ export default async function ChallengePage() {
             🔥 TDG Phoenix Challenge
           </p>
 
-          <h1 className="mt-1 text-3xl font-black sm:text-4xl">
-            {challenge.title}
-          </h1>
-
           <p className="mt-1 text-xs text-white/35">
             TH{challenge.townHall} ·{" "}
             {challenge.difficulty.replaceAll(
@@ -289,49 +364,131 @@ export default async function ChallengePage() {
           </section>
 
           {/* RANDOM ARMY */}
-          <section className="min-w-0 rounded-2xl border border-orange-400/20 bg-orange-500/[0.035] p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
+          <section className="min-w-0 rounded-2xl border border-orange-400/20 bg-orange-500/[0.035] p-2.5 sm:p-5">
+
+            {/* Challenge titel hoort bij Random Army */}
+            <div className="mb-2 border-b border-white/10 pb-2 sm:mb-4 sm:pb-3">
+              <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60 sm:text-[10px]">
+                TDG Random Army Challenge
+              </p>
+
+              <h2 className="mt-0.5 text-sm font-black sm:text-lg">
+                {challenge.title}
+              </h2>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+                <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60 sm:text-[10px]">
                   Random Army
                 </p>
 
-                <h2 className="mt-1 text-lg font-black">
-                  🎲 Random Army
-                </h2>
+                <h3 className="mt-0.5 text-sm font-black sm:text-lg">
+                  🎲 Army
+                </h3>
               </div>
 
               <a
                 href={armyLink}
-                className="shrink-0 rounded-lg border border-orange-400/25 bg-orange-500/10 px-3 py-2 text-[10px] font-black text-orange-200 transition hover:bg-orange-500/20"
+                className="shrink-0 rounded-lg border border-orange-400/25 bg-orange-500/10 px-2 py-1.5 text-[8px] font-black text-orange-200 transition hover:bg-orange-500/20 sm:px-3 sm:py-2 sm:text-[10px]"
               >
                 ⚔️ Clash
               </a>
             </div>
 
-            <p className="mt-2 text-[11px] leading-5 text-white/35">
-              Deze army is onderdeel van de huidige
-              challenge.
-            </p>
+            <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
 
-            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-base font-black">
-                Random Army
-              </p>
+              <RandomArmyItems
+                items={army.troops ?? []}
+              />
 
-              <p className="mt-1 text-[10px] text-white/30">
-                Open de army rechtstreeks in Clash of Clans.
-              </p>
+              <RandomArmyItems
+                items={army.spells ?? []}
+              />
+
+              {army.siegeMachine && (
+                <RandomArmyItems
+                  items={[army.siegeMachine]}
+                />
+              )}
+
+              {army.heroes &&
+                army.heroes.length > 0 && (
+                  <div className="grid grid-cols-4 gap-1">
+                    {army.heroes.map(
+                      (hero, index) => (
+                        <div
+                          key={`${hero.name ?? "hero"}-${index}`}
+                          className="flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
+                          title={hero.name ?? ""}
+                        >
+                          {getArmyIconPath(
+                            hero.iconPath
+                          ) ? (
+                            <img
+                              src={getArmyIconPath(
+                                hero.iconPath
+                              )!}
+                              alt=""
+                              className="h-8 w-8 object-contain"
+                            />
+                          ) : (
+                            <span className="text-[8px] text-white/20">
+                              ?
+                            </span>
+                          )}
+
+                          {hero.equipment &&
+                            hero.equipment.length > 0 && (
+                              <div className="mt-0.5 flex items-center justify-center gap-0.5">
+                                {hero.equipment
+                                  .slice(0, 2)
+                                  .map(
+                                    (
+                                      equipment,
+                                      equipmentIndex
+                                    ) => (
+                                      <div
+                                        key={`${equipment.name ?? "equipment"}-${equipmentIndex}`}
+                                        className="flex h-4 w-4 items-center justify-center"
+                                        title={
+                                          equipment.name ??
+                                          ""
+                                        }
+                                      >
+                                        {getArmyIconPath(
+                                          equipment.iconPath
+                                        ) ? (
+                                          <img
+                                            src={getArmyIconPath(
+                                              equipment.iconPath
+                                            )!}
+                                            alt=""
+                                            className="h-4 w-4 object-contain"
+                                          />
+                                        ) : null}
+                                      </div>
+                                    )
+                                  )}
+                              </div>
+                            )}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+              <RandomArmyItems
+                items={army.pets ?? []}
+              />
             </div>
 
-            <div className="mt-3">
-              <a
-                href={armyLink}
-                className="block rounded-xl border border-orange-400/25 bg-orange-500/[0.08] px-4 py-3 text-center text-xs font-black text-orange-200 transition hover:bg-orange-500/15"
-              >
-                ⚔️ Copy Army
-              </a>
-            </div>
+            <a
+              href={armyLink}
+              className="mt-2 block rounded-lg border border-orange-400/25 bg-orange-500/[0.08] px-2 py-2 text-center text-[9px] font-black text-orange-200 transition hover:bg-orange-500/15 sm:mt-3 sm:px-4 sm:py-3 sm:text-xs"
+            >
+              ⚔️ Copy Army
+            </a>
           </section>
 
         </section>
