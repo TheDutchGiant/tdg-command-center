@@ -445,10 +445,20 @@ export default function OffMetaGenerator() {
                         "Siege Machine"
                       }
                     >
-                      <Icon
-                        item={army.siegeMachine}
-                        size="small"
-                      />
+                      {army.siegeMachine.iconPath ? (
+                        <img
+                          src={`/game-data/${army.siegeMachine.iconPath.replace(
+                            /^images\/home\//,
+                            ""
+                          )}`}
+                          alt=""
+                          className="h-9 w-9 object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-white/20">
+                          ?
+                        </span>
+                      )}
 
                       <span className="absolute bottom-1 right-1 rounded-md bg-black/80 px-1.5 py-0.5 text-[9px] font-black leading-none text-white">
                         ×{army.siegeMachine.quantity ?? 1}
