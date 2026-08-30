@@ -128,7 +128,7 @@ function CompactItem({
 }) {
   return (
     <div
-      className="relative flex aspect-square w-full items-center justify-center rounded-xl border border-white/10 bg-black/20"
+      className="relative flex aspect-square w-full items-center justify-center rounded-lg border border-white/10 bg-black/20"
       title={item.name ?? "Unknown"}
     >
       <Icon item={item} />
@@ -165,7 +165,7 @@ function CompactSection({
         {title}
       </p>
 
-      <div className="grid grid-cols-3 gap-1.5 min-[420px]:grid-cols-4">
+      <div className="grid grid-cols-4 gap-1 sm:grid-cols-6">
         {items.map((item, index) => (
           <CompactItem
             key={`${item.id ?? item.name ?? "item"}-${index}`}
@@ -184,17 +184,17 @@ function HeroItem({
 }) {
   return (
     <div
-      className="relative flex aspect-square items-center justify-center rounded-xl border border-white/10 bg-black/20"
+      className="flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-black/20 p-1"
       title={hero.name ?? "Hero"}
     >
       <Icon
         item={hero}
-        size="normal"
+        size="small"
       />
 
       {hero.equipment &&
         hero.equipment.length > 0 && (
-          <div className="absolute -bottom-0.5 -right-0.5 flex gap-0.5">
+          <div className="mt-1 flex items-center justify-center gap-0.5">
             {hero.equipment
               .slice(0, 2)
               .map(
@@ -235,7 +235,7 @@ function HeroSection({
         Heroes
       </p>
 
-      <div className="grid grid-cols-2 gap-1.5 min-[420px]:grid-cols-4">
+      <div className="grid grid-cols-4 gap-1 sm:grid-cols-4">
         {heroes.map((hero, index) => (
           <HeroItem
             key={`${hero.id ?? hero.name ?? "hero"}-${index}`}
@@ -341,7 +341,7 @@ export default function OffMetaGenerator() {
       )}
 
       {army ? (
-        <div className="p-3">
+        <div className="p-2.5">
           <div className="rounded-xl border border-white/10 bg-black/20 p-3">
             <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-3">
               <div className="min-w-0">
@@ -369,7 +369,7 @@ export default function OffMetaGenerator() {
               </a>
             </div>
 
-            <div className="mt-3 space-y-3">
+            <div className="mt-2 space-y-2">
               <CompactSection
                 title="Troepen"
                 items={army.troops}
