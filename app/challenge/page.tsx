@@ -495,10 +495,32 @@ export default async function ChallengePage() {
 
               <p className="mt-2 max-w-2xl text-xs leading-5 text-white/40">
                 Doe de challenge met exact deze
-                army en deze base. Upload daarna
-                alleen je screenshot. Phoenix
-                controleert het resultaat automatisch.
+                army en deze base. Bekijk daarna
+                de replay en open de chat zodra de
+                aanval daadwerkelijk begint. Maak
+                op dat moment één screenshot en
+                upload die hieronder.
               </p>
+
+              <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                <div className="border-b border-white/10 px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/70">
+                    📸 Zo moet je screenshot eruitzien
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-white/35">
+                    De volledige base en de gegevens
+                    in de chat moeten zichtbaar zijn.
+                  </p>
+                </div>
+
+                <div className="bg-black p-2">
+                  <img
+                    src="/images/challenge/voorbeeld-screenshot.svg"
+                    alt="Voorbeeld van het juiste screenshot voor de Challenge"
+                    className="block w-full rounded-lg"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="w-full lg:max-w-md">
