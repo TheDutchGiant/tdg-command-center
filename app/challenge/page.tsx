@@ -292,7 +292,25 @@ export default async function ChallengePage() {
           id: challenge.baseId,
         },
       })
-    : null;
+    : await prisma.base.findFirst({
+        where: {
+          townHall: challenge.townHall,
+          isActive: true,
+          OR: [
+            {
+              expiresAt: null,
+            },
+            {
+              expiresAt: {
+                gt: new Date(),
+              },
+            },
+          ],
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
   const entries =
     await prisma.randomChallengeEntry.findMany({
