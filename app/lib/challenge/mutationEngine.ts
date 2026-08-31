@@ -838,6 +838,7 @@ function exactTroopReplacement(
   pool: GameDataItem[],
   targetCapacity: number,
   bannedTypes: Set<string>,
+  remainingTroops: GeneratedStackItem[] = [],
 ): GeneratedStackItem[] | null {
   if (
     targetCapacity <= 0
@@ -846,192 +847,373 @@ function exactTroopReplacement(
   }
 
   /*
-   * Alle normale troops + alle Super Troops.
-   *
-   * De identiteit wordt genormaliseerd.
-   * Daardoor zijn bijvoorbeeld:
-   *
-   * Super Bowler
-   * super-bowler
-   *
-   * nooit twee verschillende kandidaten.
+   * ==========================================================
+   * BESTAANDE SUPER TROOPS IN DE OVERGEBLEVEN ARMY
+   * ==========================================================
    */
-  const candidates =
-    shuffled(
-      flattenTroopPool(
+  const existingSuperTypes =
+    new Set<string>();
+
+  for (
+    const troop of remainingTroops
+  ) {
+    const gameItem =
+      findTroopData(
+        troop,
         pool,
-      ).filter(
-        (item) => {
-          const key =
-            normalize(
-              idOf(item),
-            );
+      );
 
-          const space =
-            gameHousingSpace(
-              item,
-            );
+    if (
+      gameItem?.__isSuperTroop
+    ) {
+      existingSuperTypes.add(
+        normalize(
+          idOf(gameItem),
+        ),
+      );
+    }
+  }
 
-          return (
-            !bannedTypes.has(key) &&
-            space > 0 &&
-            space <=
-              targetCapacity
-          );
-        },
+  /*
+   * TH18:
+   * maximaal 2 verschillende Super Troop-types
+   * in de VOLLEDIGE eigen army.
+   */
+  if (
+    existingSuperTypes.size > 2
+  ) {
+    return null;
+  }
+
+  const banned =
+    new Set(
+      [...bannedTypes].map(
+        (value) =>
+          normalize(value),
       ),
     );
 
+  const allTroops =
+    flattenTroopPool(
+      pool,
+    ).filter(
+      (item) => {
+        const id =
+          normalize(
+            idOf(item),
+          );
+
+        const space =
+          gameHousingSpace(item);
+
+        return (
+          !banned.has(id) &&
+          space > 0 &&
+          space <=
+            targetCapacity
+        );
+      },
+    );
+
   if (
-    !candidates.length
+    !allTroops.length
   ) {
     return null;
   }
 
   /*
-   * Eerst vaststellen welke capacities exact
-   * bereikbaar zijn.
-   *
-   * dp[0] = lege combinatie.
-   *
-   * Iedere volgende positie betekent:
-   * "ik heb een COMPLETE combinatie voor
-   * precies deze capacity."
+   * Normale troops mogen altijd.
    */
-  const dp:
-    Array<
-      GeneratedStackItem[] | null
-    > =
-    new Array(
-      targetCapacity + 1,
-    ).fill(null);
+  const normalTroops =
+    allTroops.filter(
+      (item) =>
+        !(
+          item as TroopDataItem
+        ).__isSuperTroop,
+    );
 
-  dp[0] = [];
+  /*
+   * Nieuwe Super Troops die nog kunnen worden
+   * toegevoegd.
+   */
+  const newSuperTroops =
+    allTroops.filter(
+      (item) =>
+        (
+          item as TroopDataItem
+        ).__isSuperTroop,
+    );
 
-  for (
-    let capacity = 1;
-    capacity <=
-      targetCapacity;
-    capacity++
+  /*
+   * Maximaal aantal nieuwe Super Troop-types.
+   */
+  const maxNewSuperTypes =
+    2 -
+    existingSuperTypes.size;
+
+  /*
+   * Maak mogelijke sets van Super Troops:
+   *
+   * 0 nieuwe
+   * 1 nieuwe
+   * 2 nieuwe
+   *
+   * We hoeven niet alle combinaties van
+   * aantallen te bewaren; alleen de types.
+   */
+  const superPools:
+    GameDataItem[][] =
+    [[]];
+
+  if (
+    maxNewSuperTypes >= 1
   ) {
-    /*
-     * Per capacity proberen we een willekeurige
-     * kandidaatvolgorde.
-     *
-     * Hierdoor kunnen verschillende challenges
-     * verschillende armies krijgen, terwijl de
-     * rekenkundige uitkomst exact blijft.
-     */
-    const possible =
+    for (
+      const troop of
+        shuffled(
+          newSuperTroops,
+        )
+    ) {
+      superPools.push([
+        troop,
+      ]);
+    }
+  }
+
+  if (
+    maxNewSuperTypes >= 2
+  ) {
+    const supers =
       shuffled(
-        candidates.filter(
-          (candidate) =>
-            gameHousingSpace(
-              candidate,
-            ) <=
-            capacity,
-        ),
+        newSuperTroops,
       );
 
     for (
-      const candidate of
-        possible
+      let i = 0;
+      i < supers.length;
+      i++
     ) {
-      const space =
-        gameHousingSpace(
-          candidate,
-        );
-
-      const previous =
-        dp[
-          capacity - space
-        ];
-
-      if (
-        previous === null
+      for (
+        let j = i + 1;
+        j < supers.length;
+        j++
       ) {
-        continue;
+        superPools.push([
+          supers[i],
+          supers[j],
+        ]);
       }
-
-      dp[capacity] = [
-        ...previous,
-        {
-          id:
-            idOf(
-              candidate,
-            ),
-          name:
-            nameOf(
-              candidate,
-            ),
-          quantity: 1,
-          housingSpace:
-            space,
-        },
-      ];
-
-      break;
     }
   }
 
-  const result =
-    dp[targetCapacity];
-
-  if (
-    result === null
-  ) {
-    return null;
-  }
-
-  const compressed =
-    compressTroops(
-      result,
-    );
-
   /*
-   * Harde controle:
-   * replacement moet exact targetCapacity
-   * zijn.
+   * Probeer voor iedere toegestane Super-Troop-set
+   * exact de benodigde capacity te vullen.
    */
-  if (
-    troopCapacity(
-      compressed,
-      pool,
-    ) !==
-    targetCapacity
+  for (
+    const selectedSupers of
+      shuffled(
+        superPools,
+      )
   ) {
-    return null;
-  }
+    const allowedSuperIds =
+      new Set(
+        selectedSupers.map(
+          (item) =>
+            normalize(
+              idOf(item),
+            ),
+        ),
+      );
 
-  /*
-   * Harde controle:
-   * géén verboden type mag in de replacement
-   * staan.
-   */
-  const replacementIds =
-    new Set(
-      compressed.map(
+    const candidates = [
+      ...normalTroops,
+      ...newSuperTroops.filter(
         (item) =>
-          normalize(
-            item.id,
+          allowedSuperIds.has(
+            normalize(
+              idOf(item),
+            ),
           ),
       ),
-    );
+    ];
 
-  for (
-    const banned of
-      bannedTypes
-  ) {
-    if (
-      replacementIds.has(
-        banned,
-      )
+    /*
+     * Exacte unlimited knapsack.
+     *
+     * dp[x] = complete combinatie voor x.
+     */
+    const dp:
+      Array<
+        GeneratedStackItem[] | null
+      > =
+      new Array(
+        targetCapacity + 1,
+      ).fill(null);
+
+    dp[0] = [];
+
+    for (
+      let capacity = 1;
+      capacity <=
+        targetCapacity;
+      capacity++
     ) {
-      return null;
+      const possible =
+        shuffled(
+          candidates.filter(
+            (candidate) =>
+              gameHousingSpace(
+                candidate,
+              ) <=
+              capacity,
+          ),
+        );
+
+      for (
+        const candidate of
+          possible
+      ) {
+        const space =
+          gameHousingSpace(
+            candidate,
+          );
+
+        const previous =
+          dp[
+            capacity - space
+          ];
+
+        if (
+          previous === null
+        ) {
+          continue;
+        }
+
+        dp[capacity] = [
+          ...previous,
+          {
+            id:
+              idOf(candidate),
+            name:
+              nameOf(candidate),
+            quantity: 1,
+            housingSpace:
+              space,
+          },
+        ];
+
+        break;
+      }
     }
+
+    const solution =
+      dp[targetCapacity];
+
+    if (
+      solution === null
+    ) {
+      continue;
+    }
+
+    const compressed =
+      compressTroops(
+        solution,
+      );
+
+    /*
+     * Exact replacement capacity.
+     */
+    if (
+      troopCapacity(
+        compressed,
+        pool,
+      ) !==
+      targetCapacity
+    ) {
+      continue;
+    }
+
+    /*
+     * Verwijderde types mogen niet terugkomen.
+     */
+    const replacementIds =
+      new Set(
+        compressed.map(
+          (item) =>
+            normalize(
+              item.id,
+            ),
+        ),
+      );
+
+    let bannedReturned =
+      false;
+
+    for (
+      const bannedType of
+        banned
+    ) {
+      if (
+        replacementIds.has(
+          bannedType,
+        )
+      ) {
+        bannedReturned = true;
+        break;
+      }
+    }
+
+    if (
+      bannedReturned
+    ) {
+      continue;
+    }
+
+    /*
+     * Definitieve controle op het COMPLETE
+     * eigen leger.
+     */
+    const finalArmy = [
+      ...remainingTroops,
+      ...compressed,
+    ];
+
+    const finalSuperTypes =
+      new Set<string>();
+
+    for (
+      const troop of
+        finalArmy
+    ) {
+      const gameItem =
+        findTroopData(
+          troop,
+          pool,
+        );
+
+      if (
+        gameItem?.__isSuperTroop
+      ) {
+        finalSuperTypes.add(
+          normalize(
+            idOf(gameItem),
+          ),
+        );
+      }
+    }
+
+    if (
+      finalSuperTypes.size >
+      2
+    ) {
+      continue;
+    }
+
+    return compressed;
   }
 
-  return compressed;
+  return null;
 }
 
 /* ============================================================
@@ -1088,6 +1270,7 @@ function mutateTroops(
         pool,
         originalCapacity,
         banned,
+        [],
       );
 
     if (
@@ -1192,6 +1375,7 @@ function mutateTroops(
         pool,
         option.capacity,
         option.bannedTypes,
+        remaining,
       );
 
     if (
