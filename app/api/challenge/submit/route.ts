@@ -95,6 +95,37 @@ function parseTime(
   );
 }
 
+
+function normalizePlayerName(
+  value: string,
+): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /[^a-z0-9\u0400-\u04ff]/gi,
+      "",
+    )
+    .toLowerCase();
+}
+
+function findPlayerNameLines(
+  text: string,
+): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) =>
+      line
+        .trim()
+        .replace(/\s+/g, " "),
+    )
+    .filter(
+      (line) =>
+        line.length >= 2 &&
+        line.length <= 32,
+    );
+}
+
 function looksLikeClashResult(
   text: string,
   townHall: number
@@ -146,6 +177,12 @@ export async function POST(
     const formData =
       await request.formData();
 
+    const challengeIdValue =
+      formData.get("challengeId");
+
+    const difficultyValue =
+      formData.get("difficulty");
+
     const playerTagValue =
       formData.get("playerTag");
 
@@ -154,6 +191,18 @@ export async function POST(
 
     const screenshot =
       formData.get("screenshot");
+
+    const challengeId =
+      typeof challengeIdValue === "string"
+        ? Number(
+            challengeIdValue,
+          )
+        : NaN;
+
+    const difficulty =
+      typeof difficultyValue === "string"
+        ? difficultyValue.trim()
+        : "";
 
     const playerTag =
       typeof playerTagValue === "string"
@@ -166,6 +215,35 @@ export async function POST(
       typeof playerNameValue === "string"
         ? playerNameValue.trim()
         : "";
+
+    if (
+      !Number.isInteger(
+        challengeId,
+      ) ||
+      challengeId <= 0
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "De Challenge kon niet worden bepaald.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !difficulty
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "De gekozen moeilijkheid kon niet worden bepaald.",
+        },
+        { status: 400 }
+      );
+    }
 
     if (
       !playerTag ||
@@ -227,30 +305,29 @@ export async function POST(
       );
     }
 
-    const now = new Date();
+    const now =
+      new Date();
 
+    /*
+     * Zoek exact de Challenge die vanuit de
+     * pagina is meegestuurd.
+     *
+     * Niet meer:
+     * "pak maar de laatste actieve Challenge".
+     */
     const challenge =
       await prisma.randomChallenge.findFirst({
         where: {
-          status: "ACTIVE",
+          id:
+            challengeId,
+          status:
+            "ACTIVE",
           startsAt: {
             lte: now,
           },
-          OR: [
-            {
-              endsAt: {
-                gt: new Date(),
-              },
-            },
-            {
-              endsAt: {
-                gte: now,
-              },
-            },
-          ],
-        },
-        orderBy: {
-          startsAt: "desc",
+          endsAt: {
+            gt: now,
+          },
         },
       });
 
@@ -259,19 +336,50 @@ export async function POST(
         {
           success: false,
           error:
-            "Er is momenteel geen actieve Challenge.",
+            "Deze Challenge is niet meer actief of bestaat niet.",
         },
         { status: 409 }
       );
     }
 
+    /*
+     * Zoek exact de gekozen variant binnen
+     * deze Challenge.
+     */
+    const variant =
+      await prisma.randomChallengeVariant.findUnique({
+        where: {
+          challengeId_difficulty: {
+            challengeId:
+              challenge.id,
+            difficulty,
+          },
+        },
+      });
+
+    if (!variant) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "De gekozen army-variant bestaat niet binnen deze Challenge.",
+        },
+        { status: 400 }
+      );
+    }
+
+    /*
+     * Voorkom meerdere inzendingen van dezelfde
+     * speler voor deze Challenge.
+     */
     const existing =
       await prisma.randomChallengeEntry.findUnique({
         where: {
-          challengeId_playerTag: {
+          challengeId_playerTag_difficulty: {
             challengeId:
               challenge.id,
             playerTag,
+            difficulty,
           },
         },
       });
@@ -295,7 +403,8 @@ export async function POST(
     const worker =
       await createWorker("eng");
 
-    let ocrText = "";
+    let ocrText =
+      "";
 
     try {
       const result =
@@ -310,19 +419,125 @@ export async function POST(
     }
 
     const stars =
-      parseStars(ocrText);
+      parseStars(
+        ocrText
+      );
 
     const destruction =
-      parseDestruction(ocrText);
+      parseDestruction(
+        ocrText
+      );
 
     const timeSeconds =
-      parseTime(ocrText);
+      parseTime(
+        ocrText
+      );
 
     const clashResultDetected =
       looksLikeClashResult(
         ocrText,
         challenge.townHall
       );
+
+    /*
+     * Probeer de spelernaam uit de OCR te koppelen
+     * aan de bestaande Player-tabel.
+     *
+     * We gebruiken daarbij alleen de genormaliseerde
+     * letters/cijfers. Accenten, emoji's en leestekens
+     * worden genegeerd omdat OCR daar onbetrouwbaar
+     * mee kan omgaan.
+     */
+    const ocrLines =
+      findPlayerNameLines(
+        ocrText,
+      );
+
+    const players =
+      await prisma.player.findMany({
+        select: {
+          playerTag: true,
+          currentName: true,
+        },
+      });
+
+    const playerMatches =
+      players.filter(
+        (player) => {
+          const playerName =
+            normalizePlayerName(
+              player.currentName,
+            );
+
+          if (
+            playerName.length < 2
+          ) {
+            return false;
+          }
+
+          return ocrLines.some(
+            (line) => {
+              const normalizedLine =
+                normalizePlayerName(
+                  line,
+                );
+
+              if (
+                normalizedLine ===
+                playerName
+              ) {
+                return true;
+              }
+
+              if (
+                normalizedLine.length >=
+                  playerName.length &&
+                normalizedLine.includes(
+                  playerName,
+                )
+              ) {
+                return true;
+              }
+
+              return (
+                playerName.length >= 5 &&
+                playerName.includes(
+                  normalizedLine,
+                )
+              );
+            },
+          );
+        },
+      );
+
+    const uniquePlayerTags =
+      [
+        ...new Set(
+          playerMatches.map(
+            (player) =>
+              player.playerTag,
+          ),
+        ),
+      ];
+
+    const playerNameMatchStatus =
+      uniquePlayerTags.length === 1
+        ? "UNIQUE"
+        : uniquePlayerTags.length > 1
+          ? "AMBIGUOUS"
+          : "NOT_FOUND";
+
+    const playerNameMatch =
+      uniquePlayerTags.length === 1
+        ? players.find(
+            (player) =>
+              player.playerTag ===
+              uniquePlayerTags[0],
+          ) ?? null
+        : null;
+
+    const playerNameReviewRequired =
+      playerNameMatch === null;
 
     const screenshotDetected =
       clashResultDetected &&
@@ -331,7 +546,8 @@ export async function POST(
 
     const validation =
       validateChallengeResult({
-        stars: stars ?? -1,
+        stars:
+          stars ?? -1,
         destruction:
           destruction ?? -1,
         timeSeconds,
@@ -348,40 +564,91 @@ export async function POST(
 
           playerName,
 
+          difficulty,
+
           status:
-            validation.needsReview
+            validation.needsReview ||
+            playerNameReviewRequired
               ? "PENDING"
               : "APPROVED",
 
           ocrResult: {
-            text: ocrText,
+            text:
+              ocrText,
+
             clashResultDetected,
+
             stars,
+
             destruction,
+
             timeSeconds,
+
+            selectedDifficulty:
+              variant.difficulty,
+
+            selectedVariantId:
+              variant.id,
+
+            sourceArmyId:
+              variant.sourceArmyId,
+
+            sourceArmyName:
+              variant.sourceArmyName,
+
+            playerNameMatchStatus,
+
+            playerNameFromDatabase:
+              playerNameMatch?.currentName ??
+              null,
+
+            playerNameFromScreenshot:
+              playerNameMatch?.currentName ??
+              null,
+
+            playerNameCandidates:
+              playerMatches.map(
+                (player) => ({
+                  playerTag:
+                    player.playerTag,
+                  currentName:
+                    player.currentName,
+                }),
+              ),
+
             validation,
           },
 
           adminNote:
-            validation.reason,
+            playerNameReviewRequired
+              ? `${validation.reason} Spelernaam kon niet eenduidig automatisch worden gekoppeld (${playerNameMatchStatus}).`
+              : validation.reason,
 
           reviewedAt:
-            validation.needsReview
+            validation.needsReview ||
+            playerNameReviewRequired
               ? null
               : now,
         },
       });
 
     if (
-      validation.valid
+      validation.valid &&
+      !playerNameReviewRequired
     ) {
       await prisma.randomChallengeResult.create({
         data: {
-          entryId: entry.id,
-          stars: stars!,
+          entryId:
+            entry.id,
+
+          stars:
+            stars!,
+
           destruction:
             destruction!,
+
           timeSeconds,
+
           score:
             validation.score,
         },
@@ -389,7 +656,8 @@ export async function POST(
     }
 
     return NextResponse.json({
-      success: true,
+      success:
+        true,
 
       status:
         entry.status,
@@ -405,12 +673,32 @@ export async function POST(
           ? validation.score
           : null,
 
+      selectedDifficulty:
+        variant.difficulty,
+
+      selectedVariantId:
+        variant.id,
+
       needsReview:
-        validation.needsReview,
+        validation.needsReview ||
+        playerNameReviewRequired,
+
+      playerNameMatchStatus,
+
+      matchedPlayer:
+        playerNameMatch
+          ? {
+              playerTag:
+                playerNameMatch.playerTag,
+              currentName:
+                playerNameMatch.currentName,
+            }
+          : null,
 
       message:
-        validation.needsReview
-          ? "🟡 Phoenix kon het screenshot niet volledig automatisch valideren. De inzending staat klaar voor controle."
+        validation.needsReview ||
+        playerNameReviewRequired
+          ? "🟡 Inzending ontvangen. Phoenix controleert deze."
           : "🟢 Phoenix heeft je resultaat automatisch gevalideerd!",
     });
   } catch (error) {
@@ -421,7 +709,9 @@ export async function POST(
 
     return NextResponse.json(
       {
-        success: false,
+        success:
+          false,
+
         error:
           "Phoenix kon het screenshot niet verwerken.",
       },
@@ -429,3 +719,4 @@ export async function POST(
     );
   }
 }
+

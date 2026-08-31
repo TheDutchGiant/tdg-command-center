@@ -619,6 +619,7 @@ model RandomChallengeEntry {
   challengeId    Int
   playerTag      String
   playerName     String
+  difficulty     String                     @default("UNKNOWN")
   status         RandomChallengeEntryStatus @default(PENDING)
   screenshotPath String?
   ocrResult      Json?
@@ -630,9 +631,10 @@ model RandomChallengeEntry {
   challenge RandomChallenge        @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   result    RandomChallengeResult?
 
-  @@unique([challengeId, playerTag])
+  @@unique([challengeId, playerTag, difficulty])
   @@index([challengeId])
   @@index([playerTag])
+  @@index([difficulty])
   @@index([status])
 }
 

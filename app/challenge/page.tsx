@@ -460,6 +460,7 @@ export default async function ChallengePage() {
 
           {/* RANDOM ARMY */}
           <RandomArmyChallenge
+            challengeId={challenge.id}
             title={challenge.title}
             townHall={challenge.townHall}
             generationAt={challenge.generationAt.toISOString()}
@@ -523,9 +524,6 @@ export default async function ChallengePage() {
               </div>
             </div>
 
-            <div className="w-full lg:max-w-md">
-              <ChallengeSubmitForm />
-            </div>
           </div>
         </section>
 

@@ -2,20 +2,19 @@
 
 import { useState } from "react";
 
-export default function ChallengeSubmitForm() {
+type Props = {
+  challengeId: number;
+  difficulty: string;
+};
+
+export default function ChallengeSubmitForm({
+  challengeId,
+  difficulty,
+}: Props) {
   const [playerTag, setPlayerTag] =
     useState("");
 
   const [playerName, setPlayerName] =
-    useState("");
-
-  const [stars, setStars] =
-    useState("");
-
-  const [destruction, setDestruction] =
-    useState("");
-
-  const [timeSeconds, setTimeSeconds] =
     useState("");
 
   const [screenshot, setScreenshot] =
@@ -36,7 +35,7 @@ export default function ChallengeSubmitForm() {
       !screenshot
     ) {
       setMessage(
-        "Vul je gegevens in en voeg een screenshot toe."
+        "Vul je Clash gegevens in en voeg je screenshot toe.",
       );
       return;
     }
@@ -44,43 +43,34 @@ export default function ChallengeSubmitForm() {
     setLoading(true);
 
     try {
-      /*
-       * De afbeelding wordt voorlopig lokaal als
-       * bestand meegestuurd. De server/OCR-laag
-       * krijgt hem straks voor de echte controle.
-       */
-      const formData = new FormData();
+      const formData =
+        new FormData();
+
+      formData.append(
+        "challengeId",
+        String(challengeId),
+      );
+
+      formData.append(
+        "difficulty",
+        difficulty,
+      );
 
       formData.append(
         "playerTag",
-        playerTag.trim().toUpperCase()
+        playerTag
+          .trim()
+          .toUpperCase(),
       );
 
       formData.append(
         "playerName",
-        playerName.trim()
+        playerName.trim(),
       );
-
-      formData.append(
-        "stars",
-        stars
-      );
-
-      formData.append(
-        "destruction",
-        destruction
-      );
-
-      if (timeSeconds.trim()) {
-        formData.append(
-          "timeSeconds",
-          timeSeconds
-        );
-      }
 
       formData.append(
         "screenshot",
-        screenshot
+        screenshot,
       );
 
       const response =
@@ -89,7 +79,7 @@ export default function ChallengeSubmitForm() {
           {
             method: "POST",
             body: formData,
-          }
+          },
         );
 
       const data =
@@ -101,7 +91,7 @@ export default function ChallengeSubmitForm() {
       ) {
         setMessage(
           data.error ||
-            "Inzending mislukt."
+            "Inzending mislukt.",
         );
         return;
       }
@@ -109,13 +99,13 @@ export default function ChallengeSubmitForm() {
       setMessage(
         data.needsReview
           ? "🟡 Inzending ontvangen. Phoenix controleert deze."
-          : "🟢 Inzending automatisch gevalideerd!"
+          : "🟢 Inzending automatisch gevalideerd!",
       );
 
       setScreenshot(null);
     } catch {
       setMessage(
-        "Er kon geen verbinding met Phoenix worden gemaakt."
+        "Er kon geen verbinding met Phoenix worden gemaakt.",
       );
     } finally {
       setLoading(false);
@@ -123,13 +113,25 @@ export default function ChallengeSubmitForm() {
   }
 
   return (
-    <div className="mt-5 space-y-3">
+    <div className="mt-3 space-y-3">
+      <div className="rounded-xl border border-orange-400/15 bg-orange-500/[0.04] px-3 py-2">
+        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+          Gekozen army
+        </p>
+
+        <p className="mt-1 text-xs font-black text-white">
+          {difficulty.replaceAll(
+            "_",
+            " ",
+          )}
+        </p>
+      </div>
 
       <input
         value={playerName}
         onChange={(event) =>
           setPlayerName(
-            event.target.value
+            event.target.value,
           )
         }
         placeholder="Clash naam"
@@ -140,61 +142,20 @@ export default function ChallengeSubmitForm() {
         value={playerTag}
         onChange={(event) =>
           setPlayerTag(
-            event.target.value
+            event.target.value,
           )
         }
         placeholder="#PlayerTag"
         className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 font-mono text-sm text-white outline-none placeholder:text-white/25 focus:border-orange-400/40"
       />
 
-      <div className="grid grid-cols-3 gap-2">
-        <input
-          type="number"
-          min="0"
-          max="3"
-          value={stars}
-          onChange={(event) =>
-            setStars(event.target.value)
-          }
-          placeholder="⭐"
-          className="rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-white/25"
-        />
-
-        <input
-          type="number"
-          min="0"
-          max="100"
-          value={destruction}
-          onChange={(event) =>
-            setDestruction(
-              event.target.value
-            )
-          }
-          placeholder="%"
-          className="rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-white/25"
-        />
-
-        <input
-          type="number"
-          min="0"
-          value={timeSeconds}
-          onChange={(event) =>
-            setTimeSeconds(
-              event.target.value
-            )
-          }
-          placeholder="Tijd"
-          className="rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-white/25"
-        />
-      </div>
-
-      <label className="block cursor-pointer rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-center hover:border-orange-400/30">
+      <label className="block cursor-pointer rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-center transition hover:border-orange-400/30">
         <span className="text-sm font-semibold">
           📸 Screenshot kiezen
         </span>
 
         <span className="mt-1 block text-[10px] text-white/30">
-          Phoenix gebruikt deze voor automatische controle.
+          Screenshot uit de replay/chat volgens het voorbeeld.
         </span>
 
         <input
@@ -204,7 +165,7 @@ export default function ChallengeSubmitForm() {
           onChange={(event) =>
             setScreenshot(
               event.target.files?.[0] ??
-                null
+                null,
             )
           }
         />
@@ -232,7 +193,6 @@ export default function ChallengeSubmitForm() {
           {message}
         </p>
       )}
-
     </div>
   );
 }

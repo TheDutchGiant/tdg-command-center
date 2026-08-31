@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import ChallengeSubmitForm from "@/app/components/challenge/ChallengeSubmitForm";
 
 type CatalogItem = {
   name: string;
@@ -44,6 +45,7 @@ type Variant = {
 };
 
 type Props = {
+  challengeId: number;
   title: string;
   townHall: number;
   generationAt: string;
@@ -73,8 +75,12 @@ const DIFFICULTIES = [
   },
 ] as const;
 
-function iconPath(item?: CatalogItem) {
-  if (!item?.iconPath) return null;
+function iconPath(
+  item?: CatalogItem,
+): string | null {
+  if (!item?.iconPath) {
+    return null;
+  }
 
   return `/game-data/${item.iconPath.replace(
     /^images\/home\//,
@@ -89,8 +95,13 @@ function ArmyItem({
   item: ArmyItem;
   catalogBySlug: Map<string, CatalogItem>;
 }) {
-  const catalog = catalogBySlug.get(item.id);
-  const src = iconPath(catalog);
+  const catalog =
+    catalogBySlug.get(
+      item.id,
+    );
+
+  const src =
+    iconPath(catalog);
 
   return (
     <div
@@ -109,7 +120,8 @@ function ArmyItem({
         </span>
       )}
 
-      {typeof item.quantity === "number" && (
+      {typeof item.quantity ===
+        "number" && (
         <span className="absolute bottom-0.5 right-0.5 rounded bg-black/80 px-1 text-[7px] font-black leading-3 text-white">
           ×{item.quantity}
         </span>
@@ -135,25 +147,39 @@ function ArmyContents({
     <div className="mt-3 space-y-3">
       {!!army.troops?.length && (
         <div className="grid grid-cols-6 gap-1">
-          {army.troops.map((item, index) => (
-            <ArmyItem
-              key={`${item.id}-${index}`}
-              item={item}
-              catalogBySlug={catalogBySlug}
-            />
-          ))}
+          {army.troops.map(
+            (
+              item,
+              index,
+            ) => (
+              <ArmyItem
+                key={`${item.id}-${index}`}
+                item={item}
+                catalogBySlug={
+                  catalogBySlug
+                }
+              />
+            ),
+          )}
         </div>
       )}
 
       {!!army.spells?.length && (
         <div className="grid grid-cols-6 gap-1">
-          {army.spells.map((item, index) => (
-            <ArmyItem
-              key={`spell-${item.id}-${index}`}
-              item={item}
-              catalogBySlug={catalogBySlug}
-            />
-          ))}
+          {army.spells.map(
+            (
+              item,
+              index,
+            ) => (
+              <ArmyItem
+                key={`spell-${item.id}-${index}`}
+                item={item}
+                catalogBySlug={
+                  catalogBySlug
+                }
+              />
+            ),
+          )}
         </div>
       )}
 
@@ -166,11 +192,17 @@ function ArmyContents({
           <div className="grid grid-cols-6 gap-1">
             <ArmyItem
               item={{
-                id: army.siegeMachine.id,
-                name: army.siegeMachine.name,
-                quantity: army.siegeMachine.quantity ?? 1,
+                id:
+                  army.siegeMachine.id,
+                name:
+                  army.siegeMachine.name,
+                quantity:
+                  army.siegeMachine
+                    .quantity ?? 1,
               }}
-              catalogBySlug={catalogBySlug}
+              catalogBySlug={
+                catalogBySlug
+              }
             />
           </div>
         </div>
@@ -178,101 +210,160 @@ function ArmyContents({
 
       {!!army.heroes?.length && (
         <div className="grid grid-cols-4 gap-1">
-          {army.heroes.map((hero, index) => {
-            const catalog = catalogBySlug.get(hero.id);
-            const src = iconPath(catalog);
+          {army.heroes.map(
+            (
+              hero,
+              index,
+            ) => {
+              const catalog =
+                catalogBySlug.get(
+                  hero.id,
+                );
 
-            return (
-              <div
-                key={`${hero.name}-${index}`}
-                className="flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
-                title={hero.name}
-              >
-                {src ? (
-                  <img
-                    src={src}
-                    alt=""
-                    className="h-8 w-8 object-contain"
-                  />
-                ) : (
-                  <span className="text-[8px] text-white/20">
-                    ?
-                  </span>
-                )}
+              const src =
+                iconPath(
+                  catalog,
+                );
 
-                {!!hero.equipment?.length && (
-                  <div className="mt-0.5 flex items-center justify-center gap-0.5">
-                    {hero.equipment.slice(0, 2).map(
-                      (equipment, equipmentIndex) => {
-                        const equipmentCatalog =
-                          catalogBySlug.get(
-                            equipment.id,
-                          );
+              return (
+                <div
+                  key={`${hero.name}-${index}`}
+                  className="flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-black/20 p-0.5"
+                  title={hero.name}
+                >
+                  {src ? (
+                    <img
+                      src={src}
+                      alt=""
+                      className="h-8 w-8 object-contain"
+                    />
+                  ) : (
+                    <span className="text-[8px] text-white/20">
+                      ?
+                    </span>
+                  )}
 
-                        const equipmentSrc =
-                          iconPath(equipmentCatalog);
+                  {!!hero.equipment
+                    ?.length && (
+                    <div className="mt-0.5 flex items-center justify-center gap-0.5">
+                      {hero.equipment
+                        .slice(
+                          0,
+                          2,
+                        )
+                        .map(
+                          (
+                            equipment,
+                            equipmentIndex,
+                          ) => {
+                            const equipmentCatalog =
+                              catalogBySlug.get(
+                                equipment.id,
+                              );
 
-                        return (
-                          <div
-                            key={`${equipment.id}-${equipmentIndex}`}
-                            className="flex h-4 w-4 items-center justify-center"
-                            title={equipment.name}
-                          >
-                            {equipmentSrc ? (
-                              <img
-                                src={equipmentSrc}
-                                alt=""
-                                className="h-4 w-4 object-contain"
-                              />
-                            ) : (
-                              <span className="text-[6px] text-white/20">
-                                ?
-                              </span>
-                            )}
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                            const equipmentSrc =
+                              iconPath(
+                                equipmentCatalog,
+                              );
+
+                            return (
+                              <div
+                                key={`${equipment.id}-${equipmentIndex}`}
+                                className="flex h-4 w-4 items-center justify-center"
+                                title={
+                                  equipment.name
+                                }
+                              >
+                                {equipmentSrc ? (
+                                  <img
+                                    src={
+                                      equipmentSrc
+                                    }
+                                    alt=""
+                                    className="h-4 w-4 object-contain"
+                                  />
+                                ) : (
+                                  <span className="text-[6px] text-white/20">
+                                    ?
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          },
+                        )}
+                    </div>
+                  )}
+                </div>
+              );
+            },
+          )}
         </div>
       )}
 
       {!!army.pets?.length && (
         <div className="grid grid-cols-6 gap-1">
-          {army.pets.map((item, index) => (
-            <ArmyItem
-              key={`pet-${item.id}-${index}`}
-              item={item}
-              catalogBySlug={catalogBySlug}
-            />
-          ))}
+          {army.pets.map(
+            (
+              item,
+              index,
+            ) => (
+              <ArmyItem
+                key={`pet-${item.id}-${index}`}
+                item={item}
+                catalogBySlug={
+                  catalogBySlug
+                }
+              />
+            ),
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function remaining(target: string) {
+function remaining(
+  target: string,
+) {
   const diff =
-    new Date(target).getTime() -
+    new Date(
+      target,
+    ).getTime() -
     Date.now();
 
   if (diff <= 0) {
     return "Beschikbaar";
   }
 
-  const seconds = Math.floor(diff / 1000);
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
+  const seconds =
+    Math.floor(
+      diff / 1000,
+    );
+
+  const days =
+    Math.floor(
+      seconds / 86400,
+    );
+
+  const hours =
+    Math.floor(
+      (seconds % 86400) /
+        3600,
+    );
+
+  const minutes =
+    Math.floor(
+      (seconds % 3600) /
+        60,
+    );
+
+  const secs =
+    seconds % 60;
 
   return [
-    days > 0 ? `${days}d` : null,
+    days > 0
+      ? `${days}d`
+      : null,
     `${hours}u`,
     `${minutes}m`,
     `${secs}s`,
@@ -282,6 +373,7 @@ function remaining(target: string) {
 }
 
 export default function RandomArmyChallenge({
+  challengeId,
   title,
   townHall,
   generationAt,
@@ -289,22 +381,33 @@ export default function RandomArmyChallenge({
   variants,
   catalog,
 }: Props) {
-  const [selectedDifficulty, setSelectedDifficulty] =
-    useState<string | null>(null);
+  const [
+    selectedDifficulty,
+    setSelectedDifficulty,
+  ] =
+    useState<
+      string | null
+    >(null);
 
-  const [generated, setGenerated] =
+  const [
+    generated,
+    setGenerated,
+  ] =
     useState(false);
 
-  const catalogBySlug = useMemo(
-    () =>
-      new Map(
-        catalog.map((item) => [
-          item.slug,
-          item,
-        ]),
-      ),
-    [catalog],
-  );
+  const catalogBySlug =
+    useMemo(
+      () =>
+        new Map(
+          catalog.map(
+            (item) => [
+              item.slug,
+              item,
+            ],
+          ),
+        ),
+      [catalog],
+    );
 
   const selectedVariant =
     variants.find(
@@ -314,14 +417,17 @@ export default function RandomArmyChallenge({
     ) ?? null;
 
   const generationReady =
-    new Date(generationAt).getTime() <=
+    new Date(
+      generationAt,
+    ).getTime() <=
     Date.now();
 
   return (
     <section className="min-w-0 rounded-2xl border border-orange-400/20 bg-orange-500/[0.035] p-2.5 sm:p-5">
       <div className="mb-2 border-b border-white/10 pb-2 sm:mb-4 sm:pb-3">
         <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60 sm:text-[10px]">
-          🔥 TDG Phoenix Challenge · TH{townHall}
+          🔥 TDG Phoenix Challenge · TH
+          {townHall}
         </p>
 
         <h2 className="mt-0.5 text-sm font-black sm:text-lg">
@@ -331,60 +437,75 @@ export default function RandomArmyChallenge({
         <p className="mt-1 text-[8px] text-white/40 sm:text-[10px]">
           {generationReady
             ? "De drie armies zijn gelocked."
-            : `Generator over ${remaining(generationAt)}`}
+            : `Generator over ${remaining(
+                generationAt,
+              )}`}
         </p>
       </div>
 
       <div className="grid grid-cols-3 gap-1.5">
-        {DIFFICULTIES.map((difficulty) => {
-          const variant =
-            variants.find(
-              (item) =>
-                item.difficulty ===
-                difficulty.key,
-            );
-
-          const selected =
-            selectedDifficulty ===
-            difficulty.key;
-
-          return (
-            <button
-              key={difficulty.key}
-              type="button"
-              disabled={!variant}
-              onClick={() => {
-                setSelectedDifficulty(
+        {DIFFICULTIES.map(
+          (difficulty) => {
+            const variant =
+              variants.find(
+                (item) =>
+                  item.difficulty ===
                   difficulty.key,
-                );
-                setGenerated(false);
-              }}
-              className={[
-                "rounded-xl border px-1.5 py-2 text-center transition",
-                selected
-                  ? "border-orange-300/60 bg-orange-500/20"
-                  : "border-white/10 bg-black/20 hover:border-orange-300/25",
-                !variant
-                  ? "cursor-not-allowed opacity-40"
-                  : "",
-              ].join(" ")}
-            >
-              <div className="text-lg leading-none">
-                {difficulty.emoji}
-              </div>
+              );
 
-              <div className="mt-1 text-[8px] font-black leading-tight sm:text-[10px]">
-                {difficulty.title}
-              </div>
+            const selected =
+              selectedDifficulty ===
+              difficulty.key;
 
-              <div className="mt-1 text-[7px] text-white/30 sm:text-[8px]">
-                {variant
-                  ? `${variant.mutatedPercent}%`
-                  : "locked"}
-              </div>
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={
+                  difficulty.key
+                }
+                type="button"
+                disabled={
+                  !variant
+                }
+                onClick={() => {
+                  setSelectedDifficulty(
+                    difficulty.key,
+                  );
+
+                  setGenerated(
+                    false,
+                  );
+                }}
+                className={[
+                  "rounded-xl border px-1.5 py-2 text-center transition",
+                  selected
+                    ? "border-orange-300/60 bg-orange-500/20"
+                    : "border-white/10 bg-black/20 hover:border-orange-300/25",
+                  !variant
+                    ? "cursor-not-allowed opacity-40"
+                    : "",
+                ].join(" ")}
+              >
+                <div className="text-lg leading-none">
+                  {
+                    difficulty.emoji
+                  }
+                </div>
+
+                <div className="mt-1 text-[8px] font-black leading-tight sm:text-[10px]">
+                  {
+                    difficulty.title
+                  }
+                </div>
+
+                <div className="mt-1 text-[7px] text-white/30 sm:text-[8px]">
+                  {variant
+                    ? `${variant.mutatedPercent}%`
+                    : "locked"}
+                </div>
+              </button>
+            );
+          },
+        )}
       </div>
 
       <button
@@ -393,67 +514,135 @@ export default function RandomArmyChallenge({
           !generationReady ||
           !selectedVariant
         }
-        onClick={() => setGenerated(true)}
+        onClick={() =>
+          setGenerated(
+            true,
+          )
+        }
         className="mt-2 w-full rounded-lg border border-orange-400/25 bg-orange-500/10 px-3 py-2 text-[9px] font-black text-orange-200 transition hover:bg-orange-500/20 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
       >
         {generationReady
           ? "🎲 Genereer mijn army"
-          : `⏳ ${remaining(generationAt)}`}
+          : `⏳ ${remaining(
+              generationAt,
+            )}`}
       </button>
 
-      {generated && selectedVariant && (
-        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-2.5 sm:p-4">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
-                {selectedVariant.difficulty.replaceAll(
-                  "_",
-                  " ",
-                )}
-              </p>
+      {generated &&
+        selectedVariant && (
+          <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-2.5 sm:p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+                  {selectedVariant.difficulty.replaceAll(
+                    "_",
+                    " ",
+                  )}
+                </p>
 
-              <p className="mt-1 text-sm font-black sm:text-base">
-                🧬 {selectedVariant.mutatedPercent}% mutated
-              </p>
+                <p className="mt-1 text-sm font-black sm:text-base">
+                  🧬{" "}
+                  {
+                    selectedVariant.mutatedPercent
+                  }
+                  % mutated
+                </p>
 
-              <p className="mt-0.5 text-[8px] text-white/25">
-                Basis: {selectedVariant.sourceArmyName}
-              </p>
+                <p className="mt-0.5 text-[8px] text-white/25">
+                  Basis:{" "}
+                  {
+                    selectedVariant.sourceArmyName
+                  }
+                </p>
+              </div>
+
+              {selectedVariant.armyShareCode && (
+                <a
+                  href={
+                    selectedVariant.armyShareCode
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 rounded-lg border border-orange-400/25 bg-orange-500/10 px-2 py-1.5 text-[8px] font-black text-orange-200"
+                >
+                  ⚔️ Clash
+                </a>
+              )}
             </div>
+
+            <ArmyContents
+              army={
+                selectedVariant.army as Army
+              }
+              catalogBySlug={
+                catalogBySlug
+              }
+            />
 
             {selectedVariant.armyShareCode && (
               <a
-                href={selectedVariant.armyShareCode}
+                href={
+                  selectedVariant.armyShareCode
+                }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 rounded-lg border border-orange-400/25 bg-orange-500/10 px-2 py-1.5 text-[8px] font-black text-orange-200"
+                className="mt-2 block rounded-lg border border-orange-400/25 bg-orange-500/[0.08] px-2 py-2 text-center text-[9px] font-black text-orange-200 sm:px-4 sm:py-3 sm:text-xs"
               >
-                ⚔️ Clash
+                ⚔️ Copy Army
               </a>
             )}
+
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+                📸 Resultaat indienen
+              </p>
+
+              <p className="mt-1 text-[9px] leading-4 text-white/30">
+                Je screenshot wordt automatisch gekoppeld
+                aan deze gekozen army.
+              </p>
+
+              <ChallengeSubmitForm
+                challengeId={challengeId}
+                difficulty={
+                  selectedVariant.difficulty
+                }
+              />
+            </div>
+
+            <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+              <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/50">
+                Gekozen variant
+              </p>
+
+              <p className="mt-1 text-[10px] text-white/40">
+                {selectedVariant.difficulty.replaceAll(
+                  "_",
+                  " ",
+                )}{" "}
+                ·{" "}
+                {
+                  selectedVariant.mutatedPercent
+                }
+                %
+              </p>
+
+              <p className="mt-1 text-[9px] text-white/20">
+                De inzending kan straks
+                rechtstreeks aan deze
+                variant worden gekoppeld.
+              </p>
+            </div>
           </div>
-
-          <ArmyContents
-            army={selectedVariant.army as Army}
-            catalogBySlug={catalogBySlug}
-          />
-
-          {selectedVariant.armyShareCode && (
-            <a
-              href={selectedVariant.armyShareCode}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 block rounded-lg border border-orange-400/25 bg-orange-500/[0.08] px-2 py-2 text-center text-[9px] font-black text-orange-200 sm:px-4 sm:py-3 sm:text-xs"
-            >
-              ⚔️ Copy Army
-            </a>
-          )}
-        </div>
-      )}
+        )}
 
       <p className="mt-2 text-center text-[8px] text-white/20">
         Challenge eindigt{" "}
-        {new Date(endsAt).toLocaleString("nl-NL")}
+        {new Date(
+          endsAt,
+        ).toLocaleString(
+          "nl-NL",
+        )}
       </p>
     </section>
   );
