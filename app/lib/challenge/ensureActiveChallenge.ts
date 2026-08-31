@@ -532,19 +532,28 @@ async function chooseSourceArmy() {
 async function chooseBase(
   townHall: number,
 ) {
-  const bases =
-    await prisma.base.findMany({
-      where: {
-        townHall,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+  const now =
+    new Date();
 
-  return bases.length
-    ? randomItem(bases)
-    : null;
+  return prisma.base.findFirst({
+    where: {
+      townHall,
+      isActive: true,
+      OR: [
+        {
+          expiresAt: null,
+        },
+        {
+          expiresAt: {
+            gt: now,
+          },
+        },
+      ],
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
 }
 
 function buildVariantShareCode(

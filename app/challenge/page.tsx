@@ -395,15 +395,31 @@ export default async function ChallengePage() {
 
             {base ? (
               <>
-                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                {base.imageUrl && (
+                  <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black">
+                    <img
+                      src={base.imageUrl}
+                      alt={`TDG Challenge Base - ${base.name}`}
+                      className="block w-full"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
                   <p className="text-base font-black">
                     {base.name}
                   </p>
 
                   <p className="mt-1 text-[10px] text-white/35">
-                    TH{base.townHall} ·{" "}
-                    {base.category}
+                    TH{base.townHall} · ClashKing
                   </p>
+
+                  {base.expiresAt && (
+                    <p className="mt-1 text-[10px] text-white/25">
+                      Base van de Week actief tot{" "}
+                      {base.expiresAt.toLocaleString("nl-NL")}
+                    </p>
+                  )}
                 </div>
 
                 <a

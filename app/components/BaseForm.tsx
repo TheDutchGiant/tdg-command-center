@@ -4,39 +4,31 @@ import { createBase } from "@/app/actions/baseActions";
 
 export default function BaseForm() {
   return (
-    <form action={createBase} className="mt-8 rounded-xl border border-neutral-800 bg-neutral-900 p-6">
-      <h2 className="mb-6 text-2xl font-bold text-yellow-400">
-        ➕ Nieuwe Base
-      </h2>
+    <form
+      action={createBase}
+      className="mt-8 rounded-xl border border-neutral-800 bg-neutral-900 p-6"
+    >
+      <div className="mb-6">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-yellow-400/60">
+          🏰 TDG Base van de Week
+        </p>
+
+        <h2 className="mt-1 text-2xl font-bold text-yellow-400">
+          Nieuwe TH18 Base
+        </h2>
+
+        <p className="mt-2 text-sm text-neutral-400">
+          Gebruik een TH18-base van ClashKing.
+          Phoenix maakt deze automatisch 7 dagen actief.
+        </p>
+      </div>
 
       <div className="grid gap-4">
-
-        <select
+        <input
+          type="hidden"
           name="townHall"
-          className="rounded-lg bg-neutral-800 p-3"
-          required
-        >
-          <option value="">Town Hall</option>
-          <option value="18">TH18</option>
-          <option value="17">TH17</option>
-          <option value="16">TH16</option>
-          <option value="15">TH15</option>
-          <option value="14">TH14</option>
-          <option value="13">TH13</option>
-        </select>
-
-        <select
-          name="category"
-          className="rounded-lg bg-neutral-800 p-3"
-          required
-        >
-          <option value="">Categorie</option>
-          <option value="CWL">CWL</option>
-          <option value="War">War</option>
-          <option value="Legends">Legends</option>
-          <option value="Farming">Farming</option>
-          <option value="Anti 3-Star">Anti 3-Star</option>
-        </select>
+          value="18"
+        />
 
         <input
           name="name"
@@ -45,17 +37,19 @@ export default function BaseForm() {
           required
         />
 
-        <textarea
-          name="description"
-          className="rounded-lg bg-neutral-800 p-3"
-          placeholder="Beschrijving"
-          rows={4}
-        />
-
         <input
           name="baseLink"
           className="rounded-lg bg-neutral-800 p-3"
-          placeholder="https://link.clashofclans.com/..."
+          placeholder="Clash of Clans base-link"
+          type="url"
+          required
+        />
+
+        <input
+          name="imageUrl"
+          className="rounded-lg bg-neutral-800 p-3"
+          placeholder="URL van de base-afbeelding"
+          type="url"
           required
         />
 
@@ -70,9 +64,8 @@ export default function BaseForm() {
           type="submit"
           className="rounded-lg bg-yellow-500 py-3 font-bold text-black transition hover:bg-yellow-400"
         >
-          💾 Base Opslaan
+          🏰 Base van de Week activeren
         </button>
-
       </div>
     </form>
   );
