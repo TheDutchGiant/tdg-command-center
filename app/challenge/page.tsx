@@ -515,7 +515,7 @@ export default async function ChallengePage() {
 
                 <div className="bg-black p-2">
                   <img
-                    src="/images/challenge/voorbeeld-screenshot.svg"
+                    src="/images/challenge/voorbeeld-screenshot.jpg"
                     alt="Voorbeeld van het juiste screenshot voor de Challenge"
                     className="block w-full rounded-lg"
                   />
