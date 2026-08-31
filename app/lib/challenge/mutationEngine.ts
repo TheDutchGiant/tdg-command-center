@@ -1894,6 +1894,59 @@ function compatibleEquipment(
   );
 }
 
+function chooseHeroEquipment(
+  hero: GeneratedHero,
+  equipmentPool: GameDataItem[],
+  slots: number,
+): GeneratedHero["equipment"] {
+  const pool =
+    compatibleEquipment(
+      hero,
+      equipmentPool,
+    );
+
+  if (!pool.length) {
+    return [];
+  }
+
+  return shuffled(
+    pool,
+  )
+    .slice(
+      0,
+      slots,
+    )
+    .map((item) => ({
+      id:
+        idOf(item),
+      name:
+        nameOf(item),
+    }));
+}
+
+function chooseRandomPetForHero(
+  pets: GeneratedHero["pet"][],
+  current: GeneratedHero["pet"],
+): GeneratedHero["pet"] {
+  const available =
+    pets.filter(
+      (pet) =>
+        pet !== null &&
+        pet.id !== current?.id,
+    );
+
+  if (!available.length) {
+    return current;
+  }
+
+  return available[
+    randomInt(
+      0,
+      available.length - 1,
+    )
+  ];
+}
+
 function mutateHeroes(
   source: GeneratedHero[],
   heroPool: GameDataItem[],
@@ -1910,27 +1963,107 @@ function mutateHeroes(
     return heroes;
   }
 
+  const equipmentSlots =
+    source[0]?.equipment.length ??
+    0;
+
+  /*
+   * Een wijziging mag nooit leiden tot hero-equipment
+   * die niet bij die hero hoort.
+   */
+  const replaceEquipmentSlot = (
+    hero: GeneratedHero,
+  ): GeneratedHero => {
+    const legal =
+      chooseHeroEquipment(
+        hero,
+        equipmentPool,
+        equipmentSlots,
+      );
+
+    if (!legal.length) {
+      return hero;
+    }
+
+    const current =
+      [...hero.equipment];
+
+    if (!current.length) {
+      return {
+        ...hero,
+        equipment:
+          legal,
+      };
+    }
+
+    const slot =
+      randomInt(
+        0,
+        current.length - 1,
+      );
+
+    const replacement =
+      legal.find(
+        (item) =>
+          item.id !==
+          current[slot].id,
+      ) ??
+      legal[0];
+
+    current[slot] =
+      replacement;
+
+    return {
+      ...hero,
+      equipment:
+        current,
+    };
+  };
+
   if (
     difficulty ===
     "FUCK_MY_LIFE"
   ) {
-    return shuffled(
-      heroPool,
-    )
-      .slice(
+    const shuffledHeroes =
+      shuffled(
+        heroPool,
+      ).slice(
         0,
         heroes.length,
-      )
-      .map(
-        (hero) => ({
+      );
+
+    return shuffledHeroes.map(
+      (hero, index) => {
+        const mutatedHero: GeneratedHero = {
           id:
             idOf(hero),
           name:
             nameOf(hero),
+          equipment: [],
+          pet:
+            heroes[index]?.pet ??
+            null,
+        };
+
+        return {
+          ...mutatedHero,
           equipment:
-            [],
-        }),
-      );
+            chooseHeroEquipment(
+              mutatedHero,
+              equipmentPool,
+              equipmentSlots,
+            ),
+          pet:
+            chooseRandomPetForHero(
+              heroes.map(
+                (item) =>
+                  item.pet,
+              ),
+              mutatedHero.pet,
+            ),
+        };
+      },
+    );
   }
 
   const heroSwapCount =
@@ -1942,7 +2075,8 @@ function mutateHeroes(
   const swapIndices =
     shuffled(
       heroes.map(
-        (_, index) => index,
+        (_, index) =>
+          index,
       ),
     ).slice(
       0,
@@ -1966,35 +2100,82 @@ function mutateHeroes(
           current.id,
       );
 
-    if (
-      alternatives.length
-    ) {
-      const replacement =
-        alternatives[
-          randomInt(
-            0,
-            alternatives.length -
-              1,
-          )
-        ];
-
-      heroes[index] = {
-        id:
-          idOf(
-            replacement,
-          ),
-        name:
-          nameOf(
-            replacement,
-          ),
-        equipment:
-          clone(
-            current.equipment,
-          ),
-      };
+    if (!alternatives.length) {
+      continue;
     }
+
+    const replacement =
+      alternatives[
+        randomInt(
+          0,
+          alternatives.length -
+            1,
+        )
+      ];
+
+    const changed: GeneratedHero = {
+      id:
+        idOf(replacement),
+      name:
+        nameOf(replacement),
+      equipment: [],
+      pet:
+        current.pet ??
+        null,
+    };
+
+    /*
+     * Nieuwe hero krijgt alleen equipment die daadwerkelijk
+     * bij die hero hoort.
+     */
+    const legal =
+      chooseHeroEquipment(
+        changed,
+        equipmentPool,
+        equipmentSlots,
+      );
+
+    /*
+     * Probeer bestaande equipment te behouden als die toevallig
+     * ook voor de nieuwe hero geldig is.
+     */
+    const compatibleCurrent =
+      current.equipment.filter(
+        (item) =>
+          legal.some(
+            (candidate) =>
+              candidate.id ===
+              item.id,
+          ),
+      );
+
+    changed.equipment =
+      compatibleCurrent.length
+        ? [
+            ...compatibleCurrent,
+            ...legal.filter(
+              (item) =>
+                !compatibleCurrent.some(
+                  (currentItem) =>
+                    currentItem.id ===
+                    item.id,
+                ),
+            ),
+          ].slice(
+            0,
+            equipmentSlots,
+          )
+        : legal;
+
+    heroes[index] =
+      changed;
   }
 
+  /*
+   * Easy = 1 equipment-mutatie.
+   * Medium = 2 equipment-mutaties.
+   * Pets blijven daarbij gekoppeld aan hun hero.
+   */
   const equipmentChanges =
     difficulty ===
     "OH_MY_GOD"
@@ -2004,7 +2185,8 @@ function mutateHeroes(
   const equipmentIndices =
     shuffled(
       heroes.map(
-        (_, index) => index,
+        (_, index) =>
+          index,
       ),
     ).slice(
       0,
@@ -2018,55 +2200,10 @@ function mutateHeroes(
     const index of
       equipmentIndices
   ) {
-    const hero =
-      heroes[index];
-
-    const pool =
-      compatibleEquipment(
-        hero,
-        equipmentPool,
+    heroes[index] =
+      replaceEquipmentSlot(
+        heroes[index],
       );
-
-    if (
-      !pool.length ||
-      !hero.equipment.length
-    ) {
-      continue;
-    }
-
-    const current =
-      [...hero.equipment];
-
-    const slot =
-      randomInt(
-        0,
-        current.length - 1,
-      );
-
-    const replacement =
-      pool[
-        randomInt(
-          0,
-          pool.length - 1,
-        )
-      ];
-
-    current[slot] = {
-      id:
-        idOf(
-          replacement,
-        ),
-      name:
-        nameOf(
-          replacement,
-        ),
-    };
-
-    heroes[index] = {
-      ...hero,
-      equipment:
-        current,
-    };
   }
 
   return heroes;
@@ -2162,6 +2299,22 @@ export async function mutateGeneratedArmy(
       ),
 
     heroes,
+
+    pets:
+      heroes
+        .map(
+          (hero) =>
+            hero.pet,
+        )
+        .filter(
+          (
+            pet,
+          ): pet is {
+            id: string;
+            name: string;
+          } =>
+            pet !== null,
+        ),
 
     generatedAt:
       new Date().toISOString(),

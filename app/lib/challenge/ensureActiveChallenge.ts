@@ -9,11 +9,12 @@ import {
   type GameDataItem,
 } from "./gameData";
 import { buildArmyLink as buildClashArmyLink } from "./armyLink";
-import type {
-  GeneratedArmy,
-  GeneratedHero,
-  GeneratedStackItem,
-  GeneratedSpellItem,
+import {
+  generateRandomArmy,
+  type GeneratedArmy,
+  type GeneratedHero,
+  type GeneratedStackItem,
+  type GeneratedSpellItem,
 } from "./randomArmy";
 
 const CHALLENGE_DURATION_DAYS = 7;
@@ -284,6 +285,7 @@ function buildHeroes(
             "Unknown",
         ),
         equipment,
+        pet: null,
       };
     });
 }
@@ -327,136 +329,29 @@ function buildPets(
 async function buildSourceArmy(
   discovery: {
     name: string;
-    armyShareCode: string | null;
-    troops: unknown;
-    spells: unknown;
-    heroes: unknown;
-    pets: unknown;
-    siegeMachine: unknown;
   },
   townHall: number,
 ): Promise<GeneratedArmy> {
-  const capabilities =
-    await getTownHallCapabilities(
+  /*
+   * De Discovery Army dient alleen nog als bronverwijzing.
+   * De Challenge-basis zelf moet altijd een complete random
+   * army zijn met de actuele TH-capaciteiten.
+   */
+  const generated =
+    await generateRandomArmy(
       townHall,
-    );
-
-  const troops =
-    buildTroops(
-      discovery.troops,
-      capabilities.troops,
-    );
-
-  const spells =
-    buildSpells(
-      discovery.spells,
-      capabilities.spells,
-    );
-
-  const heroes =
-    buildHeroes(
-      discovery.heroes,
-    );
-
-  const pets =
-    buildPets(
-      discovery.pets,
-    );
-
-  const siegeSource =
-    discovery.siegeMachine &&
-    typeof discovery.siegeMachine ===
-      "object"
-      ? discovery.siegeMachine as Record<
-          string,
-          unknown
-        >
-      : null;
-
-  const siegeCatalog =
-    siegeSource
-      ? findGameItem(
-          siegeSource,
-          capabilities.siegeMachines,
-        )
-      : null;
-
-  const siege =
-    siegeSource
-      ? {
-          id: String(
-            siegeSource.id ??
-              siegeSource.name ??
-              siegeCatalog?.id ??
-              "unknown",
-          ),
-          name: String(
-            siegeSource.name ??
-              siegeCatalog?.name ??
-              siegeSource.id ??
-              "Unknown",
-          ),
-        }
-      : (() => {
-          const fallback =
-            randomItem(
-              capabilities.siegeMachines,
-            );
-
-          return {
-            id: String(
-              fallback.id ??
-                fallback.name,
-            ),
-            name: String(
-              fallback.name ??
-                fallback.id,
-            ),
-          };
-        })();
-
-  const troopCapacity =
-    troops.reduce(
-      (total, troop) =>
-        total +
-        troop.housingSpace *
-          troop.quantity,
-      0,
-    );
-
-  const spellCapacity =
-    spells.reduce(
-      (total, spell) =>
-        total +
-        spell.housingSpace *
-          spell.quantity,
-      0,
+      "OH_MY_GOD",
     );
 
   return {
-    townHall,
+    ...generated,
+
+    /*
+     * Deze velden worden door ensureVariants gebruikt als
+     * metadata voor de Challenge, niet voor de inhoud van
+     * de army.
+     */
     difficulty: "OH_MY_GOD",
-
-    troops,
-    troopCapacity,
-
-    spells,
-    spellCapacity,
-
-    siegeMachine: siege,
-
-    heroes,
-    pets,
-
-    clanCastle: {
-      troops: [],
-      troopCapacity:
-        capabilities.clanCastle.troopCapacity,
-      spells: [],
-      spellCapacity:
-        capabilities.clanCastle.spellCapacity,
-      siegeMachine: null,
-    },
 
     generatedAt:
       new Date().toISOString(),

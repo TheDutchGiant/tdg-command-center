@@ -30,6 +30,10 @@ export type GeneratedHero = {
     id: string;
     name: string;
   }[];
+  pet: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 export type GeneratedArmy = {
@@ -482,45 +486,130 @@ function chooseSiege(
   };
 }
 
+function equipmentBelongsToHero(
+  equipment: GameDataItem,
+  hero: GameDataItem,
+): boolean {
+  const heroId =
+    String(
+      hero.id ??
+        "",
+    ).toLowerCase();
+
+  const heroName =
+    String(
+      hero.name ??
+        "",
+    ).toLowerCase();
+
+  const owner =
+    typeof equipment.hero === "string"
+      ? equipment.hero.toLowerCase()
+      : "";
+
+  const ownerId =
+    typeof equipment.heroId === "string"
+      ? equipment.heroId.toLowerCase()
+      : "";
+
+  const ownerName =
+    typeof equipment.heroName === "string"
+      ? equipment.heroName.toLowerCase()
+      : "";
+
+  return (
+    (owner !== "" &&
+      (
+        owner === heroId ||
+        owner === heroName
+      )) ||
+    (ownerId !== "" &&
+      ownerId === heroId) ||
+    (ownerName !== "" &&
+      ownerName === heroName)
+  );
+}
+
+function chooseEquipmentForHero(
+  hero: GameDataItem,
+  capabilities: TownHallCapabilities,
+): {
+  id: string;
+  name: string;
+}[] {
+  const compatible =
+    capabilities.heroEquipment.filter(
+      (equipment) =>
+        equipmentBelongsToHero(
+          equipment,
+          hero,
+        ),
+    );
+
+  if (
+    compatible.length <
+    capabilities.heroEquipmentSlotsPerHero
+  ) {
+    throw new Error(
+      `Onvoldoende geldige hero-equipment voor ${nameOf(hero)}.`,
+    );
+  }
+
+  return shuffled(
+    compatible,
+  )
+    .slice(
+      0,
+      capabilities.heroEquipmentSlotsPerHero,
+    )
+    .map((item) => ({
+      id:
+        idOf(item),
+      name:
+        nameOf(item),
+    }));
+}
+
 function chooseHeroes(
-  capabilities: TownHallCapabilities
+  capabilities: TownHallCapabilities,
+  pets: {
+    id: string;
+    name: string;
+  }[],
 ): GeneratedHero[] {
   if (
     capabilities.heroes.length <
     capabilities.heroSlots
   ) {
     throw new Error(
-      `TH${capabilities.townHall} heeft onvoldoende beschikbare heroes voor ${capabilities.heroSlots} slots.`
+      `TH${capabilities.townHall} heeft onvoldoende beschikbare heroes voor ${capabilities.heroSlots} slots.`,
     );
   }
 
-  return shuffled(
-    capabilities.heroes
-  )
-    .slice(
+  const selectedHeroes =
+    shuffled(
+      capabilities.heroes,
+    ).slice(
       0,
-      capabilities.heroSlots
-    )
-    .map((hero) => {
-      const equipment =
-        shuffled(
-          capabilities.heroEquipment
-        )
-          .slice(
-            0,
-            capabilities.heroEquipmentSlotsPerHero
-          )
-          .map((item) => ({
-            id: idOf(item),
-            name: nameOf(item),
-          }));
+      capabilities.heroSlots,
+    );
 
-      return {
-        id: idOf(hero),
-        name: nameOf(hero),
-        equipment,
-      };
-    });
+  return selectedHeroes.map(
+    (hero, index) => ({
+      id:
+        idOf(hero),
+      name:
+        nameOf(hero),
+      equipment:
+        chooseEquipmentForHero(
+          hero,
+          capabilities,
+        ),
+      pet:
+        pets[index] ??
+        null,
+    }),
+  );
 }
 
 function choosePets(
@@ -574,6 +663,11 @@ export async function generateRandomArmy(
       difficulty
     );
 
+  const pets =
+    choosePets(
+      capabilities
+    );
+
   const clanCastleSpells =
     buildSpellStacks(
       capabilities.spells,
@@ -597,10 +691,12 @@ export async function generateRandomArmy(
       chooseSiege(capabilities),
 
     heroes:
-      chooseHeroes(capabilities),
+      chooseHeroes(
+        capabilities,
+        pets,
+      ),
 
-    pets:
-      choosePets(capabilities),
+    pets,
 
     clanCastle: {
       troops:
