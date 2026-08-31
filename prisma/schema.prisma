@@ -563,18 +563,18 @@ enum RandomChallengeEntryStatus {
 }
 
 model RandomChallenge {
-  id             Int      @id @default(autoincrement())
+  id             Int                   @id @default(autoincrement())
   title          String
   townHall       Int
   baseId         Int?
   startsAt       DateTime
   generationAt   DateTime
   endsAt         DateTime
-  status         String   @default("WAITING")
+  status         RandomChallengeStatus @default(DRAFT)
   sourceArmyId   Int?
   sourceArmyName String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   base     Base?                    @relation(fields: [baseId], references: [id])
   results  RandomChallengeResult[]
