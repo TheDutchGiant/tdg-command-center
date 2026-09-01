@@ -396,18 +396,16 @@ export default function RandomArmyChallenge({
     useState(false);
 
   const catalogBySlug =
-    useMemo(
-      () =>
-        new Map(
-          catalog.map(
-            (item) => [
-              item.slug,
-              item,
-            ],
-          ),
-        ),
-      [catalog],
-    );
+    useMemo(() => {
+      const map = new Map<string, CatalogItem>();
+
+      for (const item of catalog) {
+        map.set(item.slug, item);
+        map.set(item.name, item);
+      }
+
+      return map;
+    }, [catalog]);
 
   const selectedVariant =
     variants.find(
