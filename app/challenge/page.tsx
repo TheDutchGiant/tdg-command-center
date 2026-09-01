@@ -392,6 +392,12 @@ export default async function ChallengePage() {
 
         <section className="grid items-start gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.5fr)]">
 
+          {/* OFF-META */}
+          <div className="min-w-0">
+            <OffMetaGenerator />
+          </div>
+
+
           {/* BASE */}
           <section className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
@@ -488,11 +494,11 @@ export default async function ChallengePage() {
                   </p>
                 </div>
 
-                <div className="bg-black p-2">
+                <div className="flex justify-center bg-black p-3">
                   <img
                     src="/images/challenge/voorbeeld-screenshot.jpg"
                     alt="Voorbeeld van het juiste screenshot voor de Challenge"
-                    className="block w-full rounded-lg"
+                    className="block w-1/3 max-w-full rounded-lg"
                   />
                 </div>
               </div>
