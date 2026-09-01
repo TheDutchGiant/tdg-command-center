@@ -490,9 +490,11 @@ export default async function ChallengePage() {
                 upload die hieronder.
               </p>
 
-
+              <ChallengeSubmitForm
+                challengeId={challenge.id}
+                difficulty={activeVariant.difficulty}
+              />
             </div>
-
           </div>
         </section>
 
