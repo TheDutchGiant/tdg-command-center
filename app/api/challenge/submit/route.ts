@@ -183,12 +183,6 @@ export async function POST(
     const difficultyValue =
       formData.get("difficulty");
 
-    const playerTagValue =
-      formData.get("playerTag");
-
-    const playerNameValue =
-      formData.get("playerName");
-
     const screenshot =
       formData.get("screenshot");
 
@@ -202,18 +196,6 @@ export async function POST(
     const difficulty =
       typeof difficultyValue === "string"
         ? difficultyValue.trim()
-        : "";
-
-    const playerTag =
-      typeof playerTagValue === "string"
-        ? playerTagValue
-            .trim()
-            .toUpperCase()
-        : "";
-
-    const playerName =
-      typeof playerNameValue === "string"
-        ? playerNameValue.trim()
         : "";
 
     if (
@@ -240,20 +222,6 @@ export async function POST(
           success: false,
           error:
             "De gekozen moeilijkheid kon niet worden bepaald.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (
-      !playerTag ||
-      !playerName
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Spelergegevens ontbreken.",
         },
         { status: 400 }
       );
@@ -368,37 +336,57 @@ export async function POST(
       );
     }
 
-    /*
-     * Voorkom meerdere inzendingen van dezelfde
-     * speler voor deze Challenge.
-     */
-    const existing =
-      await prisma.randomChallengeEntry.findUnique({
-        where: {
-          challengeId_playerTag_difficulty: {
-            challengeId:
-              challenge.id,
-            playerTag,
-            difficulty,
-          },
-        },
-      });
-
-    if (existing) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Je hebt al een resultaat voor deze Challenge ingediend.",
-        },
-        { status: 409 }
-      );
-    }
-
     const imageBuffer =
       Buffer.from(
         await screenshot.arrayBuffer()
       );
+
+    const fs =
+      await import("node:fs/promises");
+
+    const path =
+      await import("node:path");
+
+    const crypto =
+      await import("node:crypto");
+
+    const uploadDirectory =
+      path.join(
+        process.cwd(),
+        "public",
+        "uploads",
+        "random-challenge",
+        String(challenge.id),
+      );
+
+    await fs.mkdir(
+      uploadDirectory,
+      { recursive: true },
+    );
+
+    const extension =
+      screenshot.type === "image/png"
+        ? "png"
+        : screenshot.type === "image/webp"
+          ? "webp"
+          : "jpg";
+
+    const filename =
+      `${crypto.randomUUID()}.${extension}`;
+
+    const screenshotFile =
+      path.join(
+        uploadDirectory,
+        filename,
+      );
+
+    await fs.writeFile(
+      screenshotFile,
+      imageBuffer,
+    );
+
+    const screenshotPath =
+      `/uploads/random-challenge/${challenge.id}/${filename}`;
 
     const worker =
       await createWorker("eng");
@@ -539,6 +527,21 @@ export async function POST(
     const playerNameReviewRequired =
       playerNameMatch === null;
 
+    const matchedPlayerTag =
+      playerNameMatch?.playerTag ?? null;
+
+    const matchedPlayerName =
+      playerNameMatch?.currentName ??
+      ocrLines.find((line) =>
+        playerMatches.some(
+          (player) =>
+            player.currentName ===
+            line,
+        ),
+      ) ??
+      ocrLines[0] ??
+      null;
+
     const screenshotDetected =
       clashResultDetected &&
       stars !== null &&
@@ -560,11 +563,19 @@ export async function POST(
           challengeId:
             challenge.id,
 
-          playerTag,
+          playerTag:
+            matchedPlayerTag ??
+            `OCR:${normalizePlayerName(
+              matchedPlayerName ?? "unknown",
+            )}`,
 
-          playerName,
+          playerName:
+            matchedPlayerName ??
+            "Onbekende speler",
 
           difficulty,
+
+          screenshotPath,
 
           status:
             validation.needsReview ||

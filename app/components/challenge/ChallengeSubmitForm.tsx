@@ -11,12 +11,6 @@ export default function ChallengeSubmitForm({
   challengeId,
   difficulty,
 }: Props) {
-  const [playerTag, setPlayerTag] =
-    useState("");
-
-  const [playerName, setPlayerName] =
-    useState("");
-
   const [screenshot, setScreenshot] =
     useState<File | null>(null);
 
@@ -29,13 +23,9 @@ export default function ChallengeSubmitForm({
   async function submit() {
     setMessage("");
 
-    if (
-      !playerTag.trim() ||
-      !playerName.trim() ||
-      !screenshot
-    ) {
+    if (!screenshot) {
       setMessage(
-        "Vul je Clash gegevens in en voeg je screenshot toe.",
+        "Voeg eerst je screenshot toe.",
       );
       return;
     }
@@ -54,18 +44,6 @@ export default function ChallengeSubmitForm({
       formData.append(
         "difficulty",
         difficulty,
-      );
-
-      formData.append(
-        "playerTag",
-        playerTag
-          .trim()
-          .toUpperCase(),
-      );
-
-      formData.append(
-        "playerName",
-        playerName.trim(),
       );
 
       formData.append(
@@ -127,35 +105,13 @@ export default function ChallengeSubmitForm({
         </p>
       </div>
 
-      <input
-        value={playerName}
-        onChange={(event) =>
-          setPlayerName(
-            event.target.value,
-          )
-        }
-        placeholder="Clash naam"
-        className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-orange-400/40"
-      />
-
-      <input
-        value={playerTag}
-        onChange={(event) =>
-          setPlayerTag(
-            event.target.value,
-          )
-        }
-        placeholder="#PlayerTag"
-        className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 font-mono text-sm text-white outline-none placeholder:text-white/25 focus:border-orange-400/40"
-      />
-
       <label className="block cursor-pointer rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-center transition hover:border-orange-400/30">
         <span className="text-sm font-semibold">
-          📸 Screenshot kiezen
+          📸 Screenshot uploaden
         </span>
 
         <span className="mt-1 block text-[10px] text-white/30">
-          Screenshot uit de replay/chat volgens het voorbeeld.
+          Upload een screenshot waarop de Clash-naam rechtsboven zichtbaar is.
         </span>
 
         <input
