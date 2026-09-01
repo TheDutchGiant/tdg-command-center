@@ -1,6 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import { PHOENIX } from "@/app/lib/config";
 import { checkForNewCWL } from "@/app/lib/checkForNewCWL";
+import { getCwlWorkingSeason } from "@/app/lib/getCwlWorkingSeason";
 
 type Props = {
   params: Promise<{
@@ -35,9 +36,7 @@ export default async function CWLPage({ params }: Props) {
   const cwl = await checkForNewCWL();
 
   const season =
-    cwl.active && cwl.league?.season
-      ? cwl.league.season
-      : null;
+    await getCwlWorkingSeason();
 
   const wars = await prisma.war.findMany({
     where: {
