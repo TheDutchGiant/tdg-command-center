@@ -97,8 +97,19 @@ function ArmyItem({
   catalogBySlug: Map<string, CatalogItem>;
 }) {
   const catalog =
+    catalogBySlug.get(item.id) ??
+    catalogBySlug.get(item.id.toLowerCase()) ??
     catalogBySlug.get(
-      item.id,
+      item.id
+        .replace(/[^a-z0-9]/gi, "")
+        .toLowerCase(),
+    ) ??
+    catalogBySlug.get(item.name) ??
+    catalogBySlug.get(item.name.toLowerCase()) ??
+    catalogBySlug.get(
+      item.name
+        .replace(/[^a-z0-9]/gi, "")
+        .toLowerCase(),
     );
 
   const src =
@@ -145,7 +156,7 @@ function ArmyContents({
   catalogBySlug: Map<string, CatalogItem>;
 }) {
   return (
-    <div className="mt-3 space-y-3">
+    <div className="mt-2 space-y-2">
       {!!army.troops?.length && (
         <div className="grid grid-cols-6 gap-1">
           {army.troops.map(
@@ -217,8 +228,19 @@ function ArmyContents({
               index,
             ) => {
               const catalog =
+                catalogBySlug.get(hero.id) ??
+                catalogBySlug.get(hero.id.toLowerCase()) ??
                 catalogBySlug.get(
-                  hero.id,
+                  hero.id
+                    .replace(/[^a-z0-9]/gi, "")
+                    .toLowerCase(),
+                ) ??
+                catalogBySlug.get(hero.name) ??
+                catalogBySlug.get(hero.name.toLowerCase()) ??
+                catalogBySlug.get(
+                  hero.name
+                    .replace(/[^a-z0-9]/gi, "")
+                    .toLowerCase(),
                 );
 
               const src =
@@ -258,8 +280,19 @@ function ArmyContents({
                             equipmentIndex,
                           ) => {
                             const equipmentCatalog =
+                              catalogBySlug.get(equipment.id) ??
+                              catalogBySlug.get(equipment.id.toLowerCase()) ??
                               catalogBySlug.get(
-                                equipment.id,
+                                equipment.id
+                                  .replace(/[^a-z0-9]/gi, "")
+                                  .toLowerCase(),
+                              ) ??
+                              catalogBySlug.get(equipment.name) ??
+                              catalogBySlug.get(equipment.name.toLowerCase()) ??
+                              catalogBySlug.get(
+                                equipment.name
+                                  .replace(/[^a-z0-9]/gi, "")
+                                  .toLowerCase(),
                               );
 
                             const equipmentSrc =
@@ -400,9 +433,27 @@ export default function RandomArmyChallenge({
     useMemo(() => {
       const map = new Map<string, CatalogItem>();
 
+      const add = (
+        value: unknown,
+        item: CatalogItem,
+      ) => {
+        if (typeof value !== "string" || !value) {
+          return;
+        }
+
+        map.set(value, item);
+        map.set(value.toLowerCase(), item);
+        map.set(
+          value
+            .replace(/[^a-z0-9]/gi, "")
+            .toLowerCase(),
+          item,
+        );
+      };
+
       for (const item of catalog) {
-        map.set(item.slug, item);
-        map.set(item.name, item);
+        add(item.slug, item);
+        add(item.name, item);
       }
 
       return map;
@@ -422,7 +473,7 @@ export default function RandomArmyChallenge({
     Date.now();
 
   return (
-    <section className="min-w-0 rounded-2xl border border-orange-400/20 bg-orange-500/[0.035] p-2.5 sm:p-5">
+    <section className="min-w-0 rounded-2xl border border-orange-400/20 bg-orange-500/[0.035] p-2.5 sm:p-4">
       <div className="mb-2 border-b border-white/10 pb-2 sm:mb-4 sm:pb-3">
         <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60 sm:text-[10px]">
           🔥 TDG Phoenix Challenge · TH
@@ -529,7 +580,7 @@ export default function RandomArmyChallenge({
 
       {generated &&
         selectedVariant && (
-          <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-2.5 sm:p-4">
+          <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-2.5 sm:p-3">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
@@ -570,9 +621,9 @@ export default function RandomArmyChallenge({
             </div>
 
             {selectedVariant.originalArmy != null && (
-              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-2 sm:p-3">
+              <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.02] p-2">
                 <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-white/30">
-                  🎲 Originele random army
+                  YOU COULD HAVE HAD THIS ARMY
                 </p>
 
                 <div className="[&_img]:h-5 [&_img]:w-5 sm:[&_img]:h-7 sm:[&_img]:w-7 [&_.grid]:gap-0.5 sm:[&_.grid]:gap-1">
@@ -590,7 +641,7 @@ export default function RandomArmyChallenge({
 
             <div>
               <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
-                🧬 Challenge army
+                BUT YOU CHOSE VIOLENCE INSTEAD AND ENDED UP WITH THIS MONSTROSITY
               </p>
 
               <ArmyContents
@@ -615,24 +666,6 @@ export default function RandomArmyChallenge({
                 ⚔️ Copy Army
               </a>
             )}
-
-            <div className="mt-4 border-t border-white/10 pt-4">
-              <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
-                📸 Resultaat indienen
-              </p>
-
-              <p className="mt-1 text-[9px] leading-4 text-white/30">
-                Je screenshot wordt automatisch gekoppeld
-                aan deze gekozen army.
-              </p>
-
-              <ChallengeSubmitForm
-                challengeId={challengeId}
-                difficulty={
-                  selectedVariant.difficulty
-                }
-              />
-            </div>
 
             <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
               <p className="text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/50">
