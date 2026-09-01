@@ -898,16 +898,16 @@ function exactTroopReplacement(
       pool,
     ).filter(
       (item) => {
-        const id =
+        const type =
           normalize(
-            idOf(item),
+            nameOf(item),
           );
 
         const space =
           gameHousingSpace(item);
 
         return (
-          !banned.has(id) &&
+          !banned.has(type) &&
           space > 0 &&
           space <=
             targetCapacity
