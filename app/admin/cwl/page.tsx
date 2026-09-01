@@ -56,9 +56,8 @@ function getDifficultyBonus(
 export default async function AdminCwlPage() {
   const current = await requireAdmin();
 
-  const season = new Date()
-    .toISOString()
-    .slice(0, 7);
+  const season =
+    await getCwlWorkingSeason();
 
   const [
     applications,
