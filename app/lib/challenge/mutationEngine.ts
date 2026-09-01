@@ -1864,29 +1864,29 @@ function compatibleEquipment(
   equipmentPool: GameDataItem[],
 ): GameDataItem[] {
   const heroId =
-    hero.id.toLowerCase();
+    normalize(hero.id);
 
   const heroName =
-    hero.name.toLowerCase();
+    normalize(hero.name);
 
   return equipmentPool.filter(
     (equipment) => {
       const owner =
         typeof equipment.hero ===
         "string"
-          ? equipment.hero.toLowerCase()
+          ? normalize(equipment.hero)
           : "";
 
       const ownerId =
         typeof equipment.heroId ===
         "string"
-          ? equipment.heroId.toLowerCase()
+          ? normalize(equipment.heroId)
           : "";
 
       const ownerName =
         typeof equipment.heroName ===
         "string"
-          ? equipment.heroName.toLowerCase()
+          ? normalize(equipment.heroName)
           : "";
 
       return (
@@ -2391,16 +2391,60 @@ function mutateHeroes(
       const equipment of
         hero.equipment
     ) {
-      if (
-        !legal.some(
+      const equipmentId =
+        normalize(
+          equipment.id,
+        );
+
+      const equipmentName =
+        normalize(
+          equipment.name,
+        );
+
+      const knownLegal =
+        legal.some(
           (candidate) =>
             normalize(
               idOf(candidate),
-            ) ===
+            ) === equipmentId ||
             normalize(
-              equipment.id,
-            ),
-        )
+              nameOf(candidate),
+            ) === equipmentName,
+        );
+
+      /*
+       * Equipment die niet in de huidige game-data staat
+       * mag behouden blijven wanneer deze al onderdeel
+       * was van de bron-army. Nieuwe equipment kan alleen
+       * via compatibleEquipment() worden gekozen.
+       */
+      const sourceEquipment =
+        source
+          .find(
+            (sourceHero) =>
+              normalize(
+                sourceHero.id,
+              ) ===
+              normalize(
+                hero.id,
+              ),
+          )
+          ?.equipment ?? [];
+
+      const wasAlreadyEquipped =
+        sourceEquipment.some(
+          (candidate) =>
+            normalize(
+              candidate.id,
+            ) === equipmentId ||
+            normalize(
+              candidate.name,
+            ) === equipmentName,
+        );
+
+      if (
+        !knownLegal &&
+        !wasAlreadyEquipped
       ) {
         throw new Error(
           `Ongeldige Challenge army: ${equipment.name} hoort niet bij ${hero.name}.`,
