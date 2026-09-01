@@ -1,7 +1,6 @@
 import { prisma } from "@/app/lib/prisma";
 import { PHOENIX } from "@/app/lib/config";
-import { checkForNewCWL } from "@/app/lib/checkForNewCWL";
-import { getCwlWorkingSeason } from "@/app/lib/getCwlWorkingSeason";
+import { getCwlDisplaySeason } from "@/app/lib/getCwlDisplaySeason";
 
 type Props = {
   params: Promise<{
@@ -26,17 +25,8 @@ export default async function CWLPage({ params }: Props) {
   const { tag } = await params;
   const clan = PHOENIX.clans.find((c) => c.tag === tag);
 
-  /*
-   * De actieve CWL-season komt rechtstreeks uit Clash.
-   *
-   * Hierdoor blijft bijvoorbeeld een FINAL plan met
-   * season 2026-08 zichtbaar wanneer de CWL op 1 september
-   * nog actief is.
-   */
-  const cwl = await checkForNewCWL();
-
   const season =
-    await getCwlWorkingSeason();
+    getCwlDisplaySeason();
 
   const wars = await prisma.war.findMany({
     where: {

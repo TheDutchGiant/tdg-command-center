@@ -177,203 +177,30 @@ export async function GET() {
 
     /*
      * =====================================================
-     * GEEN ACTIEVE CWL
+     * GEEN BESCHIKBARE ACTIEVE CWL
      * =====================================================
      *
-     * De CWL is afgelopen.
+     * Het ontbreken van /currentwar/leaguegroup betekent
+     * niet automatisch dat een CWL is afgelopen.
      *
-     * We gebruiken zowel:
+     * Rond de overgang tussen CWL-seizoenen kan Clash deze
+     * endpoint tijdelijk niet beschikbaar maken.
      *
-     * 1. CwlMatchup
-     * 2. bestaande War-records
+     * Daarom finaliseren we hier NIET automatisch.
      *
-     * Daardoor kunnen wars die ooit wel in
-     * War zijn opgeslagen maar niet in
-     * CwlMatchup staan alsnog definitief
-     * worden bijgewerkt.
+     * Een definitieve selectie wordt pas gewisseld wanneer
+     * de actieve CWL-cyclus daadwerkelijk voorbij is.
      */
 
-    if (cwl.lastSeason) {
-      const apiSeason =
-        cwl.lastSeason;
-
-      /*
-       * Season gebruikt in de gewone
-       * War-tabel slechts YYYY-MM.
-       *
-       * Bijvoorbeeld:
-       * 2026-08-02 → 2026-08
-       */
-
-      const databaseSeason =
-        apiSeason.substring(0, 7);
-
-      console.log(
-        `🏁 CWL afgelopen. Finaliseren: ${apiSeason}`
-      );
-
-      /*
-       * -----------------------------------------------------
-       * 1. Bekende CWL-matchups ophalen
-       * -----------------------------------------------------
-       */
-
-      const knownMatchups =
-        await prisma.cwlMatchup.findMany({
-          where: {
-            season: apiSeason,
-          },
-
-          orderBy: [
-            {
-              round: "asc",
-            },
-            {
-              warTag: "asc",
-            },
-          ],
-        });
-
-      /*
-       * -----------------------------------------------------
-       * 2. Bestaande War-records ophalen
-       * -----------------------------------------------------
-       *
-       * Season is gekoppeld via seasonId.
-       */
-
-      const seasonRecords =
-        await prisma.season.findMany({
-          where: {
-            season: databaseSeason,
-
-            clan: {
-              tag: {
-                in: PHOENIX.clans.map(
-                  (clan) =>
-                    normalizeTag(
-                      clan.tag
-                    )
-                ),
-              },
-            },
-          },
-        });
-
-      const seasonIds =
-        seasonRecords.map(
-          (season) => season.id
-        );
-
-      const knownWars =
-        seasonIds.length > 0
-          ? await prisma.war.findMany({
-              where: {
-                seasonId: {
-                  in: seasonIds,
-                },
-              },
-
-              select: {
-                warTag: true,
-                round: true,
-              },
-            })
-          : [];
-
-      /*
-       * -----------------------------------------------------
-       * 3. Combineer beide bronnen
-       * -----------------------------------------------------
-       */
-
-      const warsToFinalize =
-        new Map<
-          string,
-          number
-        >();
-
-      for (
-        const matchup of
-        knownMatchups
-      ) {
-        warsToFinalize.set(
-          matchup.warTag,
-          matchup.round
-        );
-      }
-
-      for (
-        const war of
-        knownWars
-      ) {
-        warsToFinalize.set(
-          war.warTag,
-          war.round
-        );
-      }
-
-      console.log(
-        `🔍 ${warsToFinalize.size} CWL-wars gevonden voor finalisatie.`
-      );
-
-      /*
-       * -----------------------------------------------------
-       * 4. Iedere bekende war opnieuw
-       *    rechtstreeks bij Clash ophalen
-       * -----------------------------------------------------
-       */
-
-      for (
-        const [
-          warTag,
-          round,
-        ] of warsToFinalize
-      ) {
-        console.log(
-          `🔄 Finaliseren ronde ${round}: ${warTag}`
-        );
-
-        const war =
-          await fetchClash(
-            `/clanwarleagues/wars/%23${warTag.replace(
-              "#",
-              ""
-            )}`
-          );
-
-        const result =
-          await importWar(
-            warTag,
-            apiSeason,
-            round,
-            war
-          );
-
-        if (result.isOurClan) {
-          importedWars++;
-          importedPlayers +=
-            result.players;
-          importedAttacks +=
-            result.attacks;
-        }
-      }
-
-      console.log(
-        `✅ CWL-finalisatie voltooid: ${importedWars} eigen wars bijgewerkt.`
-      );
-
-      return NextResponse.json({
-        success: true,
-        mode: "finalize-cwl",
-        season: apiSeason,
-        importedWars,
-        importedPlayers,
-        importedAttacks,
-        finalizedWarCount:
-          warsToFinalize.size,
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      mode: "waiting-for-cwl",
+      message:
+        "Geen actieve CWL leaguegroup beschikbaar. Geen finalisatie uitgevoerd.",
+      importedWars: 0,
+      importedPlayers: 0,
+      importedAttacks: 0,
+    });
 
     /*
      * Nog nooit een CWL geïmporteerd.

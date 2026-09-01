@@ -8,9 +8,8 @@ export async function POST() {
   try {
     const current = await requireAdmin();
 
-    const season = new Date()
-      .toISOString()
-      .slice(0, 7);
+    const season =
+      await getCwlWorkingSeason();
 
     const plan = await prisma.cwlPlan.findUnique({
       where: {
