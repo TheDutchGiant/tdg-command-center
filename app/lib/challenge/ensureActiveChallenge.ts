@@ -644,6 +644,8 @@ async function ensureVariants(
           source.id,
         sourceArmyName:
           source.name,
+        originalArmy:
+          baseArmy as unknown as object,
         army:
           mutated as unknown as object,
         armyShareCode,

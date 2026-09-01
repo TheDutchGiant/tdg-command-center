@@ -600,6 +600,7 @@ model RandomChallengeVariant {
   mutatedPercent Int
   sourceArmyId   Int
   sourceArmyName String
+  originalArmy   Json?
   army           Json
   armyShareCode  String?
   generatedAt    DateTime @default(now())

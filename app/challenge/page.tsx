@@ -469,6 +469,7 @@ export default async function ChallengePage() {
               id: variant.id,
               difficulty: variant.difficulty,
               mutatedPercent: variant.mutatedPercent,
+              originalArmy: variant.originalArmy,
               army: variant.army,
               armyShareCode: variant.armyShareCode,
               sourceArmyId: variant.sourceArmyId,

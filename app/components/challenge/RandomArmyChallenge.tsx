@@ -38,6 +38,7 @@ type Variant = {
   id: number;
   difficulty: string;
   mutatedPercent: number;
+  originalArmy: unknown | null;
   army: unknown;
   armyShareCode: string | null;
   sourceArmyId: number;
@@ -568,14 +569,39 @@ export default function RandomArmyChallenge({
               )}
             </div>
 
-            <ArmyContents
-              army={
-                selectedVariant.army as Army
-              }
-              catalogBySlug={
-                catalogBySlug
-              }
-            />
+            {selectedVariant.originalArmy && (
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-2 sm:p-3">
+                <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-white/30">
+                  🎲 Originele random army
+                </p>
+
+                <div className="[&_img]:h-5 [&_img]:w-5 sm:[&_img]:h-7 sm:[&_img]:w-7 [&_.grid]:gap-0.5 sm:[&_.grid]:gap-1">
+                  <ArmyContents
+                    army={
+                      selectedVariant.originalArmy as Army
+                    }
+                    catalogBySlug={
+                      catalogBySlug
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+                🧬 Challenge army
+              </p>
+
+              <ArmyContents
+                army={
+                  selectedVariant.army as Army
+                }
+                catalogBySlug={
+                  catalogBySlug
+                }
+              />
+            </div>
 
             {selectedVariant.armyShareCode && (
               <a
