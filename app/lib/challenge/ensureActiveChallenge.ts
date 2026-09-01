@@ -87,21 +87,23 @@ function findGameItem(
   item: Record<string, unknown>,
   pool: GameDataItem[],
 ): GameDataItem | undefined {
-  const keys = [
-    item.id,
-    item.name,
-    item.code,
-    item.catalogItemId,
-  ]
-    .filter(
-      (value) =>
-        value !== undefined &&
-        value !== null,
-    )
-    .map(normalize)
-    .filter(Boolean);
+  const matchesItem = (
+    candidate: GameDataItem,
+  ): boolean => {
+    const keys = [
+      item.id,
+      item.name,
+      item.code,
+      item.catalogItemId,
+    ]
+      .filter(
+        (value) =>
+          value !== undefined &&
+          value !== null,
+      )
+      .map(normalize)
+      .filter(Boolean);
 
-  return pool.find((candidate) => {
     const candidateKeys = [
       candidate.id,
       candidate.name,
@@ -114,11 +116,40 @@ function findGameItem(
       )
       .map(normalize);
 
-    return keys.some(
-      (key) =>
-        candidateKeys.includes(key),
+    return keys.some((key) =>
+      candidateKeys.includes(key),
     );
-  });
+  };
+
+  for (const candidate of pool) {
+    /*
+     * Eerst de normale troop zelf proberen.
+     */
+    if (matchesItem(candidate)) {
+      return candidate;
+    }
+
+    /*
+     * Super Troops zitten in onze game-data
+     * onder de bijbehorende normale troop.
+     *
+     * Dit werkt automatisch voor ALLE Super Troops.
+     */
+    if (
+      candidate.superTroop &&
+      typeof candidate.superTroop === "object" &&
+      !Array.isArray(candidate.superTroop)
+    ) {
+      const superTroop =
+        candidate.superTroop as GameDataItem;
+
+      if (matchesItem(superTroop)) {
+        return superTroop;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function buildTroops(
@@ -128,6 +159,21 @@ function buildTroops(
   if (!Array.isArray(value)) {
     return [];
   }
+
+  /*
+   * Discovery Army is de bron van waarheid.
+   *
+   * BELANGRIJK:
+   * Regular Troops + Super Troops vormen samen de
+   * volledige eigen army. Super Troops worden dus
+   * NIET verwijderd omdat ze niet in een aparte
+   * officiële troop-pool staan.
+   *
+   * Voor housing space gebruiken we:
+   * 1. de gegevens die al in Discovery staan;
+   * 2. daarna de gekoppelde game-data;
+   * 3. nooit een aparte Super-Troop-generator.
+   */
 
   return value
     .filter(
@@ -143,6 +189,30 @@ function buildTroops(
       const source =
         findGameItem(item, pool);
 
+      const directHousing =
+        numberValue(
+          item.housingSpace,
+        );
+
+      /*
+       * Super Troops staan niet als normale troop
+       * in de officiële game-data pool.
+       *
+       * DiscoveryArmy bevat ze echter al als echte
+       * army-items. Daarom gebruiken we voor Super
+       * Troops de eigen catalogus/database-koppeling
+       * in plaats van de officiële troop-pool.
+       */
+      const sourceHousing =
+        source
+          ? itemHousingSpace(source)
+          : null;
+
+      const housingSpace =
+        directHousing !== null
+          ? directHousing
+          : sourceHousing ?? 1;
+
       return {
         id: String(
           item.id ??
@@ -150,12 +220,14 @@ function buildTroops(
             source?.id ??
             "unknown",
         ),
+
         name: String(
           item.name ??
             source?.name ??
             item.id ??
             "Unknown",
         ),
+
         quantity: Math.max(
           1,
           Math.floor(
@@ -164,10 +236,8 @@ function buildTroops(
             ) ?? 1,
           ),
         ),
-        housingSpace:
-          itemHousingSpace(
-            source ?? item,
-          ),
+
+        housingSpace,
       };
     });
 }
