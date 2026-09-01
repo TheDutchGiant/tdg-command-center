@@ -329,29 +329,178 @@ function buildPets(
 async function buildSourceArmy(
   discovery: {
     name: string;
+    troops: unknown;
+    spells: unknown;
+    siegeMachine: unknown;
+    heroes: unknown;
+    pets: unknown;
   },
   townHall: number,
 ): Promise<GeneratedArmy> {
   /*
-   * De Discovery Army dient alleen nog als bronverwijzing.
-   * De Challenge-basis zelf moet altijd een complete random
-   * army zijn met de actuele TH-capaciteiten.
+   * BELANGRIJK:
+   * De Discovery Army is de daadwerkelijke originele/off-meta army.
+   *
+   * We genereren hier dus GEEN nieuwe random army.
+   * De complete army uit Discovery wordt als basis gebruikt
+   * en mutateGeneratedArmy() vervangt daarna alleen het
+   * gevraagde percentage.
    */
-  const generated =
-    await generateRandomArmy(
+
+  const capabilities =
+    await getTownHallCapabilities(
       townHall,
-      "OH_MY_GOD",
     );
 
+  const troops =
+    buildTroops(
+      discovery.troops,
+      capabilities.troops,
+    );
+
+  const spells =
+    buildSpells(
+      discovery.spells,
+      capabilities.spells,
+    );
+
+  const sourceHeroes =
+    buildHeroes(
+      discovery.heroes,
+    );
+
+  const sourcePets =
+    buildPets(
+      discovery.pets,
+    );
+
+  if (sourceHeroes.length !== 4) {
+    throw new Error(
+      `Discovery Army "${discovery.name}" moet exact 4 heroes bevatten, gevonden: ${sourceHeroes.length}.`,
+    );
+  }
+
+  if (sourcePets.length !== 4) {
+    throw new Error(
+      `Discovery Army "${discovery.name}" moet exact 4 pets bevatten, gevonden: ${sourcePets.length}.`,
+    );
+  }
+
+  /*
+   * De Discovery Army bevat de pets in dezelfde volgorde
+   * als de vier heroes. Koppel daarom iedere pet aan de
+   * overeenkomstige hero.
+   */
+  const heroes =
+    sourceHeroes.map(
+      (hero, index) => ({
+        ...hero,
+        pet:
+          sourcePets[index] ?? null,
+      }),
+    );
+
+  const sourceSiege =
+    discovery.siegeMachine;
+
+  if (
+    !sourceSiege ||
+    typeof sourceSiege !== "object" ||
+    Array.isArray(sourceSiege)
+  ) {
+    throw new Error(
+      `Discovery Army "${discovery.name}" heeft geen gebruikte siege machine.`,
+    );
+  }
+
+  const siege =
+    sourceSiege as Record<
+      string,
+      unknown
+    >;
+
+  const siegeMachine = {
+    id: String(
+      siege.id ??
+        siege.name ??
+        "unknown",
+    ),
+    name: String(
+      siege.name ??
+        siege.id ??
+        "Unknown",
+    ),
+  };
+
+  const troopCapacity =
+    troops.reduce(
+      (sum, item) =>
+        sum +
+        item.quantity *
+          item.housingSpace,
+      0,
+    );
+
+  const spellCapacity =
+    spells.reduce(
+      (sum, item) =>
+        sum +
+        item.quantity *
+          item.housingSpace,
+      0,
+    );
+
+  if (troopCapacity !== capabilities.troopCapacity) {
+    throw new Error(
+      `Discovery Army "${discovery.name}" heeft ${troopCapacity}/${capabilities.troopCapacity} troop housing space.`,
+    );
+  }
+
+  if (spellCapacity !== capabilities.spellCapacity) {
+    throw new Error(
+      `Discovery Army "${discovery.name}" heeft ${spellCapacity}/${capabilities.spellCapacity} spell housing space.`,
+    );
+  }
+
   return {
-    ...generated,
+    townHall,
+
+    difficulty:
+      "OH_MY_GOD",
+
+    troops,
+    troopCapacity,
+
+    spells,
+    spellCapacity,
 
     /*
-     * Deze velden worden door ensureVariants gebruikt als
-     * metadata voor de Challenge, niet voor de inhoud van
-     * de army.
+     * Alleen de daadwerkelijk gebruikte siege machine
+     * gaat mee. De twee andere mogelijke machines uit
+     * een Clash-army zijn hier bewust niet opgenomen.
      */
-    difficulty: "OH_MY_GOD",
+    siegeMachine,
+
+    heroes,
+
+    pets: sourcePets,
+
+    /*
+     * DiscoveryArmy bevat momenteel geen Clan Castle
+     * gegevens. Daarom wordt dit onderdeel hier niet
+     * verzonnen of random gegenereerd.
+     */
+    clanCastle: {
+      troops: [],
+      troopCapacity:
+        capabilities.clanCastle.troopCapacity,
+
+      spells: [],
+      spellCapacity:
+        capabilities.clanCastle.spellCapacity,
+
+      siegeMachine: null,
+    },
 
     generatedAt:
       new Date().toISOString(),
