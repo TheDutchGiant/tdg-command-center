@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { getCwlWorkingSeason } from "@/app/lib/getCwlWorkingSeason";
 import { requireAdmin } from "@/app/lib/auth/session";
 import { PHOENIX } from "@/app/lib/config";
 import { fetchClash } from "@/app/lib/clash";
@@ -375,9 +376,7 @@ export async function POST(
         : "ALL";
 
     const season =
-      new Date()
-        .toISOString()
-        .slice(0, 7);
+      await getCwlWorkingSeason();
 
     /*
      * -----------------------------------------------------

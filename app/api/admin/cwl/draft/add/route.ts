@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { getCwlWorkingSeason } from "@/app/lib/getCwlWorkingSeason";
 import { requireAdmin } from "@/app/lib/auth/session";
 
 function normalizeTag(
@@ -20,12 +21,7 @@ export async function POST(
       await request.json();
 
     const season =
-      String(
-        body.season ||
-          new Date()
-            .toISOString()
-            .slice(0, 7)
-      );
+      await getCwlWorkingSeason();
 
     const playerTag =
       normalizeTag(

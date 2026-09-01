@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
+import { getCwlWorkingSeason } from "@/app/lib/getCwlWorkingSeason";
 import { requireAdmin } from "@/app/lib/auth/session";
 import CwlProposalGenerator from "./CwlProposalGenerator";
 import CwlDraftEditor from "./CwlDraftEditor";

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { getCwlWorkingSeason } from "@/app/lib/getCwlWorkingSeason";
 import { requireAdmin } from "@/app/lib/auth/session";
 
 export async function POST(request: Request) {
@@ -50,9 +51,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const season = new Date()
-      .toISOString()
-      .slice(0, 7);
+    const season =
+      await getCwlWorkingSeason();
 
     const plan =
       await prisma.cwlPlan.findUnique({
