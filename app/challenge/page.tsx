@@ -368,12 +368,19 @@ export default async function ChallengePage() {
     <main className="min-h-screen bg-neutral-950 px-3 py-5 text-white sm:px-5 sm:py-6">
       <div className="mx-auto max-w-7xl">
 
-        <div className="mb-4 flex justify-start">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <a
             href="/clan/2JLLPVGUU"
             className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-bold text-white/55 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
           >
             ⬅️ The Dutch Giant
+          </a>
+
+          <a
+            href="/challenge/leaderboard"
+            className="rounded-lg border border-orange-400/20 bg-orange-500/[0.06] px-3 py-1.5 text-xs font-bold text-orange-200/80 transition hover:border-orange-400/35 hover:bg-orange-500/10 hover:text-orange-200"
+          >
+            🏆 Leaderboard
           </a>
         </div>
 
@@ -390,7 +397,7 @@ export default async function ChallengePage() {
             MOBIEL: onder elkaar
            ==================================================== */}
 
-        <section className="grid items-start gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.5fr)]">
+        <section className="grid items-start gap-4 lg:grid-cols-3">
 
           {/* OFF-META */}
           <div className="min-w-0">
@@ -483,30 +490,31 @@ export default async function ChallengePage() {
                 upload die hieronder.
               </p>
 
-              <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
-                <div className="border-b border-white/10 px-3 py-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/70">
-                    📸 Zo moet je screenshot eruitzien
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-white/35">
-                    De volledige base en de gegevens
-                    in de chat moeten zichtbaar zijn.
-                  </p>
-                </div>
 
-                <div className="flex justify-center bg-black p-3">
-                  <img
-                    src="/images/challenge/voorbeeld-screenshot.jpg"
-                    alt="Voorbeeld van het juiste screenshot voor de Challenge"
-                    className="block w-1/3 max-w-full rounded-lg"
-                  />
-                </div>
-              </div>
             </div>
 
           </div>
         </section>
 
+
+                <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                  <div className="border-b border-white/10 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/70">
+                      📸 Voorbeeld screenshot
+                    </p>
+                    <p className="mt-1 text-[10px] leading-4 text-white/35">
+                      Zo moet je screenshot eruitzien.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-center bg-black p-3">
+                    <img
+                      src="/images/challenge/voorbeeld-screenshot.jpg"
+                      alt="Voorbeeld van het juiste screenshot voor de Challenge"
+                      className="block w-full rounded-lg"
+                    />
+                  </div>
+                </div>
 
           {/* RANDOM ARMY */}
           <RandomArmyChallenge
@@ -562,64 +570,6 @@ export default async function ChallengePage() {
             catalog={catalogItems}
           />
 
-        </section>
-
-        {/* ====================================================
-            LEADERBOARD
-           ==================================================== */}
-
-        <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-black">
-              🏆 Leaderboard
-            </h2>
-
-            <span className="text-[10px] font-bold text-white/25">
-              {entries.length} deelnemers
-            </span>
-          </div>
-
-          {entries.length === 0 ? (
-            <p className="mt-4 text-xs text-white/30">
-              Nog geen gevalideerde resultaten.
-            </p>
-          ) : (
-            <div className="mt-3 space-y-1.5">
-              {entries.map(
-                (entry, index) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
-                  >
-                    <span className="w-7 text-center text-xs font-black text-white/30">
-                      #{index + 1}
-                    </span>
-
-                    <span className="min-w-0 flex-1 truncate text-xs font-bold">
-                      {entry.playerName}
-                    </span>
-
-                    <span className="text-[10px] font-bold text-white/50">
-                      {entry.result?.stars ??
-                        0}
-                      ⭐
-                    </span>
-
-                    <span className="text-[10px] font-bold text-orange-300">
-                      {entry.result?.destruction ??
-                        0}
-                      %
-                    </span>
-
-                    <span className="w-14 text-right text-[10px] font-black">
-                      {entry.result?.score ??
-                        0}
-                    </span>
-                  </div>
-                )
-              )}
-            </div>
-          )}
         </section>
 
       </div>
