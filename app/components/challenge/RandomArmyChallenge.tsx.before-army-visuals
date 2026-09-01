@@ -621,12 +621,12 @@ export default function RandomArmyChallenge({
             </div>
 
             {selectedVariant.originalArmy != null && (
-              <div className="mb-3 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.025] p-2 sm:p-2.5">
-                <p className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-yellow-300 sm:text-[11px]">
-                  🟡 JE HAD DEZE ARMY KUNNEN HEBBEN
+              <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.02] p-2">
+                <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-white/30">
+                  YOU COULD HAVE HAD THIS ARMY
                 </p>
 
-                <div className="w-1/2 origin-left opacity-65 [&_.grid]:gap-0.5 [&_img]:h-4 [&_img]:w-4 sm:[&_img]:h-5 sm:[&_img]:w-5">
+                <div className="[&_img]:h-5 [&_img]:w-5 sm:[&_img]:h-7 sm:[&_img]:w-7 [&_.grid]:gap-0.5 sm:[&_.grid]:gap-1">
                   <ArmyContents
                     army={
                       selectedVariant.originalArmy as Army
@@ -640,8 +640,8 @@ export default function RandomArmyChallenge({
             )}
 
             <div>
-              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-orange-300/70 sm:text-[10px]">
-                💀 MAAR JIJ KOOS VOOR GEWELD
+              <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-orange-300/60">
+                BUT YOU CHOSE VIOLENCE INSTEAD AND ENDED UP WITH THIS MONSTROSITY
               </p>
 
               <ArmyContents

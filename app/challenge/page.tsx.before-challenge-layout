@@ -400,13 +400,13 @@ export default async function ChallengePage() {
         <section className="grid items-start gap-4 lg:grid-cols-3">
 
           {/* OFF-META */}
-          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+          <div className="min-w-0">
             <OffMetaGenerator />
           </div>
 
 
           {/* BASE */}
-          <section className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5 lg:col-start-2 lg:row-start-1">
+          <section className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/60">
@@ -470,7 +470,7 @@ export default async function ChallengePage() {
             MEEDOEN
            ==================================================== */}
 
-        <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5 lg:col-start-3 lg:row-start-2">
+        <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">
@@ -497,7 +497,7 @@ export default async function ChallengePage() {
         </section>
 
 
-                <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20 lg:col-start-2 lg:row-start-2">
+                <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
                   <div className="border-b border-white/10 px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/70">
                       📸 Voorbeeld screenshot
@@ -517,7 +517,6 @@ export default async function ChallengePage() {
                 </div>
 
           {/* RANDOM ARMY */}
-          <div className="min-w-0 lg:col-start-3 lg:row-start-1">
           <RandomArmyChallenge
             challengeId={challenge.id}
             title={challenge.title}
@@ -570,7 +569,6 @@ export default async function ChallengePage() {
             }))}
             catalog={catalogItems}
           />
-          </div>
 
         </section>
 
