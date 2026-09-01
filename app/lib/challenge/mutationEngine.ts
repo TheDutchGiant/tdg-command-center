@@ -1515,16 +1515,21 @@ function spellRemoval(
       pool,
     );
 
+  /*
+   * Spell capacity is maar 11.
+   * Daarom gebruiken we hier een kleine tolerance:
+   * maximaal 1 housing space afwijking van het percentage.
+   */
   const minimum =
     Math.max(
-      0,
-      target - 5,
+      1,
+      target - 1,
     );
 
   const maximum =
     Math.min(
       total,
-      target + 5,
+      target + 1,
     );
 
   const states =
@@ -1964,31 +1969,57 @@ function mutateHeroes(
     clone(source);
 
   if (
-    !heroes.length ||
-    !heroPool.length
+    heroes.length !== 4 ||
+    heroPool.length < 4
   ) {
     return heroes;
   }
 
-  const heroCount =
-    heroes.length;
-
   const equipmentSlots =
-    source[0]?.equipment.length ??
     2;
 
+  const uniqueHeroPool =
+    shuffled(heroPool);
+
+  const chooseDifferentHero =
+    (
+      currentId: string,
+      usedIds: Set<string>,
+    ): GameDataItem | null => {
+      const alternatives =
+        uniqueHeroPool.filter(
+          (hero) => {
+            const id =
+              normalize(
+                idOf(hero),
+              );
+
+            return (
+              id !==
+                normalize(
+                  currentId,
+                ) &&
+              !usedIds.has(id)
+            );
+          },
+        );
+
+      if (!alternatives.length) {
+        return null;
+      }
+
+      return alternatives[
+        randomInt(
+          0,
+          alternatives.length - 1,
+        )
+      ];
+    };
+
   /*
-   * =========================================================
    * FUCK MY LIFE
-   * =========================================================
    *
-   * Alles mag opnieuw gekozen worden.
-   *
-   * Maar:
-   * - heroes moeten uniek zijn
-   * - pets moeten uniek zijn
-   * - iedere hero krijgt exact één pet
-   * - equipment moet legaal zijn voor de gekozen hero
+   * Alles opnieuw legaal randomiseren.
    */
   if (
     difficulty ===
@@ -1996,216 +2027,169 @@ function mutateHeroes(
   ) {
     const selectedHeroes =
       shuffled(
-        heroPool,
-      ).slice(
-        0,
-        heroCount,
-      );
+        uniqueHeroPool,
+      ).slice(0, 4);
 
     const selectedPets =
       chooseUniquePets(
         petPool,
-        heroCount,
+        4,
       );
 
     return selectedHeroes.map(
       (
         hero,
         index,
-      ) => {
-        const result:
-          GeneratedHero = {
-          id:
-            idOf(hero),
-          name:
-            nameOf(hero),
-          equipment: [],
-          pet:
-            selectedPets[index] ??
-            null,
-        };
-
-        result.equipment =
+      ) => ({
+        id:
+          idOf(hero),
+        name:
+          nameOf(hero),
+        equipment:
           chooseHeroEquipment(
-            result,
+            {
+              id:
+                idOf(hero),
+              name:
+                nameOf(hero),
+              equipment: [],
+              pet: null,
+            },
             equipmentPool,
             equipmentSlots,
-          );
-
-        return result;
-      },
+          ),
+        pet:
+          selectedPets[index] ??
+          null,
+      }),
     );
   }
 
-  /*
-   * =========================================================
-   * OH MY GOD / OH HELL NO
-   * =========================================================
-   *
-   * Hero swaps mogen nooit een hero opleveren die al
-   * op een andere positie staat.
-   */
   const heroSwapCount =
     difficulty ===
     "OH_MY_GOD"
       ? 1
       : 2;
 
+  /*
+   * Kies eerst welke hero-slots wisselen.
+   */
   const swapIndices =
     shuffled(
       heroes.map(
-        (
-          _,
+        (_, index) =>
           index,
-        ) => index,
       ),
     ).slice(
       0,
-      Math.min(
-        heroSwapCount,
-        heroes.length,
-      ),
+      heroSwapCount,
     );
 
+  const swapped =
+    new Set(
+      swapIndices,
+    );
+
+  /*
+   * Houd bestaande heroes uniek.
+   */
+  const usedHeroIds =
+    new Set<string>();
+
+  for (const hero of heroes) {
+    usedHeroIds.add(
+      normalize(hero.id),
+    );
+  }
+
+  /*
+   * HERO SWAPS
+   *
+   * Een gewisselde hero krijgt automatisch
+   * legale equipment van de nieuwe hero.
+   * Dit is geen extra equipment-mutation,
+   * maar noodzakelijk om de army legaal te houden.
+   *
+   * De pet blijft op deze hero-slot staan.
+   */
   for (
-    const index of
-      swapIndices
+    const index of swapIndices
   ) {
     const current =
       heroes[index];
 
-    const usedHeroIds =
-      new Set(
-        heroes
-          .filter(
-            (
-              _,
-              heroIndex,
-            ) =>
-              heroIndex !==
-              index,
-          )
-          .map(
-            (hero) =>
-              hero.id,
-          ),
+    const replacement =
+      chooseDifferentHero(
+        current.id,
+        usedHeroIds,
       );
 
-    const alternatives =
-      heroPool.filter(
-        (
-          hero,
-        ) =>
-          idOf(hero) !==
-            current.id &&
-          !usedHeroIds.has(
-            idOf(hero),
-          ),
-      );
-
-    if (
-      !alternatives.length
-    ) {
+    if (!replacement) {
       continue;
     }
 
-    const replacement =
-      alternatives[
-        randomInt(
-          0,
-          alternatives.length - 1,
-        )
-      ];
+    usedHeroIds.delete(
+      normalize(
+        current.id,
+      ),
+    );
 
-    const changed:
-      GeneratedHero = {
+    usedHeroIds.add(
+      normalize(
+        idOf(replacement),
+      ),
+    );
+
+    const replacementHero: GeneratedHero = {
       id:
         idOf(replacement),
       name:
         nameOf(replacement),
       equipment: [],
-      /*
-       * Bij easy/medium verandert de pet niet.
-       * De pet blijft gekoppeld aan deze hero-slot.
-       */
       pet:
         current.pet ??
         null,
     };
 
-    const legalEquipment =
+    replacementHero.equipment =
       chooseHeroEquipment(
-        changed,
+        replacementHero,
         equipmentPool,
         equipmentSlots,
       );
 
-    const compatibleCurrent =
-      current.equipment.filter(
-        (
-          item,
-        ) =>
-          legalEquipment.some(
-            (
-              candidate,
-            ) =>
-              candidate.id ===
-              item.id,
-          ),
-      );
-
-    changed.equipment =
-      [
-        ...compatibleCurrent,
-        ...legalEquipment.filter(
-          (
-            candidate,
-          ) =>
-            !compatibleCurrent.some(
-              (
-                currentItem,
-              ) =>
-                currentItem.id ===
-                candidate.id,
-            ),
-        ),
-      ].slice(
-        0,
-        equipmentSlots,
-      );
-
     heroes[index] =
-      changed;
+      replacementHero;
   }
 
   /*
-   * =========================================================
-   * EQUIPMENT MUTATIONS
-   * =========================================================
+   * EQUIPMENT MUTATION
    *
-   * Easy   = 1 equipment
-   * Medium = 2 equipment
+   * Alleen NIET-gewisselde heroes.
+   *
+   * OH MY GOD:
+   *   1 van de 3
+   *
+   * OH HELL NO:
+   *   beide overige 2
    */
-  const equipmentChanges =
-    difficulty ===
-    "OH_MY_GOD"
-      ? 1
-      : 2;
-
   const equipmentTargets =
     shuffled(
-      heroes.map(
-        (
-          _,
-          index,
-        ) => index,
-      ),
+      heroes
+        .map(
+          (_, index) =>
+            index,
+        )
+        .filter(
+          (index) =>
+            !swapped.has(index),
+        ),
     ).slice(
       0,
-      Math.min(
-        equipmentChanges,
-        heroes.length,
-      ),
+      difficulty ===
+        "OH_MY_GOD"
+        ? 1
+        : 2,
     );
 
   for (
@@ -2215,49 +2199,47 @@ function mutateHeroes(
     const hero =
       heroes[index];
 
-    if (
-      !hero.equipment.length
-    ) {
-      hero.equipment =
-        chooseHeroEquipment(
-          hero,
-          equipmentPool,
-          equipmentSlots,
-        );
-
-      continue;
-    }
-
     const legal =
       compatibleEquipment(
         hero,
         equipmentPool,
       );
 
+    if (
+      legal.length <
+      equipmentSlots
+    ) {
+      continue;
+    }
+
+    const currentIds =
+      new Set(
+        hero.equipment.map(
+          (item) =>
+            normalize(
+              item.id,
+            ),
+        ),
+      );
+
     const alternatives =
       legal.filter(
-        (
-          item,
-        ) =>
-          !hero.equipment.some(
-            (
-              current,
-            ) =>
-              current.id ===
+        (item) =>
+          !currentIds.has(
+            normalize(
               idOf(item),
+            ),
           ),
       );
 
-    if (
-      !alternatives.length
-    ) {
+    if (!alternatives.length) {
       continue;
     }
 
     const slot =
       randomInt(
         0,
-        hero.equipment.length - 1,
+        equipmentSlots - 1,
       );
 
     const replacement =
@@ -2279,7 +2261,88 @@ function mutateHeroes(
   }
 
   /*
-   * Eindcontrole: nooit dubbele heroes/pets.
+   * PET MUTATION
+   *
+   * Pets zijn onafhankelijk van heroes.
+   * Iedere hero houdt exact één unieke pet.
+   */
+  const petTargets =
+    shuffled(
+      heroes.map(
+        (_, index) =>
+          index,
+      ),
+    ).slice(
+      0,
+      difficulty ===
+        "OH_MY_GOD"
+        ? 1
+        : 2,
+    );
+
+  const usedPetIds =
+    new Set<string>();
+
+  for (const hero of heroes) {
+    if (hero.pet) {
+      usedPetIds.add(
+        normalize(
+          hero.pet.id,
+        ),
+      );
+    }
+  }
+
+  for (
+    const index of
+      petTargets
+  ) {
+    const hero =
+      heroes[index];
+
+    const alternatives =
+      shuffled(
+        petPool.filter(
+          (pet) =>
+            !usedPetIds.has(
+              normalize(
+                idOf(pet),
+              ),
+            ),
+        ),
+      );
+
+    if (!alternatives.length) {
+      continue;
+    }
+
+    if (hero.pet) {
+      usedPetIds.delete(
+        normalize(
+          hero.pet.id,
+        ),
+      );
+    }
+
+    const replacement =
+      alternatives[0];
+
+    hero.pet = {
+      id:
+        idOf(replacement),
+      name:
+        nameOf(replacement),
+    };
+
+    usedPetIds.add(
+      normalize(
+        idOf(replacement),
+      ),
+    );
+  }
+
+  /*
+   * Definitieve legaliteitscontrole.
    */
   const heroIds =
     new Set<string>();
@@ -2293,7 +2356,9 @@ function mutateHeroes(
   ) {
     if (
       heroIds.has(
-        hero.id,
+        normalize(
+          hero.id,
+        ),
       )
     ) {
       throw new Error(
@@ -2302,15 +2367,56 @@ function mutateHeroes(
     }
 
     heroIds.add(
-      hero.id,
+      normalize(
+        hero.id,
+      ),
     );
 
     if (
-      hero.pet
+      hero.equipment.length !==
+      equipmentSlots
+    ) {
+      throw new Error(
+        `Ongeldige Challenge army: ${hero.name} heeft niet exact 2 equipment.`,
+      );
+    }
+
+    const legal =
+      compatibleEquipment(
+        hero,
+        equipmentPool,
+      );
+
+    for (
+      const equipment of
+        hero.equipment
     ) {
       if (
-        petIds.has(
+        !legal.some(
+          (candidate) =>
+            normalize(
+              idOf(candidate),
+            ) ===
+            normalize(
+              equipment.id,
+            ),
+        )
+      ) {
+        throw new Error(
+          `Ongeldige Challenge army: ${equipment.name} hoort niet bij ${hero.name}.`,
+        );
+      }
+    }
+
+    if (hero.pet) {
+      const petId =
+        normalize(
           hero.pet.id,
+        );
+
+      if (
+        petIds.has(
+          petId,
         )
       ) {
         throw new Error(
@@ -2319,7 +2425,7 @@ function mutateHeroes(
       }
 
       petIds.add(
-        hero.pet.id,
+        petId,
       );
     }
   }
@@ -2360,6 +2466,42 @@ export function generateMutationPercentages():
   );
 }
 
+
+function mutateSiegeMachine(
+  source: GeneratedArmy["siegeMachine"],
+  pool: GameDataItem[],
+): GeneratedArmy["siegeMachine"] {
+  const alternatives =
+    pool.filter(
+      (item) =>
+        normalize(
+          idOf(item),
+        ) !==
+        normalize(
+          source.id,
+        ),
+    );
+
+  if (!alternatives.length) {
+    return source;
+  }
+
+  const replacement =
+    alternatives[
+      randomInt(
+        0,
+        alternatives.length - 1,
+      )
+    ];
+
+  return {
+    id:
+      idOf(replacement),
+    name:
+      nameOf(replacement),
+  };
+}
+
 /* ============================================================
    PUBLIC API
    ============================================================ */
@@ -2397,6 +2539,12 @@ export async function mutateGeneratedArmy(
       difficulty,
     );
 
+  const siegeMachine =
+    mutateSiegeMachine(
+      source.siegeMachine,
+      capabilities.siegeMachines,
+    );
+
   return {
     ...clone(source),
 
@@ -2418,6 +2566,8 @@ export async function mutateGeneratedArmy(
         capabilities.spells,
       ),
 
+    siegeMachine,
+
     heroes,
 
     pets:
@@ -2436,7 +2586,16 @@ export async function mutateGeneratedArmy(
             pet !== null,
         ),
 
+    /*
+     * Clan Castle blijft volledig onaangeraakt.
+     */
+    clanCastle:
+      clone(
+        source.clanCastle,
+      ),
+
     generatedAt:
       new Date().toISOString(),
   };
 }
+

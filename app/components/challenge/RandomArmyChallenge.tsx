@@ -38,7 +38,7 @@ type Variant = {
   id: number;
   difficulty: string;
   mutatedPercent: number;
-  originalArmy: unknown | null;
+  originalArmy: Army | null;
   army: unknown;
   armyShareCode: string | null;
   sourceArmyId: number;
@@ -569,7 +569,7 @@ export default function RandomArmyChallenge({
               )}
             </div>
 
-            {selectedVariant.originalArmy && (
+            {selectedVariant.originalArmy != null && (
               <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-2 sm:p-3">
                 <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-white/30">
                   🎲 Originele random army

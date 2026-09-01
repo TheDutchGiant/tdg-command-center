@@ -345,6 +345,265 @@ function buildCapacityStacks(
   );
 }
 
+
+function buildOwnTroopStacks(
+  items: GameDataItem[],
+  capacity: number,
+  difficulty: Difficulty,
+): GeneratedStackItem[] {
+  if (capacity <= 0) {
+    return [];
+  }
+
+  type Candidate = {
+    item: GameDataItem;
+    housingSpace: number;
+    isSuperTroop: boolean;
+  };
+
+  const candidates: Candidate[] = [];
+
+  for (const item of items) {
+    const directSuper =
+      item.isSuperTroop === true ||
+      item.__isSuperTroop === true;
+
+    candidates.push({
+      item,
+      housingSpace: getHousingSpace(item),
+      isSuperTroop: directSuper,
+    });
+
+    if (
+      item.superTroop &&
+      typeof item.superTroop === "object" &&
+      !Array.isArray(item.superTroop)
+    ) {
+      const superTroop =
+        item.superTroop as GameDataItem;
+
+      candidates.push({
+        item: superTroop,
+        housingSpace:
+          getHousingSpace(superTroop),
+        isSuperTroop: true,
+      });
+    }
+  }
+
+  const valid =
+    candidates.filter(
+      (candidate) =>
+        candidate.housingSpace > 0 &&
+        candidate.housingSpace <= capacity,
+    );
+
+  const normal =
+    valid.filter(
+      (candidate) =>
+        !candidate.isSuperTroop,
+    );
+
+  const supers =
+    valid.filter(
+      (candidate) =>
+        candidate.isSuperTroop,
+    );
+
+  if (!normal.length || !supers.length) {
+    throw new Error(
+      "TH army pool moet zowel normale als Super Troops bevatten.",
+    );
+  }
+
+  const uniqueSupers =
+    new Map<string, Candidate>();
+
+  for (const candidate of supers) {
+    uniqueSupers.set(
+      String(
+        candidate.item.id ??
+          candidate.item.name,
+      ),
+      candidate,
+    );
+  }
+
+  const superTypes = [
+    ...uniqueSupers.values(),
+  ];
+
+  const profile =
+    difficultyProfile(difficulty);
+
+  /*
+   * We proberen bewust 1 of 2 Super Troop-types
+   * in de daadwerkelijke eigen army te krijgen.
+   */
+  for (
+    let attempt = 0;
+    attempt < MAX_GENERATION_ATTEMPTS;
+    attempt++
+  ) {
+    const selectedSuperCount =
+      superTypes.length >= 2 &&
+      Math.random() < 0.5
+        ? 2
+        : 1;
+
+    const selectedSupers =
+      shuffled(superTypes).slice(
+        0,
+        selectedSuperCount,
+      );
+
+    const allowedSuperIds =
+      new Set(
+        selectedSupers.map(
+          (candidate) =>
+            String(
+              candidate.item.id ??
+                candidate.item.name,
+            ),
+        ),
+      );
+
+    const pool = [
+      ...normal,
+      ...superTypes.filter(
+        (candidate) =>
+          allowedSuperIds.has(
+            String(
+              candidate.item.id ??
+                candidate.item.name,
+            ),
+          ),
+      ),
+    ];
+
+    let remaining = capacity;
+
+    const selected =
+      new Map<
+        string,
+        GeneratedStackItem
+      >();
+
+    while (remaining > 0) {
+      const possible =
+        pool.filter(
+          (candidate) =>
+            candidate.housingSpace <=
+            remaining,
+        );
+
+      if (!possible.length) {
+        break;
+      }
+
+      const weighted =
+        possible.map(
+          (candidate) => {
+            const id =
+              String(
+                candidate.item.id ??
+                  candidate.item.name,
+              );
+
+            const existing =
+              selected.has(id);
+
+            let weight =
+              1 + profile.variety;
+
+            if (existing) {
+              weight *=
+                profile.repetition;
+            }
+
+            return {
+              item: candidate,
+              weight,
+            };
+          },
+        );
+
+      const chosen =
+        weightedRandom(weighted);
+
+      const id =
+        String(
+          chosen.item.id ??
+            chosen.item.name,
+        );
+
+      const existing =
+        selected.get(id);
+
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        selected.set(id, {
+          id,
+          name: nameOf(
+            chosen.item,
+          ),
+          quantity: 1,
+          housingSpace:
+            getHousingSpace(
+              chosen.item,
+            ),
+        });
+      }
+
+      remaining -=
+        getHousingSpace(
+          chosen.item,
+        );
+    }
+
+    if (remaining !== 0) {
+      continue;
+    }
+
+    const result =
+      [...selected.values()];
+
+    const usedSuperTypes =
+      new Set<string>();
+
+    for (const troop of result) {
+      const candidate =
+        candidates.find(
+          (entry) =>
+            String(
+              entry.item.id ??
+                entry.item.name,
+            ) === troop.id,
+        );
+
+      if (
+        candidate?.isSuperTroop
+      ) {
+        usedSuperTypes.add(
+          troop.id,
+        );
+      }
+    }
+
+    if (
+      usedSuperTypes.size >= 1 &&
+      usedSuperTypes.size <= 2
+    ) {
+      return result;
+    }
+  }
+
+  throw new Error(
+    `Kon geen geldige TH army vinden met exact ${capacity} housing space en maximaal 2 Super Troop-types.`,
+  );
+}
+
 function buildSpellStacks(
   items: GameDataItem[],
   capacity: number,
@@ -643,10 +902,10 @@ export async function generateRandomArmy(
     );
 
   const troops =
-    buildCapacityStacks(
+    buildOwnTroopStacks(
       capabilities.troops,
       capabilities.troopCapacity,
-      difficulty
+      difficulty,
     );
 
   const spells =

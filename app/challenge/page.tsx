@@ -469,7 +469,41 @@ export default async function ChallengePage() {
               id: variant.id,
               difficulty: variant.difficulty,
               mutatedPercent: variant.mutatedPercent,
-              originalArmy: variant.originalArmy,
+              originalArmy:
+                variant.originalArmy != null &&
+                typeof variant.originalArmy === "object"
+                  ? (variant.originalArmy as {
+                      townHall: number;
+                      troops?: {
+                        id: string;
+                        name: string;
+                        quantity?: number;
+                      }[];
+                      spells?: {
+                        id: string;
+                        name: string;
+                        quantity?: number;
+                      }[];
+                      siegeMachine?: {
+                        id: string;
+                        name: string;
+                        quantity?: number;
+                      } | null;
+                      heroes?: {
+                        id: string;
+                        name: string;
+                        equipment?: {
+                          id: string;
+                          name: string;
+                        }[];
+                      }[];
+                      pets?: {
+                        id: string;
+                        name: string;
+                        quantity?: number;
+                      }[];
+                    })
+                  : null,
               army: variant.army,
               armyShareCode: variant.armyShareCode,
               sourceArmyId: variant.sourceArmyId,
