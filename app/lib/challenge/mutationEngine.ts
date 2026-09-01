@@ -1914,43 +1914,50 @@ function chooseHeroEquipment(
   )
     .slice(
       0,
-      slots,
+      Math.min(
+        slots,
+        pool.length,
+      ),
     )
-    .map((item) => ({
-      id:
-        idOf(item),
-      name:
-        nameOf(item),
-    }));
+    .map(
+      (item) => ({
+        id:
+          idOf(item),
+        name:
+          nameOf(item),
+      }),
+    );
 }
 
-function chooseRandomPetForHero(
-  pets: GeneratedHero["pet"][],
-  current: GeneratedHero["pet"],
-): GeneratedHero["pet"] {
-  const available =
-    pets.filter(
-      (pet) =>
-        pet !== null &&
-        pet.id !== current?.id,
-    );
-
-  if (!available.length) {
-    return current;
-  }
-
-  return available[
-    randomInt(
+function chooseUniquePets(
+  petPool: GameDataItem[],
+  count: number,
+): GeneratedHero["pet"][] {
+  return shuffled(
+    petPool,
+  )
+    .slice(
       0,
-      available.length - 1,
+      Math.min(
+        count,
+        petPool.length,
+      ),
     )
-  ];
+    .map(
+      (pet) => ({
+        id:
+          idOf(pet),
+        name:
+          nameOf(pet),
+      }),
+    );
 }
 
 function mutateHeroes(
   source: GeneratedHero[],
   heroPool: GameDataItem[],
   equipmentPool: GameDataItem[],
+  petPool: GameDataItem[],
   difficulty: MutationDifficulty,
 ): GeneratedHero[] {
   const heroes =
@@ -1963,109 +1970,81 @@ function mutateHeroes(
     return heroes;
   }
 
+  const heroCount =
+    heroes.length;
+
   const equipmentSlots =
     source[0]?.equipment.length ??
-    0;
+    2;
 
   /*
-   * Een wijziging mag nooit leiden tot hero-equipment
-   * die niet bij die hero hoort.
+   * =========================================================
+   * FUCK MY LIFE
+   * =========================================================
+   *
+   * Alles mag opnieuw gekozen worden.
+   *
+   * Maar:
+   * - heroes moeten uniek zijn
+   * - pets moeten uniek zijn
+   * - iedere hero krijgt exact één pet
+   * - equipment moet legaal zijn voor de gekozen hero
    */
-  const replaceEquipmentSlot = (
-    hero: GeneratedHero,
-  ): GeneratedHero => {
-    const legal =
-      chooseHeroEquipment(
-        hero,
-        equipmentPool,
-        equipmentSlots,
-      );
-
-    if (!legal.length) {
-      return hero;
-    }
-
-    const current =
-      [...hero.equipment];
-
-    if (!current.length) {
-      return {
-        ...hero,
-        equipment:
-          legal,
-      };
-    }
-
-    const slot =
-      randomInt(
-        0,
-        current.length - 1,
-      );
-
-    const replacement =
-      legal.find(
-        (item) =>
-          item.id !==
-          current[slot].id,
-      ) ??
-      legal[0];
-
-    current[slot] =
-      replacement;
-
-    return {
-      ...hero,
-      equipment:
-        current,
-    };
-  };
-
   if (
     difficulty ===
     "FUCK_MY_LIFE"
   ) {
-    const shuffledHeroes =
+    const selectedHeroes =
       shuffled(
         heroPool,
       ).slice(
         0,
-        heroes.length,
+        heroCount,
       );
 
-    return shuffledHeroes.map(
-      (hero, index) => {
-        const mutatedHero: GeneratedHero = {
+    const selectedPets =
+      chooseUniquePets(
+        petPool,
+        heroCount,
+      );
+
+    return selectedHeroes.map(
+      (
+        hero,
+        index,
+      ) => {
+        const result:
+          GeneratedHero = {
           id:
             idOf(hero),
           name:
             nameOf(hero),
           equipment: [],
           pet:
-            heroes[index]?.pet ??
+            selectedPets[index] ??
             null,
         };
 
-        return {
-          ...mutatedHero,
-          equipment:
-            chooseHeroEquipment(
-              mutatedHero,
-              equipmentPool,
-              equipmentSlots,
-            ),
-          pet:
-            chooseRandomPetForHero(
-              heroes.map(
-                (item) =>
-                  item.pet,
-              ),
-              mutatedHero.pet,
-            ),
-        };
+        result.equipment =
+          chooseHeroEquipment(
+            result,
+            equipmentPool,
+            equipmentSlots,
+          );
+
+        return result;
       },
     );
   }
 
+  /*
+   * =========================================================
+   * OH MY GOD / OH HELL NO
+   * =========================================================
+   *
+   * Hero swaps mogen nooit een hero opleveren die al
+   * op een andere positie staat.
+   */
   const heroSwapCount =
     difficulty ===
     "OH_MY_GOD"
@@ -2075,8 +2054,10 @@ function mutateHeroes(
   const swapIndices =
     shuffled(
       heroes.map(
-        (_, index) =>
+        (
+          _,
           index,
+        ) => index,
       ),
     ).slice(
       0,
@@ -2093,14 +2074,38 @@ function mutateHeroes(
     const current =
       heroes[index];
 
-    const alternatives =
-      heroPool.filter(
-        (hero) =>
-          idOf(hero) !==
-          current.id,
+    const usedHeroIds =
+      new Set(
+        heroes
+          .filter(
+            (
+              _,
+              heroIndex,
+            ) =>
+              heroIndex !==
+              index,
+          )
+          .map(
+            (hero) =>
+              hero.id,
+          ),
       );
 
-    if (!alternatives.length) {
+    const alternatives =
+      heroPool.filter(
+        (
+          hero,
+        ) =>
+          idOf(hero) !==
+            current.id &&
+          !usedHeroIds.has(
+            idOf(hero),
+          ),
+      );
+
+    if (
+      !alternatives.length
+    ) {
       continue;
     }
 
@@ -2108,73 +2113,78 @@ function mutateHeroes(
       alternatives[
         randomInt(
           0,
-          alternatives.length -
-            1,
+          alternatives.length - 1,
         )
       ];
 
-    const changed: GeneratedHero = {
+    const changed:
+      GeneratedHero = {
       id:
         idOf(replacement),
       name:
         nameOf(replacement),
       equipment: [],
+      /*
+       * Bij easy/medium verandert de pet niet.
+       * De pet blijft gekoppeld aan deze hero-slot.
+       */
       pet:
         current.pet ??
         null,
     };
 
-    /*
-     * Nieuwe hero krijgt alleen equipment die daadwerkelijk
-     * bij die hero hoort.
-     */
-    const legal =
+    const legalEquipment =
       chooseHeroEquipment(
         changed,
         equipmentPool,
         equipmentSlots,
       );
 
-    /*
-     * Probeer bestaande equipment te behouden als die toevallig
-     * ook voor de nieuwe hero geldig is.
-     */
     const compatibleCurrent =
       current.equipment.filter(
-        (item) =>
-          legal.some(
-            (candidate) =>
+        (
+          item,
+        ) =>
+          legalEquipment.some(
+            (
+              candidate,
+            ) =>
               candidate.id ===
               item.id,
           ),
       );
 
     changed.equipment =
-      compatibleCurrent.length
-        ? [
-            ...compatibleCurrent,
-            ...legal.filter(
-              (item) =>
-                !compatibleCurrent.some(
-                  (currentItem) =>
-                    currentItem.id ===
-                    item.id,
-                ),
+      [
+        ...compatibleCurrent,
+        ...legalEquipment.filter(
+          (
+            candidate,
+          ) =>
+            !compatibleCurrent.some(
+              (
+                currentItem,
+              ) =>
+                currentItem.id ===
+                candidate.id,
             ),
-          ].slice(
-            0,
-            equipmentSlots,
-          )
-        : legal;
+        ),
+      ].slice(
+        0,
+        equipmentSlots,
+      );
 
     heroes[index] =
       changed;
   }
 
   /*
-   * Easy = 1 equipment-mutatie.
-   * Medium = 2 equipment-mutaties.
-   * Pets blijven daarbij gekoppeld aan hun hero.
+   * =========================================================
+   * EQUIPMENT MUTATIONS
+   * =========================================================
+   *
+   * Easy   = 1 equipment
+   * Medium = 2 equipment
    */
   const equipmentChanges =
     difficulty ===
@@ -2182,11 +2192,13 @@ function mutateHeroes(
       ? 1
       : 2;
 
-  const equipmentIndices =
+  const equipmentTargets =
     shuffled(
       heroes.map(
-        (_, index) =>
+        (
+          _,
           index,
+        ) => index,
       ),
     ).slice(
       0,
@@ -2198,16 +2210,123 @@ function mutateHeroes(
 
   for (
     const index of
-      equipmentIndices
+      equipmentTargets
   ) {
-    heroes[index] =
-      replaceEquipmentSlot(
-        heroes[index],
+    const hero =
+      heroes[index];
+
+    if (
+      !hero.equipment.length
+    ) {
+      hero.equipment =
+        chooseHeroEquipment(
+          hero,
+          equipmentPool,
+          equipmentSlots,
+        );
+
+      continue;
+    }
+
+    const legal =
+      compatibleEquipment(
+        hero,
+        equipmentPool,
       );
+
+    const alternatives =
+      legal.filter(
+        (
+          item,
+        ) =>
+          !hero.equipment.some(
+            (
+              current,
+            ) =>
+              current.id ===
+              idOf(item),
+          ),
+      );
+
+    if (
+      !alternatives.length
+    ) {
+      continue;
+    }
+
+    const slot =
+      randomInt(
+        0,
+        hero.equipment.length - 1,
+      );
+
+    const replacement =
+      alternatives[
+        randomInt(
+          0,
+          alternatives.length - 1,
+        )
+      ];
+
+    hero.equipment[
+      slot
+    ] = {
+      id:
+        idOf(replacement),
+      name:
+        nameOf(replacement),
+    };
+  }
+
+  /*
+   * Eindcontrole: nooit dubbele heroes/pets.
+   */
+  const heroIds =
+    new Set<string>();
+
+  const petIds =
+    new Set<string>();
+
+  for (
+    const hero of
+      heroes
+  ) {
+    if (
+      heroIds.has(
+        hero.id,
+      )
+    ) {
+      throw new Error(
+        `Ongeldige Challenge army: dubbele hero ${hero.name}.`,
+      );
+    }
+
+    heroIds.add(
+      hero.id,
+    );
+
+    if (
+      hero.pet
+    ) {
+      if (
+        petIds.has(
+          hero.pet.id,
+        )
+      ) {
+        throw new Error(
+          `Ongeldige Challenge army: dubbele pet ${hero.pet.name}.`,
+        );
+      }
+
+      petIds.add(
+        hero.pet.id,
+      );
+    }
   }
 
   return heroes;
 }
+
 
 /* ============================================================
    PERCENTAGES
@@ -2274,6 +2393,7 @@ export async function mutateGeneratedArmy(
       source.heroes,
       capabilities.heroes,
       capabilities.heroEquipment,
+      capabilities.pets,
       difficulty,
     );
 
