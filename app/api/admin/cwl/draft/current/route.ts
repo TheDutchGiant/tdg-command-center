@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { requireAdmin } from "@/app/lib/auth/session";
+import { checkForNewCWL } from "@/app/lib/checkForNewCWL";
 
 const CLAN_ORDER = [
   {
@@ -31,9 +32,31 @@ export async function GET() {
   try {
     await requireAdmin();
 
-    const season = new Date()
-      .toISOString()
-      .slice(0, 7);
+    /*
+     * De actieve CWL-season komt uit Clash.
+     *
+     * BELANGRIJK:
+     * De kalendermaand is niet leidend voor de actieve
+     * selectie. Een CWL die op 1 september begint kan
+     * bijvoorbeeld season 2026-08 hebben.
+     *
+     * Zolang Clash een actieve CWL teruggeeft gebruiken
+     * we exact die season, zodat een FINAL selectie niet
+     * verdwijnt bij de maandwisseling.
+     */
+    const cwl = await checkForNewCWL();
+
+    const season =
+      cwl.active && cwl.league?.season
+        ? cwl.league.season
+        : null;
+
+    if (!season) {
+      return NextResponse.json({
+        success: true,
+        plan: null,
+      });
+    }
 
     const plan =
       await prisma.cwlPlan.findUnique({

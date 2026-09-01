@@ -1,15 +1,12 @@
 import { prisma } from "@/app/lib/prisma";
 import { PHOENIX } from "@/app/lib/config";
+import { checkForNewCWL } from "@/app/lib/checkForNewCWL";
 
 type Props = {
   params: Promise<{
     tag: string;
   }>;
 };
-
-function getSeason() {
-  return new Date().toISOString().slice(0, 7);
-}
 
 function getResult(
   clanStars: number,
@@ -27,7 +24,20 @@ function getResult(
 export default async function CWLPage({ params }: Props) {
   const { tag } = await params;
   const clan = PHOENIX.clans.find((c) => c.tag === tag);
-  const season = getSeason();
+
+  /*
+   * De actieve CWL-season komt rechtstreeks uit Clash.
+   *
+   * Hierdoor blijft bijvoorbeeld een FINAL plan met
+   * season 2026-08 zichtbaar wanneer de CWL op 1 september
+   * nog actief is.
+   */
+  const cwl = await checkForNewCWL();
+
+  const season =
+    cwl.active && cwl.league?.season
+      ? cwl.league.season
+      : null;
 
   const wars = await prisma.war.findMany({
     where: {
@@ -82,11 +92,12 @@ export default async function CWLPage({ params }: Props) {
 
   const normalizedClanTag = `#${tag.replace("#", "")}`;
 
-  const currentPlan = await prisma.cwlPlan.findUnique({
-    where: {
-      season,
-    },
-    include: {
+  const currentPlan = season
+    ? await prisma.cwlPlan.findUnique({
+        where: {
+          season,
+        },
+        include: {
       clanPlans: {
         where: {
           clanTag: normalizedClanTag,
@@ -98,9 +109,10 @@ export default async function CWLPage({ params }: Props) {
             },
           },
         },
+        },
       },
-    },
-  });
+    })
+    : null;
 
   const currentClanPlan =
     currentPlan?.status === "FINAL"
