@@ -275,16 +275,12 @@ export default async function ChallengePage() {
    * variant. De echte 3-keuze UI volgt hierna.
    */
   const activeVariant =
-    challenge.variants[0];
-
-  if (!activeVariant) {
-    throw new Error(
-      "De Random Army varianten zijn nog niet gegenereerd.",
-    );
-  }
+    challenge.variants[0] ?? null;
 
   const army =
-    activeVariant.army as unknown as GeneratedArmy;
+    activeVariant?.army
+      ? activeVariant.army as unknown as GeneratedArmy
+      : null;
 
   const base = challenge.baseId
     ? await prisma.base.findUnique({
@@ -332,7 +328,9 @@ export default async function ChallengePage() {
     challenge.endsAt?.toISOString() ?? null;
 
   const armyLink =
-    buildArmyLink(army);
+    army
+      ? buildArmyLink(army)
+      : null;
 
   // Phoenix Game Catalogus is de centrale bron
   // voor namen, iconen en SuperTroop-status.
