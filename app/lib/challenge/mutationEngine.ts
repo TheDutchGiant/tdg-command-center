@@ -393,7 +393,7 @@ function compressTroops(
     const item of items
   ) {
     const key =
-      normalize(item.id);
+      troopTypeKey(item);
 
     const existing =
       result.get(key);
@@ -466,15 +466,19 @@ type RemovalOption = {
   bannedTypes: Set<string>;
 };
 
+function troopTypeKey(
+  item: Pick<GeneratedStackItem, "name">,
+): string {
+  return normalize(item.name);
+}
+
 function removalSignature(
   units: GeneratedStackItem[],
 ): string {
   return units
     .map(
       (item) =>
-        normalize(
-          item.id,
-        ),
+        troopTypeKey(item),
     )
     .sort()
     .join("|");
@@ -688,9 +692,7 @@ function buildRemovalOptions(
         new Set(
           units.map(
             (item) =>
-              normalize(
-                item.id,
-              ),
+              troopTypeKey(item),
           ),
         );
 
@@ -1141,9 +1143,7 @@ function exactTroopReplacement(
       new Set(
         compressed.map(
           (item) =>
-            normalize(
-              item.id,
-            ),
+            troopTypeKey(item),
         ),
       );
 
@@ -1444,9 +1444,7 @@ function mutateTroops(
       new Set(
         replacement.map(
           (item) =>
-            normalize(
-              item.id,
-            ),
+            troopTypeKey(item),
         ),
       );
 
