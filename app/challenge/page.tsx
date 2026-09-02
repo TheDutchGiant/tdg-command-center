@@ -488,10 +488,21 @@ export default async function ChallengePage() {
                 upload die hieronder.
               </p>
 
-              <ChallengeSubmitForm
-                challengeId={challenge.id}
-                difficulty={activeVariant.difficulty}
-              />
+              {activeVariant ? (
+                <ChallengeSubmitForm
+                  challengeId={challenge.id}
+                  difficulty={activeVariant.difficulty}
+                />
+              ) : (
+                <div className="mt-4 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-4 text-center">
+                  <p className="text-sm font-bold text-white/40">
+                    De challenge-army wordt voorbereid.
+                  </p>
+                  <p className="mt-1 text-[10px] text-white/25">
+                    De definitieve army verschijnt zodra de generator klaar is.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </section>
