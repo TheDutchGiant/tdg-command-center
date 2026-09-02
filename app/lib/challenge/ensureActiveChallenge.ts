@@ -26,7 +26,7 @@ const DIFFICULTIES: MutationDifficulty[] = [
   "FUCK_MY_LIFE",
 ];
 
-const TOWN_HALLS = [13, 14, 15, 16, 17, 18];
+const TOWN_HALLS = [18];
 
 function randomItem<T>(items: T[]): T {
   if (!items.length) {
