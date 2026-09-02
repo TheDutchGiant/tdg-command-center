@@ -49,7 +49,7 @@ export type GeneratedArmy = {
   siegeMachine: {
     id: string;
     name: string;
-  };
+  } | null;
 
   heroes: GeneratedHero[];
 

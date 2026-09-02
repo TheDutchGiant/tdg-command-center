@@ -2513,6 +2513,10 @@ function mutateSiegeMachine(
   source: GeneratedArmy["siegeMachine"],
   pool: GameDataItem[],
 ): GeneratedArmy["siegeMachine"] {
+  if (!source) {
+    return null;
+  }
+
   const alternatives =
     pool.filter(
       (item) =>

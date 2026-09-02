@@ -473,34 +473,28 @@ async function buildSourceArmy(
   const sourceSiege =
     discovery.siegeMachine;
 
-  if (
-    !sourceSiege ||
-    typeof sourceSiege !== "object" ||
-    Array.isArray(sourceSiege)
-  ) {
-    throw new Error(
-      `Discovery Army "${discovery.name}" heeft geen gebruikte siege machine.`,
-    );
-  }
+  const siegeMachine =
+    sourceSiege &&
+    typeof sourceSiege === "object" &&
+    !Array.isArray(sourceSiege)
+      ? (() => {
+          const siege =
+            sourceSiege as Record<string, unknown>;
 
-  const siege =
-    sourceSiege as Record<
-      string,
-      unknown
-    >;
-
-  const siegeMachine = {
-    id: String(
-      siege.id ??
-        siege.name ??
-        "unknown",
-    ),
-    name: String(
-      siege.name ??
-        siege.id ??
-        "Unknown",
-    ),
-  };
+          return {
+            id: String(
+              siege.id ??
+                siege.name ??
+                "unknown",
+            ),
+            name: String(
+              siege.name ??
+                siege.id ??
+                "Unknown",
+            ),
+          };
+        })()
+      : null;
 
   const troopCapacity =
     troops.reduce(
