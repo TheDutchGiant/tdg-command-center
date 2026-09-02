@@ -2283,14 +2283,14 @@ function mutateHeroes(
         : 2,
     );
 
-  const usedPetIds =
+  const usedPetNames =
     new Set<string>();
 
   for (const hero of heroes) {
     if (hero.pet) {
-      usedPetIds.add(
+      usedPetNames.add(
         normalize(
-          hero.pet.id,
+          hero.pet.name,
         ),
       );
     }
@@ -2303,28 +2303,35 @@ function mutateHeroes(
     const hero =
       heroes[index];
 
+    if (hero.pet) {
+      usedPetNames.delete(
+        normalize(
+          hero.pet.name,
+        ),
+      );
+    }
+
     const alternatives =
       shuffled(
         petPool.filter(
           (pet) =>
-            !usedPetIds.has(
+            !usedPetNames.has(
               normalize(
-                idOf(pet),
+                nameOf(pet),
               ),
             ),
         ),
       );
 
     if (!alternatives.length) {
+      if (hero.pet) {
+        usedPetNames.add(
+          normalize(
+            hero.pet.name,
+          ),
+        );
+      }
       continue;
-    }
-
-    if (hero.pet) {
-      usedPetIds.delete(
-        normalize(
-          hero.pet.id,
-        ),
-      );
     }
 
     const replacement =
@@ -2337,9 +2344,9 @@ function mutateHeroes(
         nameOf(replacement),
     };
 
-    usedPetIds.add(
+    usedPetNames.add(
       normalize(
-        idOf(replacement),
+        nameOf(replacement),
       ),
     );
   }
@@ -2463,9 +2470,14 @@ function mutateHeroes(
           hero.pet.id,
         );
 
+      const petName =
+        normalize(
+          hero.pet.name,
+        );
+
       if (
         petIds.has(
-          petId,
+          petName,
         )
       ) {
         throw new Error(
@@ -2474,7 +2486,7 @@ function mutateHeroes(
       }
 
       petIds.add(
-        petId,
+        petName,
       );
     }
   }
