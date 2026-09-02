@@ -1982,7 +1982,7 @@ function mutateHeroes(
   const chooseDifferentHero =
     (
       currentId: string,
-      usedIds: Set<string>,
+      usedHeroNames: Set<string>,
     ): GameDataItem | null => {
       const alternatives =
         uniqueHeroPool.filter(
@@ -1992,12 +1992,17 @@ function mutateHeroes(
                 idOf(hero),
               );
 
+            const name =
+              normalize(
+                nameOf(hero),
+              );
+
             return (
               id !==
                 normalize(
                   currentId,
                 ) &&
-              !usedIds.has(id)
+              !usedHeroNames.has(name)
             );
           },
         );
@@ -2091,12 +2096,12 @@ function mutateHeroes(
   /*
    * Houd bestaande heroes uniek.
    */
-  const usedHeroIds =
+  const usedHeroNames =
     new Set<string>();
 
   for (const hero of heroes) {
-    usedHeroIds.add(
-      normalize(hero.id),
+    usedHeroNames.add(
+      normalize(hero.name),
     );
   }
 
@@ -2119,22 +2124,22 @@ function mutateHeroes(
     const replacement =
       chooseDifferentHero(
         current.id,
-        usedHeroIds,
+        usedHeroNames,
       );
 
     if (!replacement) {
       continue;
     }
 
-    usedHeroIds.delete(
+    usedHeroNames.delete(
       normalize(
-        current.id,
+        current.name,
       ),
     );
 
-    usedHeroIds.add(
+    usedHeroNames.add(
       normalize(
-        idOf(replacement),
+        nameOf(replacement),
       ),
     );
 
@@ -2341,6 +2346,8 @@ function mutateHeroes(
 
   /*
    * Definitieve legaliteitscontrole.
+   *
+   * Heroes zijn uniek op exacte naam.
    */
   const heroIds =
     new Set<string>();
