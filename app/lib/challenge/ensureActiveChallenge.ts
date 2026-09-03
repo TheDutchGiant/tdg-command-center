@@ -991,31 +991,11 @@ export async function ensureActiveChallenge() {
   }
 
   /*
-   * Alleen na de 24 uur countdown genereren.
-   * Daarna blijven de drie variants locked.
+   * BELANGRIJK:
+   * De pagina genereert NOOIT zelf variants.
+   *
+   * De generator draait apart. Zo kan een zware
+   * generatie de website niet blokkeren.
    */
-  if (
-    now >= active.generationAt &&
-    active.variants.length < 3
-  ) {
-    await ensureVariants({
-      id: active.id,
-      townHall:
-        active.townHall,
-      sourceArmyId:
-        active.sourceArmyId,
-    });
-
-    active =
-      (await prisma.randomChallenge.findUnique({
-        where: {
-          id: active.id,
-        },
-        include: {
-          variants: true,
-        },
-      }))!;
-  }
-
   return active;
 }
