@@ -1976,193 +1976,259 @@ function mutateHeroes(
   const equipmentSlots =
     2;
 
-  const uniqueHeroPool =
-    shuffled(heroPool);
+  /*
+   * UNIEK:
+   * De hero-pool bevat mogelijk meerdere interne records
+   * voor dezelfde hero. Voor de Challenge telt de exacte
+   * hero-naam als uniek type.
+   */
+  const uniqueHeroMap =
+    new Map<string, GameDataItem>();
 
-  const chooseDifferentHero =
-    (
-      currentId: string,
-      usedHeroNames: Set<string>,
-    ): GameDataItem | null => {
+  for (const hero of heroPool) {
+    const key =
+      normalize(
+        nameOf(hero),
+      );
+
+    if (!uniqueHeroMap.has(key)) {
+      uniqueHeroMap.set(key, hero);
+    }
+  }
+
+  const uniqueHeroPool =
+    shuffled([
+      ...uniqueHeroMap.values(),
+    ]);
+
+  /*
+   * FUCK MY LIFE:
+   *
+   * 3 of 4 heroes worden vervangen.
+   *
+   * Alleen heroes die NIET zijn verwijderd
+   * blijven geblokkeerd.
+   *
+   * Een hero die eruit is gehaald mag dus
+   * opnieuw als replacement worden gekozen.
+   */
+  if (
+    difficulty ===
+    "FUCK_MY_LIFE"
+  ) {
+    const swapCount =
+      Math.random() < 0.5
+        ? 3
+        : 4;
+
+    const swapIndices =
+      shuffled(
+        heroes.map(
+          (_, index) =>
+            index,
+        ),
+      ).slice(
+        0,
+        swapCount,
+      );
+
+    const swapped =
+      new Set(
+        swapIndices,
+      );
+
+    /*
+     * Heroes die blijven staan zijn geblokkeerd.
+     */
+    const blockedNames =
+      new Set<string>();
+
+    for (
+      let index = 0;
+      index < heroes.length;
+      index++
+    ) {
+      if (!swapped.has(index)) {
+        blockedNames.add(
+          normalize(
+            heroes[index].name,
+          ),
+        );
+      }
+    }
+
+    /*
+     * Per replacement:
+     * - geblokkeerde heroes mogen niet;
+     * - al gekozen replacements mogen niet;
+     * - eerder verwijderde heroes mogen WEL.
+     */
+    const chosenNames =
+      new Set<string>();
+
+    for (
+      const index of swapIndices
+    ) {
       const alternatives =
         uniqueHeroPool.filter(
           (hero) => {
-            const id =
-              normalize(
-                idOf(hero),
-              );
-
             const name =
               normalize(
                 nameOf(hero),
               );
 
             return (
-              id !==
-                normalize(
-                  currentId,
-                ) &&
-              !usedHeroNames.has(name)
+              !blockedNames.has(name) &&
+              !chosenNames.has(name)
             );
           },
         );
 
       if (!alternatives.length) {
-        return null;
+        continue;
       }
 
-      return alternatives[
-        randomInt(
-          0,
-          alternatives.length - 1,
-        )
-      ];
-    };
+      const replacement =
+        alternatives[
+          randomInt(
+            0,
+            alternatives.length - 1,
+          )
+        ];
 
-  /*
-   * FUCK MY LIFE
-   *
-   * Alles opnieuw legaal randomiseren.
-   */
-  if (
-    difficulty ===
-    "FUCK_MY_LIFE"
-  ) {
-    const selectedHeroes =
-      shuffled(
-        uniqueHeroPool,
-      ).slice(0, 4);
-
-    const selectedPets =
-      chooseUniquePets(
-        petPool,
-        4,
+      chosenNames.add(
+        normalize(
+          nameOf(replacement),
+        ),
       );
 
-    return selectedHeroes.map(
-      (
-        hero,
-        index,
-      ) => ({
+      const current =
+        heroes[index];
+
+      const replacementHero:
+        GeneratedHero = {
         id:
-          idOf(hero),
+          idOf(replacement),
         name:
-          nameOf(hero),
-        equipment:
-          chooseHeroEquipment(
-            {
-              id:
-                idOf(hero),
-              name:
+          nameOf(replacement),
+        equipment: [],
+        pet:
+          current.pet ??
+          null,
+      };
+
+      replacementHero.equipment =
+        chooseHeroEquipment(
+          replacementHero,
+          equipmentPool,
+          equipmentSlots,
+        );
+
+      heroes[index] =
+        replacementHero;
+    }
+  } else {
+    /*
+     * NORMALE HERO MUTATIE
+     *
+     * OH MY GOD:
+     *   1 eruit -> alleen de 2 heroes
+     *   die NIET in de originele army zaten.
+     *
+     * OH HELL NO:
+     *   2 eruit -> de andere 2 heroes.
+     */
+    const swapCount =
+      difficulty ===
+      "OH_MY_GOD"
+        ? 1
+        : 2;
+
+    const swapIndices =
+      shuffled(
+        heroes.map(
+          (_, index) =>
+            index,
+        ),
+      ).slice(
+        0,
+        swapCount,
+      );
+
+    /*
+     * Alle oorspronkelijke heroes zijn
+     * geblokkeerd als replacement.
+     */
+    const blockedNames =
+      new Set(
+        source.map(
+          (hero) =>
+            normalize(
+              hero.name,
+            ),
+        ),
+      );
+
+    const replacements =
+      shuffled(
+        uniqueHeroPool.filter(
+          (hero) =>
+            !blockedNames.has(
+              normalize(
                 nameOf(hero),
-              equipment: [],
-              pet: null,
-            },
+              ),
+            ),
+        ),
+      ).slice(
+        0,
+        swapCount,
+      );
+
+    /*
+     * Alleen uitvoeren wanneer voor iedere
+     * swap een unieke nieuwe hero beschikbaar is.
+     */
+    if (
+      replacements.length ===
+      swapCount
+    ) {
+      for (
+        let i = 0;
+        i < swapIndices.length;
+        i++
+      ) {
+        const index =
+          swapIndices[i];
+
+        const current =
+          heroes[index];
+
+        const replacement =
+          replacements[i];
+
+        const replacementHero:
+          GeneratedHero = {
+          id:
+            idOf(replacement),
+          name:
+            nameOf(replacement),
+          equipment: [],
+          pet:
+            current.pet ??
+            null,
+        };
+
+        replacementHero.equipment =
+          chooseHeroEquipment(
+            replacementHero,
             equipmentPool,
             equipmentSlots,
-          ),
-        pet:
-          selectedPets[index] ??
-          null,
-      }),
-    );
-  }
+          );
 
-  const heroSwapCount =
-    difficulty ===
-    "OH_MY_GOD"
-      ? 1
-      : 2;
-
-  /*
-   * Kies eerst welke hero-slots wisselen.
-   */
-  const swapIndices =
-    shuffled(
-      heroes.map(
-        (_, index) =>
-          index,
-      ),
-    ).slice(
-      0,
-      heroSwapCount,
-    );
-
-  const swapped =
-    new Set(
-      swapIndices,
-    );
-
-  /*
-   * Houd bestaande heroes uniek.
-   */
-  const usedHeroNames =
-    new Set<string>();
-
-  for (const hero of heroes) {
-    usedHeroNames.add(
-      normalize(hero.name),
-    );
-  }
-
-  /*
-   * HERO SWAPS
-   *
-   * Een gewisselde hero krijgt automatisch
-   * legale equipment van de nieuwe hero.
-   * Dit is geen extra equipment-mutation,
-   * maar noodzakelijk om de army legaal te houden.
-   *
-   * De pet blijft op deze hero-slot staan.
-   */
-  for (
-    const index of swapIndices
-  ) {
-    const current =
-      heroes[index];
-
-    const replacement =
-      chooseDifferentHero(
-        current.id,
-        usedHeroNames,
-      );
-
-    if (!replacement) {
-      continue;
+        heroes[index] =
+          replacementHero;
+      }
     }
-
-    usedHeroNames.delete(
-      normalize(
-        current.name,
-      ),
-    );
-
-    usedHeroNames.add(
-      normalize(
-        nameOf(replacement),
-      ),
-    );
-
-    const replacementHero: GeneratedHero = {
-      id:
-        idOf(replacement),
-      name:
-        nameOf(replacement),
-      equipment: [],
-      pet:
-        current.pet ??
-        null,
-    };
-
-    replacementHero.equipment =
-      chooseHeroEquipment(
-        replacementHero,
-        equipmentPool,
-        equipmentSlots,
-      );
-
-    heroes[index] =
-      replacementHero;
   }
 
   /*
@@ -2184,8 +2250,7 @@ function mutateHeroes(
             index,
         )
         .filter(
-          (index) =>
-            !swapped.has(index),
+          () => true,
         ),
     ).slice(
       0,
@@ -2369,7 +2434,7 @@ function mutateHeroes(
     if (
       heroIds.has(
         normalize(
-          hero.id,
+          hero.name,
         ),
       )
     ) {
@@ -2380,7 +2445,7 @@ function mutateHeroes(
 
     heroIds.add(
       normalize(
-        hero.id,
+        hero.name,
       ),
     );
 
