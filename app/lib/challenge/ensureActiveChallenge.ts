@@ -727,7 +727,7 @@ function buildVariantShareCode(
   }
 }
 
-async function ensureVariants(
+export async function ensureVariants(
   challenge: {
     id: number;
     townHall: number;

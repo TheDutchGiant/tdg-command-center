@@ -53,6 +53,7 @@ type Props = {
   endsAt: string;
   variants: Variant[];
   catalog: CatalogItem[];
+  onDifficultyChange?: (difficulty: string | null) => void;
 };
 
 const DIFFICULTIES = [
@@ -414,6 +415,7 @@ export default function RandomArmyChallenge({
   endsAt,
   variants,
   catalog,
+  onDifficultyChange,
 }: Props) {
   const [
     selectedDifficulty,
@@ -523,6 +525,10 @@ export default function RandomArmyChallenge({
 
                   setGenerated(
                     false,
+                  );
+
+                  onDifficultyChange?.(
+                    difficulty.key,
                   );
                 }}
                 className={[

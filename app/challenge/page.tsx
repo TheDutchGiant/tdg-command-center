@@ -1,6 +1,6 @@
 import { prisma } from "@/app/lib/prisma";
 import { ensureActiveChallenge } from "@/app/lib/challenge/ensureActiveChallenge";
-import ChallengeSubmitForm from "@/app/components/challenge/ChallengeSubmitForm";
+import ChallengeInteraction from "@/app/components/challenge/ChallengeInteraction";
 import OffMetaGenerator from "@/app/components/challenge/OffMetaGenerator";
 import RandomArmyChallenge from "@/app/components/challenge/RandomArmyChallenge";
 import type { GeneratedArmy } from "@/app/lib/challenge/randomArmy";
@@ -464,49 +464,6 @@ export default async function ChallengePage() {
             )}
           </section>
 
-        {/* ====================================================
-            MEEDOEN
-           ==================================================== */}
-
-        <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5 lg:col-start-3 lg:row-start-2">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">
-                Challenge
-              </p>
-
-              <h2 className="mt-1 text-lg font-black">
-                📸 Meedoen
-              </h2>
-
-              <p className="mt-2 max-w-2xl text-xs leading-5 text-white/40">
-                Doe de challenge met exact deze
-                army en deze base. Bekijk daarna
-                de replay en open de chat zodra de
-                aanval daadwerkelijk begint. Maak
-                op dat moment één screenshot en
-                upload die hieronder.
-              </p>
-
-              {activeVariant ? (
-                <ChallengeSubmitForm
-                  challengeId={challenge.id}
-                  difficulty={activeVariant.difficulty}
-                />
-              ) : (
-                <div className="mt-4 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-4 text-center">
-                  <p className="text-sm font-bold text-white/40">
-                    De challenge-army wordt voorbereid.
-                  </p>
-                  <p className="mt-1 text-[10px] text-white/25">
-                    De definitieve army verschijnt zodra de generator klaar is.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
 
                 <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20 lg:col-start-2 lg:row-start-2">
                   <div className="border-b border-white/10 px-3 py-2">
@@ -527,9 +484,7 @@ export default async function ChallengePage() {
                   </div>
                 </div>
 
-          {/* RANDOM ARMY */}
-          <div className="min-w-0 lg:col-start-3 lg:row-start-1">
-          <RandomArmyChallenge
+          <ChallengeInteraction
             challengeId={challenge.id}
             title={challenge.title}
             townHall={challenge.townHall}
@@ -581,7 +536,6 @@ export default async function ChallengePage() {
             }))}
             catalog={catalogItems}
           />
-          </div>
 
         </section>
 
