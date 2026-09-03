@@ -18,7 +18,6 @@ import {
 } from "./randomArmy";
 
 const CHALLENGE_DURATION_DAYS = 7;
-const GENERATION_DELAY_HOURS = 24;
 
 const DIFFICULTIES: MutationDifficulty[] = [
   "OH_MY_GOD",
@@ -871,12 +870,33 @@ export async function ensureVariants(
   }
 }
 
-export async function ensureActiveChallenge() {
-  const now =
-    new Date();
+export async function startNewChallenge(options?: {
+  manual?: boolean;
+}) {
+  const now = new Date();
 
-  let active =
-    await prisma.randomChallenge.findFirst({
+  /*
+   * Handmatig starten betekent:
+   * de huidige challenge vervalt onmiddellijk.
+   *
+   * We gebruiken CLOSED zodat we geen database-migratie
+   * nodig hebben voor een extra CANCELLED-status.
+   */
+  if (options?.manual) {
+    await prisma.randomChallenge.updateMany({
+      where: {
+        status: "ACTIVE",
+      },
+      data: {
+        status: "CLOSED",
+      },
+    });
+  } else {
+    /*
+     * Automatische start:
+     * een nog geldige ACTIVE challenge blijft gewoon staan.
+     */
+    const active = await prisma.randomChallenge.findFirst({
       where: {
         status: "ACTIVE",
         startsAt: {
@@ -894,108 +914,124 @@ export async function ensureActiveChallenge() {
       },
     });
 
-  /*
-   * Ook een al aangemaakte toekomstige challenge
-   * teruggeven. De pagina kan daarmee de countdown tonen.
-   */
-  if (!active) {
-    active =
-      await prisma.randomChallenge.findFirst({
-        where: {
-          status: "ACTIVE",
-          startsAt: {
-            gt: now,
-          },
+    if (active) {
+      return active;
+    }
+
+    /*
+     * Oude verlopen ACTIVE challenges sluiten.
+     */
+    await prisma.randomChallenge.updateMany({
+      where: {
+        status: "ACTIVE",
+        endsAt: {
+          lte: now,
         },
-        orderBy: {
-          startsAt: "asc",
-        },
-        include: {
-          variants: true,
-        },
-      });
+      },
+      data: {
+        status: "CLOSED",
+      },
+    });
   }
 
+  const latest = await prisma.randomChallenge.findFirst({
+    orderBy: {
+      id: "desc",
+    },
+  });
+
+  const townHall = randomItem(TOWN_HALLS);
+
+  const source = await chooseSourceArmy();
+
+  const base = await chooseBase(townHall);
+
   /*
-   * Geen challenge? Maak de volgende donderdag 19:00.
+   * Alles begint exact op hetzelfde moment.
    */
-  if (!active) {
-    const latest =
-      await prisma.randomChallenge.findFirst({
-        orderBy: {
-          id: "desc",
-        },
-      });
+  const startsAt = new Date(now);
 
-    const townHall =
-      randomItem(
-        TOWN_HALLS,
-      );
+  const generationAt = new Date(now);
 
-    const source =
-      await chooseSourceArmy();
-
-    const base =
-      await chooseBase(
-        townHall,
-      );
-
-    const startsAt =
-      nextThursdayAt19(
-        now,
-      );
-
-    const generationAt =
-      new Date(
-        startsAt.getTime() +
-          GENERATION_DELAY_HOURS *
-            60 *
-            60 *
-            1000,
-      );
-
-    const endsAt =
-      new Date(
-        startsAt.getTime() +
-          CHALLENGE_DURATION_DAYS *
-            24 *
-            60 *
-            60 *
-            1000,
-      );
-
-    active =
-      await prisma.randomChallenge.create({
-        data: {
-          title:
-            `TDG Random Army Challenge #${
-              (latest?.id ?? 0) + 1
-            }`,
-          townHall,
-          baseId:
-            base?.id ?? null,
-          startsAt,
-          generationAt,
-          endsAt,
-          status:
-            "ACTIVE",
-          sourceArmyId:
-            source.id,
-          sourceArmyName:
-            source.name,
-        },
-        include: {
-          variants: true,
-        },
-      });
-  }
+  const endsAt = new Date(
+    now.getTime() +
+      CHALLENGE_DURATION_DAYS * 24 * 60 * 60 * 1000
+  );
 
   /*
-   * BELANGRIJK:
-   * De pagina genereert NOOIT zelf variants.
+   * Eerst de challenge aanmaken.
+   */
+  const challenge = await prisma.randomChallenge.create({
+    data: {
+      title: `TDG Random Army Challenge #${(latest?.id ?? 0) + 1}`,
+      townHall,
+      baseId: base?.id ?? null,
+      startsAt,
+      generationAt,
+      endsAt,
+      status: "ACTIVE",
+      sourceArmyId: source.id,
+      sourceArmyName: source.name,
+    },
+  });
+
+  /*
+   * Daarna direct de drie varianten genereren en locken.
    *
-   * De generator draait apart. Zo kan een zware
-   * generatie de website niet blokkeren.
+   * Dit gebeurt alleen bij het starten van een challenge,
+   * nooit bij iedere bezoeker van /challenge.
    */
-  return active;
+  await ensureVariants({
+    id: challenge.id,
+    townHall: challenge.townHall,
+    sourceArmyId: challenge.sourceArmyId,
+  });
+
+  return prisma.randomChallenge.findUniqueOrThrow({
+    where: {
+      id: challenge.id,
+    },
+    include: {
+      variants: true,
+    },
+  });
+}
+
+export async function ensureActiveChallenge() {
+  const now = new Date();
+
+  /*
+   * Geldige challenge?
+   * Dan niets doen.
+   */
+  const active = await prisma.randomChallenge.findFirst({
+    where: {
+      status: "ACTIVE",
+      startsAt: {
+        lte: now,
+      },
+      endsAt: {
+        gt: now,
+      },
+    },
+    orderBy: {
+      startsAt: "desc",
+    },
+    include: {
+      variants: true,
+    },
+  });
+
+  if (active) {
+    return active;
+  }
+
+  /*
+   * Geen geldige challenge meer:
+   * automatisch een nieuwe starten.
+   *
+   * De zware generatie gebeurt dus alleen hier,
+   * niet bij iedere page-load.
+   */
+  return startNewChallenge();
 }

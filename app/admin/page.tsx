@@ -128,6 +128,15 @@ export default async function AdminPage() {
             level={getLevel("CWL")}
           />
 
+          {/* Random Army Challenge */}
+          <AdminCard
+            icon="🎲"
+            title="Random Army Challenge"
+            description="Bekijk en start handmatig een nieuwe Challenge."
+            href="/admin/challenge"
+            level={getLevel("CHALLENGE")}
+          />
+
           {/* API */}
           <AdminCard
             icon="🔄"
