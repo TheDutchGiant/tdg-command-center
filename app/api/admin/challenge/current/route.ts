@@ -1,24 +1,28 @@
 import { NextResponse } from "next/server";
-import { requirePermission } from "@/app/lib/auth/permissions";
+import { requireAdmin } from "@/app/lib/auth/session";
 import { prisma } from "@/app/lib/prisma";
 
 export async function GET() {
   try {
-    await requirePermission("CHALLENGE", "READ");
+    await requireAdmin();
+
+    const now = new Date();
 
     const challenge = await prisma.randomChallenge.findFirst({
       where: {
         status: "ACTIVE",
+        startsAt: {
+          lte: now,
+        },
+        endsAt: {
+          gt: now,
+        },
       },
       orderBy: {
         startsAt: "desc",
       },
       include: {
-        variants: {
-          orderBy: {
-            id: "asc",
-          },
-        },
+        variants: true,
       },
     });
 
@@ -40,10 +44,7 @@ export async function GET() {
         : null,
     });
   } catch (error) {
-    console.error(
-      "Current Challenge admin lookup failed:",
-      error
-    );
+    console.error("Admin Challenge lookup failed:", error);
 
     const message =
       error instanceof Error
@@ -53,9 +54,7 @@ export async function GET() {
     const status =
       message === "ADMIN_UNAUTHORIZED"
         ? 401
-        : message === "ADMIN_PERMISSION_REQUIRED"
-          ? 403
-          : 500;
+        : 500;
 
     return NextResponse.json(
       {
