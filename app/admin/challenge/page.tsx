@@ -25,7 +25,7 @@ export default function ChallengeAdminPage() {
   async function loadChallenge() {
     try {
       const response = await fetch(
-        "/api/challenge",
+        "/api/admin/challenge/current",
         { cache: "no-store" }
       );
 
