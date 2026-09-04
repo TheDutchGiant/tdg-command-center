@@ -49,7 +49,7 @@ export default function ClanNavigation({
   const pathname = usePathname();
 
   return (
-    <nav className="sticky top-0 z-50 mb-8 mt-6 rounded-xl border border-neutral-800 bg-neutral-900/95 backdrop-blur">
+    <nav className="relative mb-8 mt-6 rounded-xl border border-neutral-800 bg-neutral-900/95 backdrop-blur md:sticky md:top-0 md:z-50">
       <div className="flex flex-wrap items-center justify-between gap-3 p-3">
 
         <div className="flex items-center">
