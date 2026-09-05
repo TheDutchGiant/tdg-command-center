@@ -711,22 +711,21 @@ export async function POST(
     const imageHeight =
       imageDimensions.height;
 
-    /*
-     * Rechterbovenhoek:
-     * de test op de echte screenshot liet zien dat deze
-     * compacte zone "TDG Maarten" betrouwbaar uitleest.
-     */
     const rightTopZone = {
-      left: 1750,
-      top: 0,
-      width: Math.min(
-        550,
-        imageWidth - 1750,
-      ),
-      height: Math.min(
-        190,
-        imageHeight,
-      ),
+      left:
+        Math.round(
+          imageWidth * 0.70,
+        ),
+      top:
+        0,
+      width:
+        Math.round(
+          imageWidth * 0.30,
+        ),
+      height:
+        Math.round(
+          imageHeight * 0.22,
+        ),
     };
 
     const timeZone = {
@@ -764,31 +763,11 @@ export async function POST(
         imageHeight,
     };
 
-    /*
-     * We halen de bestaande spelersnamen al op voordat we
-     * de chat analyseren. De OCR-naam rechtsboven wordt
-     * eerst gekoppeld aan deze tabel. Daarna gebruiken we
-     * de echte database-naam als anker voor de chat.
-     */
-    const players =
-      await prisma.player.findMany({
-        select: {
-          playerTag: true,
-          currentName: true,
-        },
-      });
-
     let nameText = "";
     let timeText = "";
     let chatText = "";
     let resultFocusText = "";
     let matchedChatLineText = "";
-    let attackerPlayer:
-      | {
-          playerTag: string;
-          currentName: string;
-        }
-      | null = null;
 
     try {
       /*
@@ -817,99 +796,6 @@ export async function POST(
 
       nameText =
         nameOcr.data.text;
-
-      /*
-       * -------------------------------------------------------
-       * 1B. OCR-NAAM -> BESTAANDE PLAYER
-       * -------------------------------------------------------
-       *
-       * We gebruiken niet langer willekeurige OCR-regels
-       * als zoekanker voor de chat.
-       *
-       * Eerst bepalen we welke bestaande speler het best
-       * overeenkomt met de naam rechtsboven.
-       */
-      const nameCandidates =
-        nameText
-          .split(/\r?\n/)
-          .map((line) =>
-            line
-              .trim()
-              .replace(/\s+/g, " "),
-          )
-          .filter(
-            (line) =>
-              normalizePlayerName(
-                line,
-              ).length >= 3,
-          );
-
-      let bestPlayerScore = 0;
-
-      for (
-        const player of players
-      ) {
-        for (
-          const candidate of
-            nameCandidates
-        ) {
-          const candidateNormalized =
-            normalizePlayerName(
-              candidate,
-            );
-
-          const playerNormalized =
-            normalizePlayerName(
-              player.currentName,
-            );
-
-          if (
-            !candidateNormalized ||
-            !playerNormalized
-          ) {
-            continue;
-          }
-
-          let score =
-            nameSimilarity(
-              candidateNormalized,
-              playerNormalized,
-            );
-
-          if (
-            candidateNormalized.includes(
-              playerNormalized,
-            ) ||
-            playerNormalized.includes(
-              candidateNormalized,
-            )
-          ) {
-            score =
-              Math.max(
-                score,
-                0.92,
-              );
-          }
-
-          if (
-            candidateNormalized ===
-            playerNormalized
-          ) {
-            score = 1;
-          }
-
-          if (
-            score >
-            bestPlayerScore
-          ) {
-            bestPlayerScore =
-              score;
-
-            attackerPlayer =
-              player;
-          }
-        }
-      }
 
       /*
        * -------------------------------------------------------
@@ -1021,21 +907,66 @@ export async function POST(
 
       /*
        * -------------------------------------------------------
-       * 4. AANVALLER ALS CHAT-ANKER
+       * 4. NAAMHINTS UIT RECHTERBOVENHOEK
        * -------------------------------------------------------
        *
-       * De speler rechtsboven is nu gekoppeld aan de
-       * bestaande Player-tabel.
-       *
-       * Vanaf hier gebruiken we uitsluitend deze echte
-       * database-naam om de juiste FC-regel te vinden.
+       * "Aanvaller", "The Dutch Giant", enz. zijn UI-tekst
+       * en geen spelernaam.
        */
-      const attackerName =
-        attackerPlayer
-          ? normalizePlayerName(
-              attackerPlayer.currentName,
-            )
-          : "";
+      const ignoredNameParts = [
+        "aanvaller",
+        "verdediger",
+        "vriendsschappelijk",
+        "gevecht",
+        "the",
+        "dutch",
+        "giant",
+      ];
+
+      const nameHints =
+        nameText
+          .split(/\r?\n/)
+          .map(
+            (line) =>
+              line
+                .trim()
+                .replace(
+                  /\s+/g,
+                  " ",
+                ),
+          )
+          .filter(
+            (line) => {
+              const normalized =
+                normalizePlayerName(
+                  line,
+                );
+
+              if (
+                normalized.length <
+                4
+              ) {
+                return false;
+              }
+
+              return !ignoredNameParts.some(
+                (part) =>
+                  normalized ===
+                  normalizePlayerName(
+                    part,
+                  ),
+              );
+            },
+          )
+          .sort(
+            (a, b) =>
+              normalizePlayerName(
+                b,
+              ).length -
+              normalizePlayerName(
+                a,
+              ).length,
+          );
 
       /*
        * -------------------------------------------------------
@@ -1076,34 +1007,45 @@ export async function POST(
 
         let score = 0;
 
-        /*
-         * De echte database-naam is het primaire anker.
-         */
-        if (
-          attackerName &&
-          lineNormalized.includes(
-            attackerName,
-          )
+        for (
+          const hint of
+            nameHints
         ) {
-          score +=
-            200 +
-            attackerName.length;
-        } else if (
-          attackerName
-        ) {
-          const similarity =
-            nameSimilarity(
-              lineNormalized,
-              attackerName,
+          const hintNormalized =
+            normalizePlayerName(
+              hint,
             );
 
           if (
-            similarity >=
-            0.75
+            hintNormalized.length <
+            4
           ) {
-            score += Math.round(
-              similarity * 70,
-            );
+            continue;
+          }
+
+          if (
+            lineNormalized.includes(
+              hintNormalized,
+            )
+          ) {
+            score +=
+              100 +
+              hintNormalized.length;
+          } else {
+            const similarity =
+              nameSimilarity(
+                lineNormalized,
+                hintNormalized,
+              );
+
+            if (
+              similarity >=
+              0.72
+            ) {
+              score += Math.round(
+                similarity * 60,
+              );
+            }
           }
         }
 
@@ -1141,9 +1083,8 @@ export async function POST(
        * -------------------------------------------------------
        */
       if (
-        attackerPlayer &&
         bestLine &&
-        bestScore >= 80
+        bestScore >= 25
       ) {
         matchedChatLineText =
           bestLine.text;
@@ -1277,6 +1218,14 @@ export async function POST(
           resultFocusText,
         ].join("\n"),
       );
+
+    const players =
+      await prisma.player.findMany({
+        select: {
+          playerTag: true,
+          currentName: true,
+        },
+      });
 
     const playerMatches =
       players.filter(
