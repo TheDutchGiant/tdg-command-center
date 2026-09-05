@@ -770,74 +770,13 @@ export async function POST(
      * eerst gekoppeld aan deze tabel. Daarna gebruiken we
      * de echte database-naam als anker voor de chat.
      */
-    const rawPlayers =
+    const players =
       await prisma.player.findMany({
         select: {
           playerTag: true,
           currentName: true,
         },
       });
-
-    /*
-     * Sommige syncs hebben dezelfde Clash-account zowel met
-     * als zonder "#" opgeslagen. Voor OCR-koppeling moeten
-     * die als één account worden behandeld.
-     */
-    const playersByCanonicalTag =
-      new Map<
-        string,
-        {
-          playerTag: string;
-          currentName: string;
-        }
-      >();
-
-    for (
-      const player of rawPlayers
-    ) {
-      const canonicalTag =
-        player.playerTag
-          .trim()
-          .replace(/^#/, "")
-          .toUpperCase();
-
-      if (
-        !canonicalTag
-      ) {
-        continue;
-      }
-
-      const existing =
-        playersByCanonicalTag.get(
-          canonicalTag,
-        );
-
-      /*
-       * Geef de variant mét # de voorkeur als beide bestaan.
-       */
-      if (
-        !existing ||
-        (
-          player.playerTag.startsWith("#") &&
-          !existing.playerTag.startsWith("#")
-        )
-      ) {
-        playersByCanonicalTag.set(
-          canonicalTag,
-          {
-            playerTag:
-              player.playerTag,
-            currentName:
-              player.currentName,
-          },
-        );
-      }
-    }
-
-    const players =
-      Array.from(
-        playersByCanonicalTag.values(),
-      );
 
     let nameText = "";
     let timeText = "";
@@ -850,13 +789,6 @@ export async function POST(
           currentName: string;
         }
       | null = null;
-
-    let bestPlayerScore = 0;
-
-    let exactPlayerNameMatches: Array<{
-      playerTag: string;
-      currentName: string;
-    }> = [];
 
     try {
       /*
@@ -912,151 +844,70 @@ export async function POST(
               ).length >= 3,
           );
 
-      /*
-       * Eerst zoeken we uitsluitend naar een EXACTE
-       * genormaliseerde naam.
-       *
-       * Voorbeeld:
-       *   "TDG Maarten" -> "tdgmaarten"
-       *   "TDG Maarten" -> "tdgmaarten"
-       *
-       * # voor Clash-tags is al eerder verwijderd uit
-       * de canonicalisatie van players.
-       */
-      exactPlayerNameMatches =
-        players.filter(
-          (player) => {
-            const playerNormalized =
-              normalizePlayerName(
-                player.currentName,
-              );
+      let bestPlayerScore = 0;
 
-            return nameCandidates.some(
-              (candidate) =>
-                normalizePlayerName(
-                  candidate,
-                ) ===
-                playerNormalized,
-            );
-          },
-        );
-
-      bestPlayerScore = 0;
-      attackerPlayer = null;
-
-      /*
-       * EXACT ÉÉN ACCOUNT
-       */
-      if (
-        exactPlayerNameMatches.length === 1
+      for (
+        const player of players
       ) {
-        attackerPlayer =
-          exactPlayerNameMatches[0];
-
-        bestPlayerScore = 1;
-      }
-
-      /*
-       * MEERDERE EXACTE ACCOUNTS
-       *
-       * Bijvoorbeeld twee verschillende accounts met:
-       * "Guus T"
-       *
-       * NOOIT gokken.
-       */
-      else if (
-        exactPlayerNameMatches.length > 1
-      ) {
-        attackerPlayer = null;
-        bestPlayerScore = 0;
-      }
-
-      /*
-       * GEEN EXACTE MATCH
-       *
-       * Alleen hier gebruiken we fuzzy matching als hulpmiddel.
-       * Er wordt alleen automatisch gekozen wanneer één kandidaat
-       * duidelijk beter is dan alle andere kandidaten.
-       */
-      else {
-        const fuzzyCandidates =
-          players
-            .map((player) => {
-              const playerName =
-                normalizePlayerName(
-                  player.currentName,
-                );
-
-              let score = 0;
-
-              for (
-                const candidate of
-                  nameCandidates
-              ) {
-                const normalizedCandidate =
-                  normalizePlayerName(
-                    candidate,
-                  );
-
-                if (
-                  normalizedCandidate.length <
-                    4 ||
-                  playerName.length <
-                    4
-                ) {
-                  continue;
-                }
-
-                score =
-                  Math.max(
-                    score,
-                    nameSimilarity(
-                      normalizedCandidate,
-                      playerName,
-                    ),
-                  );
-              }
-
-              return {
-                player,
-                score,
-              };
-            })
-            .filter(
-              (candidate) =>
-                candidate.score >=
-                0.93,
-            )
-            .sort(
-              (a, b) =>
-                b.score -
-                a.score,
-            );
-
-        const first =
-          fuzzyCandidates[0];
-
-        const second =
-          fuzzyCandidates[1];
-
-        /*
-         * Alleen een duidelijke fuzzy winnaar mag automatisch
-         * worden gebruikt.
-         */
-        if (
-          first &&
-          (
-            !second ||
-            first.score -
-              second.score >=
-              0.05
-          )
+        for (
+          const candidate of
+            nameCandidates
         ) {
-          attackerPlayer =
-            first.player;
+          const candidateNormalized =
+            normalizePlayerName(
+              candidate,
+            );
 
-          bestPlayerScore =
-            first.score;
+          const playerNormalized =
+            normalizePlayerName(
+              player.currentName,
+            );
+
+          if (
+            !candidateNormalized ||
+            !playerNormalized
+          ) {
+            continue;
+          }
+
+          let score =
+            nameSimilarity(
+              candidateNormalized,
+              playerNormalized,
+            );
+
+          if (
+            candidateNormalized.includes(
+              playerNormalized,
+            ) ||
+            playerNormalized.includes(
+              candidateNormalized,
+            )
+          ) {
+            score =
+              Math.max(
+                score,
+                0.92,
+              );
+          }
+
+          if (
+            candidateNormalized ===
+            playerNormalized
+          ) {
+            score = 1;
+          }
+
+          if (
+            score >
+            bestPlayerScore
+          ) {
+            bestPlayerScore =
+              score;
+
+            attackerPlayer =
+              player;
+          }
         }
       }
 
@@ -1180,8 +1031,7 @@ export async function POST(
        * database-naam om de juiste FC-regel te vinden.
        */
       const attackerName =
-        attackerPlayer &&
-        bestPlayerScore >= 0.90
+        attackerPlayer
           ? normalizePlayerName(
               attackerPlayer.currentName,
             )
@@ -1428,43 +1278,115 @@ export async function POST(
         ].join("\n"),
       );
 
+    const playerMatches =
+      players.filter(
+        (player) => {
+          const playerName =
+            normalizePlayerName(
+              player.currentName,
+            );
+
+          if (playerName.length < 2) {
+            return false;
+          }
+
+          return ocrLines.some((line) => {
+            const normalizedLine =
+              normalizePlayerName(line);
+
+            if (normalizedLine.length < 2) {
+              return false;
+            }
+
+            if (normalizedLine === playerName) {
+              return true;
+            }
+
+            if (
+              normalizedLine.length >=
+                playerName.length &&
+              normalizedLine.includes(playerName)
+            ) {
+              return true;
+            }
+
+            if (
+              playerName.length >= 5 &&
+              playerName.includes(normalizedLine)
+            ) {
+              return true;
+            }
+
+            return (
+              normalizedLine.length >= 5 &&
+              playerName.length >= 5 &&
+              nameSimilarity(
+                normalizedLine,
+                playerName,
+              ) >= 0.85
+            );
+          });
+        },
+      );
+
     /*
-     * ---------------------------------------------------------
-     * DEFINITIEVE ACCOUNTIDENTITEIT
-     * ---------------------------------------------------------
+     * Extra veiligheidscontrole voor meerdere accounts
+     * met dezelfde of bijna dezelfde naam.
      *
-     * Exact één account:
-     *   -> UNIQUE
+     * Voorbeeld:
+     *   Maarten
+     *   Maarten2
+     *   Maarten_18
      *
-     * Meerdere accounts met exact dezelfde naam:
-     *   -> AMBIGUOUS
-     *
-     * Geen exacte naam maar één duidelijke fuzzy kandidaat:
-     *   -> UNIQUE
-     *
-     * Anders:
-     *   -> NOT_FOUND
+     * Phoenix mag hier nooit gokken.
+     * In zo'n situatie gaat de inzending naar PENDING
+     * zodat een admin de juiste playerTag kan kiezen.
      */
+    const possibleNameConflicts =
+      players.filter((player) =>
+        ocrLines.some((line) =>
+          namesArePotentiallyTheSameAccount(
+            line,
+            player.currentName,
+          ),
+        ),
+      );
+
+    const candidatePlayerTags =
+      [
+        ...new Set([
+          ...playerMatches.map(
+            (player) => player.playerTag,
+          ),
+          ...possibleNameConflicts.map(
+            (player) => player.playerTag,
+          ),
+        ]),
+      ];
+
+    const uniquePlayerTags =
+      candidatePlayerTags;
+
     const playerNameMatchStatus =
-      exactPlayerNameMatches.length > 1
-        ? "AMBIGUOUS"
-        : attackerPlayer &&
-            bestPlayerScore >= 0.93
-          ? "UNIQUE"
+      uniquePlayerTags.length === 1
+        ? possibleNameConflicts.length > 1
+          ? "AMBIGUOUS"
+          : "UNIQUE"
+        : uniquePlayerTags.length > 1
+          ? "AMBIGUOUS"
           : "NOT_FOUND";
 
     const playerNameMatch =
       playerNameMatchStatus === "UNIQUE"
-        ? attackerPlayer
+        ? players.find(
+            (player) =>
+              player.playerTag ===
+              uniquePlayerTags[0],
+          ) ?? null
         : null;
 
     const playerNameReviewRequired =
       playerNameMatch === null;
-
-    const playerMatches =
-      playerNameMatch
-        ? [playerNameMatch]
-        : exactPlayerNameMatches;
 
     const matchedPlayerTag =
       playerNameMatch?.playerTag ?? null;
@@ -1552,15 +1474,6 @@ export async function POST(
               null,
 
             playerNameFromScreenshot:
-              nameText
-                .split(/\r?\n/)
-                .map((line) =>
-                  line.trim(),
-                )
-                .filter(Boolean)[0] ??
-              null,
-
-            playerNameMatchedAccount:
               playerNameMatch?.currentName ??
               null,
 

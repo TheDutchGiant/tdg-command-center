@@ -853,11 +853,6 @@ export async function POST(
 
     let bestPlayerScore = 0;
 
-    let exactPlayerNameMatches: Array<{
-      playerTag: string;
-      currentName: string;
-    }> = [];
-
     try {
       /*
        * -------------------------------------------------------
@@ -912,151 +907,70 @@ export async function POST(
               ).length >= 3,
           );
 
-      /*
-       * Eerst zoeken we uitsluitend naar een EXACTE
-       * genormaliseerde naam.
-       *
-       * Voorbeeld:
-       *   "TDG Maarten" -> "tdgmaarten"
-       *   "TDG Maarten" -> "tdgmaarten"
-       *
-       * # voor Clash-tags is al eerder verwijderd uit
-       * de canonicalisatie van players.
-       */
-      exactPlayerNameMatches =
-        players.filter(
-          (player) => {
-            const playerNormalized =
-              normalizePlayerName(
-                player.currentName,
-              );
-
-            return nameCandidates.some(
-              (candidate) =>
-                normalizePlayerName(
-                  candidate,
-                ) ===
-                playerNormalized,
-            );
-          },
-        );
-
       bestPlayerScore = 0;
-      attackerPlayer = null;
 
-      /*
-       * EXACT ÉÉN ACCOUNT
-       */
-      if (
-        exactPlayerNameMatches.length === 1
+      for (
+        const player of players
       ) {
-        attackerPlayer =
-          exactPlayerNameMatches[0];
-
-        bestPlayerScore = 1;
-      }
-
-      /*
-       * MEERDERE EXACTE ACCOUNTS
-       *
-       * Bijvoorbeeld twee verschillende accounts met:
-       * "Guus T"
-       *
-       * NOOIT gokken.
-       */
-      else if (
-        exactPlayerNameMatches.length > 1
-      ) {
-        attackerPlayer = null;
-        bestPlayerScore = 0;
-      }
-
-      /*
-       * GEEN EXACTE MATCH
-       *
-       * Alleen hier gebruiken we fuzzy matching als hulpmiddel.
-       * Er wordt alleen automatisch gekozen wanneer één kandidaat
-       * duidelijk beter is dan alle andere kandidaten.
-       */
-      else {
-        const fuzzyCandidates =
-          players
-            .map((player) => {
-              const playerName =
-                normalizePlayerName(
-                  player.currentName,
-                );
-
-              let score = 0;
-
-              for (
-                const candidate of
-                  nameCandidates
-              ) {
-                const normalizedCandidate =
-                  normalizePlayerName(
-                    candidate,
-                  );
-
-                if (
-                  normalizedCandidate.length <
-                    4 ||
-                  playerName.length <
-                    4
-                ) {
-                  continue;
-                }
-
-                score =
-                  Math.max(
-                    score,
-                    nameSimilarity(
-                      normalizedCandidate,
-                      playerName,
-                    ),
-                  );
-              }
-
-              return {
-                player,
-                score,
-              };
-            })
-            .filter(
-              (candidate) =>
-                candidate.score >=
-                0.93,
-            )
-            .sort(
-              (a, b) =>
-                b.score -
-                a.score,
+        for (
+          const candidate of
+            nameCandidates
+        ) {
+          const candidateNormalized =
+            normalizePlayerName(
+              candidate,
             );
 
-        const first =
-          fuzzyCandidates[0];
+          const playerNormalized =
+            normalizePlayerName(
+              player.currentName,
+            );
 
-        const second =
-          fuzzyCandidates[1];
+          if (
+            !candidateNormalized ||
+            !playerNormalized
+          ) {
+            continue;
+          }
 
-        /*
-         * Alleen een duidelijke fuzzy winnaar mag automatisch
-         * worden gebruikt.
-         */
-        if (
-          first &&
-          (
-            !second ||
-            first.score -
-              second.score >=
-              0.05
-          )
-        ) {
-          attackerPlayer =
-            first.player;
+          let score =
+            nameSimilarity(
+              candidateNormalized,
+              playerNormalized,
+            );
 
-          bestPlayerScore =
-            first.score;
+          if (
+            candidateNormalized.includes(
+              playerNormalized,
+            ) ||
+            playerNormalized.includes(
+              candidateNormalized,
+            )
+          ) {
+            score =
+              Math.max(
+                score,
+                0.92,
+              );
+          }
+
+          if (
+            candidateNormalized ===
+            playerNormalized
+          ) {
+            score = 1;
+          }
+
+          if (
+            score >
+            bestPlayerScore
+          ) {
+            bestPlayerScore =
+              score;
+
+            attackerPlayer =
+              player;
+          }
         }
       }
 
@@ -1429,44 +1343,119 @@ export async function POST(
       );
 
     /*
-     * ---------------------------------------------------------
-     * DEFINITIEVE ACCOUNTIDENTITEIT
-     * ---------------------------------------------------------
+     * De OCR-naam rechtsboven is nu het primaire identiteitsanker.
      *
-     * Exact één account:
-     *   -> UNIQUE
+     * Bij een sterke match (> 0.90) gebruiken we uitsluitend
+     * die gevonden Player. Daardoor kan "TDG Maarten" niet
+     * opeens ambiguous worden door "Mini Maarten" of "maarten".
      *
-     * Meerdere accounts met exact dezelfde naam:
-     *   -> AMBIGUOUS
+     * Bij een zwakke match blijft de oude veilige review-route
+     * beschikbaar.
+     */
+    const playerMatches =
+      attackerPlayer &&
+      bestPlayerScore >= 0.90
+        ? [attackerPlayer]
+        : ocrLines.length
+          ? players.filter(
+              (player) => {
+                const playerName =
+                  normalizePlayerName(
+                    player.currentName,
+                  );
+
+                return ocrLines.some(
+                  (line) => {
+                    const normalizedLine =
+                      normalizePlayerName(
+                        line,
+                      );
+
+                    if (
+                      normalizedLine.length <
+                      3 ||
+                      playerName.length <
+                      3
+                    ) {
+                      return false;
+                    }
+
+                    return (
+                      normalizedLine ===
+                        playerName ||
+                      nameSimilarity(
+                        normalizedLine,
+                        playerName,
+                      ) >= 0.85
+                    );
+                  },
+                );
+              },
+            )
+          : [];
+
+    /*
+     * Alleen echte gelijkwaardige kandidaten tellen als
+     * naamconflict. Substring-relaties zoals:
      *
-     * Geen exacte naam maar één duidelijke fuzzy kandidaat:
-     *   -> UNIQUE
+     *   TDG Maarten
+     *   Mini Maarten
+     *   maarten
      *
-     * Anders:
-     *   -> NOT_FOUND
+     * zijn geen reden om een exacte OCR-match af te wijzen.
+     */
+    const possibleNameConflicts =
+      attackerPlayer &&
+      bestPlayerScore >= 0.90
+        ? [attackerPlayer]
+        : playerMatches;
+
+    const candidatePlayerTags =
+      [
+        ...new Set([
+          ...playerMatches.map(
+            (player) =>
+              player.playerTag,
+          ),
+          ...possibleNameConflicts.map(
+            (player) =>
+              player.playerTag,
+          ),
+        ]),
+      ];
+
+    /*
+     * Als de sterke OCR-match exact één account oplevert,
+     * is deze speler eenduidig.
      */
     const playerNameMatchStatus =
-      exactPlayerNameMatches.length > 1
-        ? "AMBIGUOUS"
-        : attackerPlayer &&
-            bestPlayerScore >= 0.93
+      attackerPlayer &&
+      bestPlayerScore >= 0.90
+        ? "UNIQUE"
+        : candidatePlayerTags.length === 1
           ? "UNIQUE"
-          : "NOT_FOUND";
+          : candidatePlayerTags.length > 1
+            ? "AMBIGUOUS"
+            : "NOT_FOUND";
 
     const playerNameMatch =
       playerNameMatchStatus === "UNIQUE"
-        ? attackerPlayer
+        ? (
+            attackerPlayer &&
+            bestPlayerScore >= 0.90
+              ? attackerPlayer
+              : players.find(
+                  (player) =>
+                    player.playerTag ===
+                    candidatePlayerTags[0],
+                ) ?? null
+          )
         : null;
 
     const playerNameReviewRequired =
       playerNameMatch === null;
 
-    const playerMatches =
-      playerNameMatch
-        ? [playerNameMatch]
-        : exactPlayerNameMatches;
-
-    const matchedPlayerTag =
+        const matchedPlayerTag =
       playerNameMatch?.playerTag ?? null;
 
     const matchedPlayerName =
