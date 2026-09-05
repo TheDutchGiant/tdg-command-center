@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import {
   validateChallengeResult,
@@ -285,6 +285,8 @@ function looksLikeClashResult(
   );
 }
 
+export const maxDuration = 300;
+
 export async function POST(
   request: Request
 ) {
@@ -503,6 +505,42 @@ export async function POST(
     const screenshotPath =
       `/uploads/random-challenge/${challenge.id}/${filename}`;
 
+    /*
+     * De upload is nu veilig opgeslagen.
+     *
+     * Vanaf hier mag de browser niet meer hoeven
+     * wachten op OCR, spelerkoppeling of ranking.
+     */
+    const processingEntry =
+      await prisma.randomChallengeEntry.create({
+        data: {
+          challengeId:
+            challenge.id,
+
+          playerTag:
+            `UPLOAD:${filename}`,
+
+          playerName:
+            "Wordt verwerkt",
+
+          difficulty,
+
+          screenshotPath,
+
+          status:
+            "PROCESSING",
+
+          ocrResult: {
+            processingStatus:
+              "QUEUED",
+          },
+
+          adminNote:
+            "Phoenix verwerkt deze inzending.",
+        },
+      });
+
+    after(async () => {
     const worker =
       await createWorker("eng");
 
@@ -705,24 +743,23 @@ export async function POST(
       });
 
     const entry =
-      await prisma.randomChallengeEntry.create({
-        data: {
-          challengeId:
-            challenge.id,
+      await prisma.randomChallengeEntry.update({
+        where: {
+          id:
+            processingEntry.id,
+        },
 
+        data: {
           playerTag:
             matchedPlayerTag ??
             `OCR:${normalizePlayerName(
-              matchedPlayerName ?? "unknown",
+              matchedPlayerName ??
+                "unknown",
             )}`,
 
           playerName:
             matchedPlayerName ??
             "Onbekende speler",
-
-          difficulty,
-
-          screenshotPath,
 
           status:
             validation.needsReview ||
@@ -775,6 +812,9 @@ export async function POST(
               ),
 
             validation,
+
+            processingStatus:
+              "COMPLETED",
           },
 
           adminNote:
@@ -786,7 +826,7 @@ export async function POST(
             validation.needsReview ||
             playerNameReviewRequired
               ? null
-              : now,
+              : new Date(),
         },
       });
 
@@ -894,7 +934,14 @@ export async function POST(
       );
     }
 
-    return response;
+    });
+
+    return NextResponse.json({
+      success: true,
+      status: "PROCESSING",
+      message:
+        "✅ Screenshot ontvangen. Phoenix verwerkt je inzending op de achtergrond.",
+    });
   } catch (error) {
     console.error(
       "Challenge OCR submission error:",

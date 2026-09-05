@@ -566,6 +566,7 @@ enum RandomChallengeEntryStatus {
   PENDING
   APPROVED
   REJECTED
+  PROCESSING
 }
 
 model RandomChallenge {
