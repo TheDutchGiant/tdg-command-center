@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
+import { cleanupExpiredChallengeScreenshots } from "@/app/lib/challenge/cleanupScreenshots";
 import {
   mutateGeneratedArmy,
   generateMutationPercentages,
@@ -920,7 +921,13 @@ export async function startNewChallenge(options?: {
 
     /*
      * Oude verlopen ACTIVE challenges sluiten.
+     *
+     * Eerst worden de tijdelijke screenshots verwijderd.
+     * De Challenge-resultaten zelf blijven in de database
+     * bestaan voor leaderboard, Hall of Fame en statistieken.
      */
+    await cleanupExpiredChallengeScreenshots();
+
     await prisma.randomChallenge.updateMany({
       where: {
         status: "ACTIVE",

@@ -3,6 +3,7 @@ import { prisma } from "@/app/lib/prisma";
 import {
   validateChallengeResult,
 } from "@/app/lib/challenge/validateResult";
+import { recalculateChallengeRanking } from "@/app/lib/challenge/ranking";
 import { createWorker } from "tesseract.js";
 
 function parseStars(
@@ -662,8 +663,16 @@ export async function POST(
 
           score:
             validation.score,
+
+          randomChallengeId:
+            challenge.id,
         },
       });
+
+      await recalculateChallengeRanking(
+        challenge.id,
+        variant.difficulty,
+      );
     }
 
     return NextResponse.json({

@@ -114,18 +114,25 @@ export function validateChallengeResult(
   }
 
   /*
-   * 0 sterren met 100% of meer kan bijvoorbeeld
-   * alleen door een foutieve OCR-uitlezing ontstaan.
+   * Clash-resultaat moet logisch overeenkomen:
+   *
+   * - 3 sterren betekent altijd 100%
+   * - 100% betekent altijd 3 sterren
+   * - 0, 1 of 2 sterren kan nooit 100% zijn
    */
   if (
-    input.stars === 0 &&
-    input.destruction === 100
+    (input.stars === 3 &&
+      input.destruction !== 100) ||
+    (input.destruction === 100 &&
+      input.stars !== 3) ||
+    (input.stars < 3 &&
+      input.destruction === 100)
   ) {
     return {
       valid: false,
       needsReview: true,
       reason:
-        "Resultaat bevat een tegenstrijdige combinatie van sterren en vernietiging.",
+        "Resultaat bevat een onmogelijke combinatie van sterren en vernietiging.",
       score: 0,
     };
   }

@@ -47,7 +47,7 @@ function RecordCard({
             key={`${title}-${entry.playerTag}-${index}`}
             className={`flex items-center justify-between rounded-xl px-4 py-3 ${
               index === 0
-                ? "bg-yellow-500/10 border border-yellow-500/30"
+                ? "border border-yellow-500/30 bg-yellow-500/10"
                 : "bg-neutral-950/60"
             }`}
           >
@@ -56,8 +56,8 @@ function RecordCard({
                 {index === 0
                   ? "🥇"
                   : index === 1
-                  ? "🥈"
-                  : "🥉"}
+                    ? "🥈"
+                    : "🥉"}
               </span>
 
               <span
@@ -102,6 +102,12 @@ export default async function StatsPage({
     );
   }
 
+  /*
+   * ------------------------------------------------------------------------
+   * CWL RECORDS
+   * ------------------------------------------------------------------------
+   */
+
   const attacks = await getCwlStatsAttacks(clan.id);
 
   const playerStats = new Map<
@@ -145,7 +151,7 @@ export default async function StatsPage({
       triples: value.triples,
       stars: value.stars,
       destruction: value.destruction,
-    })
+    }),
   );
 
   const mostTriples = [...stats]
@@ -194,6 +200,147 @@ export default async function StatsPage({
       value: attack.duration,
     }));
 
+  /*
+   * ------------------------------------------------------------------------
+   * RANDOM CHALLENGE RECORDS
+   * ------------------------------------------------------------------------
+   *
+   * Alleen goedgekeurde resultaten tellen mee.
+   *
+   * De screenshots zijn hierbij volledig irrelevant:
+   * de resultaten staan permanent in RandomChallengeResult.
+   */
+
+  const challengeResults =
+    await prisma.randomChallengeResult.findMany({
+      where: {
+        entry: {
+          status: "APPROVED",
+        },
+      },
+      select: {
+        stars: true,
+        destruction: true,
+        timeSeconds: true,
+        rank: true,
+        entry: {
+          select: {
+            playerTag: true,
+            playerName: true,
+            difficulty: true,
+          },
+        },
+      },
+    });
+
+  type ChallengePlayerStats = {
+    playerTag: string;
+    playerName: string;
+    participation: number;
+    firstPlaces: number;
+    triples: number;
+    hardTriples: number;
+    perfectHundreds: number;
+  };
+
+  const challengePlayerStats =
+    new Map<string, ChallengePlayerStats>();
+
+  for (const result of challengeResults) {
+    const tag = result.entry.playerTag;
+
+    const existing = challengePlayerStats.get(tag);
+
+    if (existing) {
+      existing.participation += 1;
+
+      if (result.rank === 1) {
+        existing.firstPlaces += 1;
+      }
+
+      if (result.stars === 3) {
+        existing.triples += 1;
+
+        if (result.entry.difficulty === "HARD") {
+          existing.hardTriples += 1;
+        }
+      }
+
+      if (
+        result.stars === 3 &&
+        result.destruction === 100
+      ) {
+        existing.perfectHundreds += 1;
+      }
+    } else {
+      challengePlayerStats.set(tag, {
+        playerTag: tag,
+        playerName: result.entry.playerName,
+        participation: 1,
+        firstPlaces: result.rank === 1 ? 1 : 0,
+        triples: result.stars === 3 ? 1 : 0,
+        hardTriples:
+          result.stars === 3 &&
+          result.entry.difficulty === "HARD"
+            ? 1
+            : 0,
+        perfectHundreds:
+          result.stars === 3 &&
+          result.destruction === 100
+            ? 1
+            : 0,
+      });
+    }
+  }
+
+  const challengeStats =
+    Array.from(challengePlayerStats.values());
+
+  const challengeFirstPlaces = [...challengeStats]
+    .sort((a, b) => b.firstPlaces - a.firstPlaces)
+    .slice(0, 3)
+    .map((player) => ({
+      playerTag: player.playerTag,
+      playerName: player.playerName,
+      value: player.firstPlaces,
+    }));
+
+  const challengeTriples = [...challengeStats]
+    .sort((a, b) => b.triples - a.triples)
+    .slice(0, 3)
+    .map((player) => ({
+      playerTag: player.playerTag,
+      playerName: player.playerName,
+      value: player.triples,
+    }));
+
+  const challengeHardTriples = [...challengeStats]
+    .sort((a, b) => b.hardTriples - a.hardTriples)
+    .slice(0, 3)
+    .map((player) => ({
+      playerTag: player.playerTag,
+      playerName: player.playerName,
+      value: player.hardTriples,
+    }));
+
+  const challengePerfectHundreds = [...challengeStats]
+    .sort((a, b) => b.perfectHundreds - a.perfectHundreds)
+    .slice(0, 3)
+    .map((player) => ({
+      playerTag: player.playerTag,
+      playerName: player.playerName,
+      value: player.perfectHundreds,
+    }));
+
+  const challengeParticipation = [...challengeStats]
+    .sort((a, b) => b.participation - a.participation)
+    .slice(0, 3)
+    .map((player) => ({
+      playerTag: player.playerTag,
+      playerName: player.playerName,
+      value: player.participation,
+    }));
+
   return (
     <div className="space-y-8">
       <div>
@@ -204,11 +351,11 @@ export default async function StatsPage({
         <p className="mt-2 text-sm text-neutral-400">
           De persoonlijke records van {clan.name}.
           <br />
-          Gebaseerd op geregistreerde oorlogen in Phoenix.
+          Gebaseerd op geregistreerde oorlogen en Challenges in Phoenix.
         </p>
       </div>
 
-      {attacks.length === 0 ? (
+      {attacks.length === 0 && challengeResults.length === 0 ? (
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/70 p-8 text-center">
           <div className="text-4xl">🏆</div>
 
@@ -217,44 +364,107 @@ export default async function StatsPage({
           </h2>
 
           <p className="mt-2 text-sm text-neutral-400">
-            Zodra Phoenix oorlogen registreert, verschijnen hier automatisch
-            de eerste records.
+            Zodra Phoenix oorlogen of Challenges registreert,
+            verschijnen hier automatisch de eerste records.
           </p>
         </div>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2">
-          <RecordCard
-            icon="💥"
-            title="Meeste triples"
-            entries={mostTriples}
-          />
+        <>
+          {attacks.length > 0 && (
+            <section>
+              <div className="mb-5">
+                <h2 className="text-2xl font-black text-white">
+                  ⚔️ Oorlogsrecords
+                </h2>
 
-          <RecordCard
-            icon="⭐"
-            title="Meeste sterren"
-            entries={mostStars}
-          />
+                <p className="mt-1 text-sm text-neutral-500">
+                  De beste persoonlijke prestaties uit geregistreerde CWL-aanvallen.
+                </p>
+              </div>
 
-          <RecordCard
-            icon="⚔️"
-            title="Meeste aanvallen"
-            entries={mostAttacks}
-          />
+              <div className="grid gap-5 md:grid-cols-2">
+                <RecordCard
+                  icon="💥"
+                  title="Meeste triples"
+                  entries={mostTriples}
+                />
 
-          <RecordCard
-            icon="💣"
-            title="Meeste destruction"
-            entries={mostDestruction}
-            formatter={(value) => `${value}%`}
-          />
+                <RecordCard
+                  icon="⭐"
+                  title="Meeste sterren"
+                  entries={mostStars}
+                />
 
-          <RecordCard
-            icon="⚡"
-            title="Snelste triple"
-            entries={fastestTriples}
-            formatter={formatDuration}
-          />
-        </div>
+                <RecordCard
+                  icon="⚔️"
+                  title="Meeste aanvallen"
+                  entries={mostAttacks}
+                />
+
+                <RecordCard
+                  icon="💣"
+                  title="Meeste destruction"
+                  entries={mostDestruction}
+                  formatter={(value) => `${value}%`}
+                />
+
+                <RecordCard
+                  icon="⚡"
+                  title="Snelste triple"
+                  entries={fastestTriples}
+                  formatter={formatDuration}
+                />
+              </div>
+            </section>
+          )}
+
+          {challengeResults.length > 0 && (
+            <section>
+              <div className="mb-5">
+                <h2 className="text-2xl font-black text-white">
+                  🎲 Challenge Records
+                </h2>
+
+                <p className="mt-1 text-sm text-neutral-500">
+                  Permanente records uit alle afgeronde Random Challenges.
+                  Alleen goedgekeurde inzendingen tellen mee.
+                </p>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <RecordCard
+                  icon="🥇"
+                  title="Vaakst #1 geëindigd"
+                  entries={challengeFirstPlaces}
+                />
+
+                <RecordCard
+                  icon="⭐"
+                  title="Meeste 3 sterren"
+                  entries={challengeTriples}
+                />
+
+                <RecordCard
+                  icon="🔴"
+                  title="Meeste 3 sterren — Hard"
+                  entries={challengeHardTriples}
+                />
+
+                <RecordCard
+                  icon="💯"
+                  title="Meeste 100%"
+                  entries={challengePerfectHundreds}
+                />
+
+                <RecordCard
+                  icon="🎲"
+                  title="Meeste deelnames"
+                  entries={challengeParticipation}
+                />
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );
