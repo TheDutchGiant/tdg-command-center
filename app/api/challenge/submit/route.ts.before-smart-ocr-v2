@@ -4,7 +4,7 @@ import {
   validateChallengeResult,
 } from "@/app/lib/challenge/validateResult";
 import { recalculateChallengeRanking } from "@/app/lib/challenge/ranking";
-import { createWorker, PSM } from "tesseract.js";
+import { createWorker } from "tesseract.js";
 
 function parseStars(
   text: string
@@ -599,111 +599,19 @@ export async function POST(
       });
 
     /*
-     * ---------------------------------------------------------
-     * SLIMME OCR
+     * De screenshot is een dynamische Clash-weergave.
      *
-     * We gaan niet uit van een vaste verticale positie van
-     * het chatresultaat.
+     * Vast:
+     *   - spelernaam rechtsboven
+     *   - aanvalstijd midden onder
      *
-     * 1. Hele screenshot lezen met bounding boxes.
-     * 2. Rechtsboven bepalen we de aanvaller.
-     * 3. In het linkerpaneel zoeken we naar de FC-regel
-     *    die bij deze aanvaller hoort.
-     * 4. Alleen rond die gevonden regel lezen we sterren/%.
-     * 5. Tijd komt uit de vaste midden-onder zone.
+     * Dynamisch:
+     *   - chat/resultaat links
      *
-     * De originele screenshot blijft volledig intact.
-     * ---------------------------------------------------------
+     * Daarom lezen we eerst het volledige chatpaneel,
+     * bepalen daar welke chatregel bij de aanvaller hoort
+     * en OCR'en daarna alleen het gebied rond die regel.
      */
-
-    function getJpegDimensions(
-      buffer: Buffer,
-    ): {
-      width: number;
-      height: number;
-    } {
-      if (
-        buffer.length >= 2 &&
-        buffer[0] === 0xff &&
-        buffer[1] === 0xd8
-      ) {
-        let index = 2;
-
-        while (
-          index + 9 <
-          buffer.length
-        ) {
-          if (
-            buffer[index] !== 0xff
-          ) {
-            index += 1;
-            continue;
-          }
-
-          const marker =
-            buffer[index + 1];
-
-          index += 2;
-
-          if (
-            marker === 0xd8 ||
-            marker === 0xd9
-          ) {
-            continue;
-          }
-
-          if (
-            index + 1 >=
-            buffer.length
-          ) {
-            break;
-          }
-
-          const segmentLength =
-            buffer.readUInt16BE(
-              index,
-            );
-
-          if (
-            marker >= 0xc0 &&
-            marker <= 0xcf &&
-            ![
-              0xc4,
-              0xc8,
-              0xcc,
-            ].includes(marker)
-          ) {
-            return {
-              height:
-                buffer.readUInt16BE(
-                  index + 3,
-                ),
-              width:
-                buffer.readUInt16BE(
-                  index + 5,
-                ),
-            };
-          }
-
-          index += segmentLength;
-        }
-      }
-
-      /*
-       * De huidige Challenge-screenshots zijn 2340x1080.
-       * Alleen onbekende afbeeldingsformaten vallen hierop
-       * terug.
-       */
-      return {
-        width: 2340,
-        height: 1080,
-      };
-    }
-
-    const imageDimensions =
-      getJpegDimensions(
-        imageBuffer,
-      );
 
     const imageWidth =
       imageDimensions.width;
@@ -711,75 +619,60 @@ export async function POST(
     const imageHeight =
       imageDimensions.height;
 
-    const rightTopZone = {
-      left:
-        Math.round(
-          imageWidth * 0.70,
-        ),
-      top:
-        0,
-      width:
-        Math.round(
-          imageWidth * 0.30,
-        ),
-      height:
-        Math.round(
-          imageHeight * 0.22,
-        ),
+    const chatZone = {
+      left: Math.round(
+        imageWidth * 0.015
+      ),
+      top: 0,
+      width: Math.round(
+        imageWidth * 0.34
+      ),
+      height: imageHeight,
+    };
+
+    const nameZone = {
+      left: Math.round(
+        imageWidth * 0.76
+      ),
+      top: 0,
+      width: Math.round(
+        imageWidth * 0.235
+      ),
+      height: Math.round(
+        imageHeight * 0.18
+      ),
     };
 
     const timeZone = {
-      left:
-        Math.round(
-          imageWidth * 0.34,
-        ),
-      top:
-        Math.round(
-          imageHeight * 0.62,
-        ),
-      width:
-        Math.round(
-          imageWidth * 0.34,
-        ),
-      height:
-        Math.round(
-          imageHeight * 0.30,
-        ),
-    };
-
-    /*
-     * Het volledige linkerpaneel.
-     * Geen vaste Y-positie: de chat mag zo veel scrollen
-     * als nodig is.
-     */
-    const chatZone = {
-      left: 0,
-      top: 0,
-      width:
-        Math.round(
-          imageWidth * 0.35,
-        ),
-      height:
-        imageHeight,
+      left: Math.round(
+        imageWidth * 0.36
+      ),
+      top: Math.round(
+        imageHeight * 0.63
+      ),
+      width: Math.round(
+        imageWidth * 0.31
+      ),
+      height: Math.round(
+        imageHeight * 0.27
+      ),
     };
 
     let nameText = "";
     let timeText = "";
     let chatText = "";
     let resultFocusText = "";
+
     let matchedChatLineText = "";
 
     try {
       /*
-       * -------------------------------------------------------
-       * 1. AANVALLER RECHTSBOVEN
-       * -------------------------------------------------------
+       * ------------------------------------------------------
+       * 1. NAAM RECHTSBOVEN
+       * ------------------------------------------------------
        */
       await worker.setParameters({
-        tessedit_pageseg_mode:
-          PSM.SPARSE_TEXT,
-        tessedit_char_whitelist:
-          "",
+        tessedit_pageseg_mode: "6",
       });
 
       const nameOcr =
@@ -787,10 +680,7 @@ export async function POST(
           imageBuffer,
           {
             rectangle:
-              rightTopZone,
-          },
-          {
-            blocks: true,
+              nameZone,
           },
         );
 
@@ -798,13 +688,12 @@ export async function POST(
         nameOcr.data.text;
 
       /*
-       * -------------------------------------------------------
+       * ------------------------------------------------------
        * 2. TIJD MIDDEN ONDER
-       * -------------------------------------------------------
+       * ------------------------------------------------------
        */
       await worker.setParameters({
-        tessedit_pageseg_mode:
-          PSM.SINGLE_LINE,
+        tessedit_pageseg_mode: "7",
         tessedit_char_whitelist:
           "0123456789mMsS:",
       });
@@ -822,15 +711,17 @@ export async function POST(
         timeOcr.data.text;
 
       /*
-       * -------------------------------------------------------
-       * 3. VOLLEDIGE CHAT MET POSITIES
-       * -------------------------------------------------------
+       * ------------------------------------------------------
+       * 3. VOLLEDIGE CHAT
+       *
+       * Geen vaste verticale positie.
+       * We bewaren de OCR-woorden inclusief bounding boxes.
+       * Daarmee kunnen we later bepalen welke regel bij de
+       * aanvaller hoort.
+       * ------------------------------------------------------
        */
       await worker.setParameters({
-        tessedit_pageseg_mode:
-          PSM.SPARSE_TEXT,
-        tessedit_char_whitelist:
-          "",
+        tessedit_pageseg_mode: "11",
       });
 
       const chatOcr =
@@ -840,80 +731,125 @@ export async function POST(
             rectangle:
               chatZone,
           },
-          {
-            blocks: true,
-          },
         );
 
       chatText =
         chatOcr.data.text;
 
-      type OcrLine = {
+      const chatWords =
+        chatOcr.data.words ?? [];
+
+      /*
+       * Groepeer OCR-woorden tot visuele regels.
+       */
+      const chatLines: Array<{
         text: string;
         x0: number;
         x1: number;
         y0: number;
         y1: number;
-      };
+      }> = [];
 
-      const chatLines: OcrLine[] = [];
-
-      /*
-       * Tesseract 7 levert de structuur:
-       * blocks -> paragraphs -> lines -> words.
-       */
       for (
-        const block of
-          chatOcr.data.blocks ?? []
+        const word of chatWords
       ) {
-        for (
-          const paragraph of
-            block.paragraphs ?? []
+        const wordText =
+          typeof word.text === "string"
+            ? word.text.trim()
+            : "";
+
+        if (
+          !wordText ||
+          !word.bbox
         ) {
-          for (
-            const line of
-              paragraph.lines ?? []
-          ) {
-            const lineText =
-              line.text
-                .replace(
-                  /\s+/g,
-                  " ",
-                )
-                .trim();
+          continue;
+        }
 
-            if (
-              !lineText ||
-              !line.bbox
-            ) {
-              continue;
-            }
+        const centerY =
+          (
+            word.bbox.y0 +
+            word.bbox.y1
+          ) / 2;
 
-            chatLines.push({
-              text:
-                lineText,
-              x0:
-                line.bbox.x0,
-              x1:
-                line.bbox.x1,
-              y0:
-                line.bbox.y0,
-              y1:
-                line.bbox.y1,
-            });
-          }
+        let existingLine =
+          chatLines.find(
+            (line) => {
+              const lineCenterY =
+                (
+                  line.y0 +
+                  line.y1
+                ) / 2;
+
+              return (
+                Math.abs(
+                  lineCenterY -
+                  centerY
+                ) <= 18
+              );
+            },
+          );
+
+        if (!existingLine) {
+          existingLine = {
+            text: wordText,
+            x0:
+              word.bbox.x0,
+            x1:
+              word.bbox.x1,
+            y0:
+              word.bbox.y0,
+            y1:
+              word.bbox.y1,
+          };
+
+          chatLines.push(
+            existingLine,
+          );
+        } else {
+          existingLine.text =
+            `${existingLine.text} ${wordText}`
+              .replace(
+                /\s+/g,
+                " ",
+              )
+              .trim();
+
+          existingLine.x0 =
+            Math.min(
+              existingLine.x0,
+              word.bbox.x0,
+            );
+
+          existingLine.x1 =
+            Math.max(
+              existingLine.x1,
+              word.bbox.x1,
+            );
+
+          existingLine.y0 =
+            Math.min(
+              existingLine.y0,
+              word.bbox.y0,
+            );
+
+          existingLine.y1 =
+            Math.max(
+              existingLine.y1,
+              word.bbox.y1,
+            );
         }
       }
 
+      chatLines.sort(
+        (a, b) =>
+          a.y0 - b.y0
+      );
+
       /*
-       * -------------------------------------------------------
-       * 4. NAAMHINTS UIT RECHTERBOVENHOEK
-       * -------------------------------------------------------
-       *
-       * "Aanvaller", "The Dutch Giant", enz. zijn UI-tekst
-       * en geen spelernaam.
+       * Naamfragmenten uit de rechterbovenhoek.
+       * We negeren bekende UI-/clanteksten.
        */
-      const ignoredNameParts = [
+      const ignoredNameHints = new Set([
         "aanvaller",
         "verdediger",
         "vriendsschappelijk",
@@ -921,85 +857,55 @@ export async function POST(
         "the",
         "dutch",
         "giant",
-      ];
+      ]);
 
       const nameHints =
         nameText
           .split(/\r?\n/)
-          .map(
-            (line) =>
-              line
-                .trim()
-                .replace(
-                  /\s+/g,
-                  " ",
-                ),
+          .map((line) =>
+            normalizePlayerName(
+              line,
+            )
           )
           .filter(
-            (line) => {
-              const normalized =
-                normalizePlayerName(
-                  line,
-                );
-
-              if (
-                normalized.length <
-                4
-              ) {
-                return false;
-              }
-
-              return !ignoredNameParts.some(
-                (part) =>
-                  normalized ===
-                  normalizePlayerName(
-                    part,
-                  ),
-              );
-            },
+            (line) =>
+              line.length >= 4 &&
+              !ignoredNameHints.has(
+                line,
+              ),
           )
           .sort(
             (a, b) =>
-              normalizePlayerName(
-                b,
-              ).length -
-              normalizePlayerName(
-                a,
-              ).length,
+              b.length -
+              a.length,
           );
 
       /*
-       * -------------------------------------------------------
-       * 5. JUISTE FC-REGEL ZOEKEN
-       * -------------------------------------------------------
-       *
-       * Sterke signalen:
-       * - naam komt in de regel voor
-       * - pijl tussen namen
-       * - percentage aanwezig
-       *
-       * We kijken alleen naar het linkerpaneel, dus tekst
-       * uit het aanvalsscherm kan niet per ongeluk de
-       * chatselectie beïnvloeden.
+       * Zoek de meest waarschijnlijke chatregel die bij de
+       * aanvaller hoort.
        */
       let bestLine:
-        | OcrLine
-        | null =
-          null;
+        | {
+            text: string;
+            x0: number;
+            x1: number;
+            y0: number;
+            y1: number;
+          }
+        | null = null;
 
       let bestScore = 0;
 
       for (
-        const line of
-          chatLines
+        const line of chatLines
       ) {
-        const lineNormalized =
+        const normalizedLine =
           normalizePlayerName(
             line.text,
           );
 
         if (
-          lineNormalized.length <
+          normalizedLine.length <
           2
         ) {
           continue;
@@ -1008,79 +914,72 @@ export async function POST(
         let score = 0;
 
         for (
-          const hint of
-            nameHints
+          const hint of nameHints
         ) {
-          const hintNormalized =
-            normalizePlayerName(
+          if (
+            normalizedLine.includes(
               hint,
-            );
-
-          if (
-            hintNormalized.length <
-            4
-          ) {
-            continue;
-          }
-
-          if (
-            lineNormalized.includes(
-              hintNormalized,
             )
           ) {
             score +=
               100 +
-              hintNormalized.length;
+              hint.length;
           } else {
             const similarity =
               nameSimilarity(
-                lineNormalized,
-                hintNormalized,
+                normalizedLine,
+                hint,
               );
 
             if (
-              similarity >=
-              0.72
+              similarity >= 0.72
             ) {
-              score += Math.round(
-                similarity * 60,
-              );
+              score +=
+                Math.round(
+                  similarity * 50,
+                );
             }
           }
         }
 
+        /*
+         * Een FC-resultaatregel bevat vaak een pijl.
+         * OCR kan die als ->, > of vergelijkbaar lezen.
+         */
         if (
           /(?:→|->|=>|>)/
             .test(
               line.text,
             )
         ) {
-          score += 30;
+          score += 25;
         }
 
+        /*
+         * Een % in dezelfde regel is een zeer sterke aanwijzing.
+         */
         if (
-          /\d+(?:[.,]\d+)?\s*%/
+          /\\d+(?:[.,]\\d+)?\\s*%/
             .test(
               line.text,
             )
         ) {
-          score += 40;
+          score += 35;
         }
 
         if (
-          score > bestScore
+          score >
+          bestScore
         ) {
-          bestScore =
-            score;
-          bestLine =
-            line;
+          bestScore = score;
+          bestLine = line;
         }
       }
 
       /*
-       * -------------------------------------------------------
-       * 6. RESULTAATZONE ROND DE GEVONDEN CHATREGEL
-       * -------------------------------------------------------
+       * Als de naamregel gevonden is, pak een dynamische band
+       * eromheen. Resultaatsterren en % kunnen net onder de
+       * namenregel staan.
        */
       if (
         bestLine &&
@@ -1091,10 +990,10 @@ export async function POST(
 
         const focusTop =
           Math.max(
-            0,
+            chatZone.top,
             Math.round(
               bestLine.y0 -
-              18,
+              20
             ),
           );
 
@@ -1103,34 +1002,37 @@ export async function POST(
             imageHeight,
             Math.round(
               bestLine.y1 +
-              110,
+              150
             ),
           );
 
+        const focusHeight =
+          Math.max(
+            80,
+            focusBottom -
+            focusTop,
+          );
+
         const resultFocusZone = {
-          left: 0,
+          left:
+            chatZone.left,
           top:
             focusTop,
           width:
-            Math.round(
-              imageWidth * 0.35,
-            ),
+            chatZone.width,
           height:
-            Math.max(
-              80,
-              focusBottom -
-                focusTop,
-            ),
+            focusHeight,
         };
 
         /*
-         * Alleen de gevonden FC-resultaatzone opnieuw OCR'en.
+         * ----------------------------------------------------
+         * 4. RESULTAAT OCR
+         *
+         * Nu pas lezen we het concrete FC-resultaat.
+         * ----------------------------------------------------
          */
         await worker.setParameters({
-          tessedit_pageseg_mode:
-            PSM.SINGLE_BLOCK,
-          tessedit_char_whitelist:
-            "0123456789%★⭐*→>-",
+          tessedit_pageseg_mode: "6",
         });
 
         const resultOcr =
@@ -1150,8 +1052,10 @@ export async function POST(
     }
 
     /*
-     * Voor admin/debugging bewaren we welke OCR-bronnen
-     * Phoenix heeft gebruikt.
+     * Combineer uitsluitend relevante OCR-bronnen.
+     * De volledige chat blijft beschikbaar voor debugging,
+     * maar wordt NIET gebruikt als willekeurige bron voor
+     * spelernaam/resultaatvelden.
      */
     const ocrText =
       [
@@ -1182,9 +1086,9 @@ export async function POST(
       );
 
     /*
-     * Clash-resultaatregel met 100% = altijd 3 sterren.
-     * Daarmee hoeft OCR de visuele ster-iconen niet perfect
-     * te herkennen.
+     * 100% betekent in Clash altijd 3 sterren.
+     * Hiermee voorkomen we dat OCR een losse verkeerde
+     * cijferherkenning gebruikt voor het sterresultaat.
      */
     if (
       destruction === 100
