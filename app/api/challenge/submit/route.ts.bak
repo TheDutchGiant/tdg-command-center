@@ -542,17 +542,7 @@ export async function POST(
 
     after(async () => {
     const worker =
-      await createWorker("eng", 1, {
-        workerPath: path.join(
-          process.cwd(),
-          "node_modules",
-          "tesseract.js",
-          "src",
-          "worker-script",
-          "node",
-          "index.js",
-        ),
-      });
+      await createWorker("eng");
 
     let ocrText =
       "";
