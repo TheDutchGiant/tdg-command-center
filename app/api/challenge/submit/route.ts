@@ -67,33 +67,72 @@ function parseDestruction(
 function parseTime(
   text: string
 ): number | null {
-  const match =
+  /*
+   * De screenshot wordt gemaakt op het moment dat
+   * de aanval begint.
+   *
+   * De zichtbare Clash-tijd is daarom de totale
+   * duur van de aanval.
+   *
+   * Voorbeeld:
+   * "2M 19S" => 139 seconden
+   *
+   * OCR kan ook "2:19" opleveren.
+   */
+
+  const minuteSecondMatch =
+    text.match(
+      /(\d{1,2})\s*[mM]\s*(\d{1,2})\s*[sS]?/
+    );
+
+  if (minuteSecondMatch) {
+    const minutes =
+      Number(minuteSecondMatch[1]);
+
+    const seconds =
+      Number(minuteSecondMatch[2]);
+
+    if (
+      Number.isFinite(minutes) &&
+      Number.isFinite(seconds) &&
+      minutes >= 0 &&
+      seconds >= 0 &&
+      seconds <= 59
+    ) {
+      return (
+        minutes * 60 +
+        seconds
+      );
+    }
+  }
+
+  const colonMatch =
     text.match(
       /(\d{1,2}):(\d{2})/
     );
 
-  if (!match) {
-    return null;
+  if (colonMatch) {
+    const minutes =
+      Number(colonMatch[1]);
+
+    const seconds =
+      Number(colonMatch[2]);
+
+    if (
+      Number.isFinite(minutes) &&
+      Number.isFinite(seconds) &&
+      minutes >= 0 &&
+      seconds >= 0 &&
+      seconds <= 59
+    ) {
+      return (
+        minutes * 60 +
+        seconds
+      );
+    }
   }
 
-  const minutes =
-    Number(match[1]);
-
-  const seconds =
-    Number(match[2]);
-
-  if (
-    !Number.isFinite(minutes) ||
-    !Number.isFinite(seconds) ||
-    seconds > 59
-  ) {
-    return null;
-  }
-
-  return (
-    minutes * 60 +
-    seconds
-  );
+  return null;
 }
 
 
@@ -108,6 +147,81 @@ function normalizePlayerName(
       "",
     )
     .toLowerCase();
+}
+
+function nameSimilarity(
+  a: string,
+  b: string,
+): number {
+  const left = normalizePlayerName(a);
+  const right = normalizePlayerName(b);
+
+  if (!left || !right) {
+    return 0;
+  }
+
+  if (left === right) {
+    return 1;
+  }
+
+  const previous = Array.from(
+    { length: right.length + 1 },
+    (_, index) => index,
+  );
+
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = [i];
+
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost =
+        left[i - 1] === right[j - 1] ? 0 : 1;
+
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + cost,
+      );
+    }
+
+    for (let j = 0; j <= right.length; j += 1) {
+      previous[j] = current[j];
+    }
+  }
+
+  const distance = previous[right.length];
+  const longestLength = Math.max(
+    left.length,
+    right.length,
+  );
+
+  return longestLength === 0
+    ? 0
+    : 1 - distance / longestLength;
+}
+
+function namesArePotentiallyTheSameAccount(
+  a: string,
+  b: string,
+): boolean {
+  const left = normalizePlayerName(a);
+  const right = normalizePlayerName(b);
+
+  if (left.length < 4 || right.length < 4) {
+    return false;
+  }
+
+  if (left === right) {
+    return true;
+  }
+
+  if (
+    left.includes(right) ||
+    right.includes(left)
+  ) {
+    return true;
+  }
+
+  return nameSimilarity(left, right) >= 0.8;
 }
 
 function findPlayerNameLines(
@@ -458,66 +572,98 @@ export async function POST(
               player.currentName,
             );
 
-          if (
-            playerName.length < 2
-          ) {
+          if (playerName.length < 2) {
             return false;
           }
 
-          return ocrLines.some(
-            (line) => {
-              const normalizedLine =
-                normalizePlayerName(
-                  line,
-                );
+          return ocrLines.some((line) => {
+            const normalizedLine =
+              normalizePlayerName(line);
 
-              if (
-                normalizedLine ===
-                playerName
-              ) {
-                return true;
-              }
+            if (normalizedLine.length < 2) {
+              return false;
+            }
 
-              if (
-                normalizedLine.length >=
-                  playerName.length &&
-                normalizedLine.includes(
-                  playerName,
-                )
-              ) {
-                return true;
-              }
+            if (normalizedLine === playerName) {
+              return true;
+            }
 
-              return (
-                playerName.length >= 5 &&
-                playerName.includes(
-                  normalizedLine,
-                )
-              );
-            },
-          );
+            if (
+              normalizedLine.length >=
+                playerName.length &&
+              normalizedLine.includes(playerName)
+            ) {
+              return true;
+            }
+
+            if (
+              playerName.length >= 5 &&
+              playerName.includes(normalizedLine)
+            ) {
+              return true;
+            }
+
+            return (
+              normalizedLine.length >= 5 &&
+              playerName.length >= 5 &&
+              nameSimilarity(
+                normalizedLine,
+                playerName,
+              ) >= 0.85
+            );
+          });
         },
       );
 
-    const uniquePlayerTags =
-      [
-        ...new Set(
-          playerMatches.map(
-            (player) =>
-              player.playerTag,
+    /*
+     * Extra veiligheidscontrole voor meerdere accounts
+     * met dezelfde of bijna dezelfde naam.
+     *
+     * Voorbeeld:
+     *   Maarten
+     *   Maarten2
+     *   Maarten_18
+     *
+     * Phoenix mag hier nooit gokken.
+     * In zo'n situatie gaat de inzending naar PENDING
+     * zodat een admin de juiste playerTag kan kiezen.
+     */
+    const possibleNameConflicts =
+      players.filter((player) =>
+        ocrLines.some((line) =>
+          namesArePotentiallyTheSameAccount(
+            line,
+            player.currentName,
           ),
         ),
+      );
+
+    const candidatePlayerTags =
+      [
+        ...new Set([
+          ...playerMatches.map(
+            (player) => player.playerTag,
+          ),
+          ...possibleNameConflicts.map(
+            (player) => player.playerTag,
+          ),
+        ]),
       ];
+
+    const uniquePlayerTags =
+      candidatePlayerTags;
 
     const playerNameMatchStatus =
       uniquePlayerTags.length === 1
-        ? "UNIQUE"
+        ? possibleNameConflicts.length > 1
+          ? "AMBIGUOUS"
+          : "UNIQUE"
         : uniquePlayerTags.length > 1
           ? "AMBIGUOUS"
           : "NOT_FOUND";
 
     const playerNameMatch =
-      uniquePlayerTags.length === 1
+      playerNameMatchStatus === "UNIQUE"
         ? players.find(
             (player) =>
               player.playerTag ===
@@ -675,7 +821,7 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success:
         true,
 
@@ -721,6 +867,34 @@ export async function POST(
           ? "🟡 Inzending ontvangen. Phoenix controleert deze."
           : "🟢 Phoenix heeft je resultaat automatisch gevalideerd!",
     });
+
+    /*
+     * Wanneer Phoenix de spelernaam automatisch
+     * aan een bestaande Player heeft gekoppeld,
+     * onthouden we de playerTag in een cookie.
+     *
+     * De cookie wordt alleen gebruikt om de eigen
+     * positie op het publieke leaderboard te tonen.
+     * De ranking zelf komt altijd uit de database.
+     */
+    if (playerNameMatch?.playerTag) {
+      response.cookies.set(
+        "tdg_challenge_player_tag",
+        playerNameMatch.playerTag,
+        {
+          httpOnly: true,
+          sameSite: "lax",
+          secure:
+            process.env.NODE_ENV ===
+            "production",
+          path: "/",
+          maxAge:
+            60 * 60 * 24 * 30,
+        },
+      );
+    }
+
+    return response;
   } catch (error) {
     console.error(
       "Challenge OCR submission error:",

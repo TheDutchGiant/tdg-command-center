@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ChallengeReview from "@/app/components/admin/challenge/ChallengeReview";
 
 type Challenge = {
   id: number;
@@ -228,6 +229,8 @@ export default function ChallengeAdminPage() {
             </p>
           )}
         </section>
+
+        <ChallengeReview />
 
         <a
           href="/admin"
