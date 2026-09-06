@@ -1317,29 +1317,37 @@ export async function POST(
           );
 
         const resultFocusZone = {
+          /*
+           * De uitslag staat rechts van de chatregel.
+           * 35% bleek te smal waardoor een deel van de
+           * uitslag buiten de OCR-zone viel.
+           */
           left: 0,
           top:
             focusTop,
           width:
             Math.round(
-              imageWidth * 0.35,
+              imageWidth * 0.50,
             ),
           height:
             Math.max(
-              80,
+              180,
               focusBottom -
-                focusTop,
+                focusTop +
+                70,
             ),
         };
 
         /*
          * Alleen de gevonden FC-resultaatzone opnieuw OCR'en.
+         *
+         * Hier bewust geen character whitelist:
+         * Tesseract moet zowel cijfers, %, sterren als
+         * overige OCR-tekens kunnen herkennen.
          */
         await worker.setParameters({
           tessedit_pageseg_mode:
-            PSM.SINGLE_BLOCK,
-          tessedit_char_whitelist:
-            "0123456789%★⭐*→>-",
+            PSM.SPARSE_TEXT,
         });
 
         const resultOcr =
