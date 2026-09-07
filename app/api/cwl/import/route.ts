@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { fetchClash } from "@/app/lib/clash";
-import { checkForNewCWL } from "@/app/lib/checkForNewCWL";
 import { PHOENIX } from "@/app/lib/config";
 import {
   saveWar,
@@ -10,16 +9,6 @@ import {
   saveCwlMatchup,
 } from "@/app/actions/cwlActions";
 
-const PRIMARY_CLAN = PHOENIX.clans.find(
-  (clan) => clan.primary
-);
-
-if (!PRIMARY_CLAN) {
-  throw new Error(
-    "Geen primary clan ingesteld."
-  );
-}
-
 function normalizeTag(tag: string) {
   return tag.replace("#", "");
 }
@@ -27,10 +16,8 @@ function normalizeTag(tag: string) {
 function findOurClan(war: any) {
   return PHOENIX.clans.find(
     (clan) =>
-      normalizeTag(war.clan.tag) ===
-        normalizeTag(clan.tag) ||
-      normalizeTag(war.opponent.tag) ===
-        normalizeTag(clan.tag)
+      normalizeTag(war.clan.tag) === normalizeTag(clan.tag) ||
+      normalizeTag(war.opponent.tag) === normalizeTag(clan.tag)
   );
 }
 
@@ -45,9 +32,7 @@ async function importWar(
     season,
     round,
     war,
-    PHOENIX.clans.map(
-      (clan) => clan.tag
-    )
+    PHOENIX.clans.map((clan) => clan.tag)
   );
 
   const ourClan = findOurClan(war);
@@ -69,18 +54,16 @@ async function importWar(
     ourClan.name
   );
 
-  const players =
-    await savePlayers(
-      war,
-      ourClan.tag
-    );
+  const players = await savePlayers(
+    war,
+    ourClan.tag
+  );
 
-  const attacks =
-    await saveAttacks(
-      warTag,
-      war,
-      ourClan.tag
-    );
+  const attacks = await saveAttacks(
+    warTag,
+    war,
+    ourClan.tag
+  );
 
   return {
     isOurClan: true,
@@ -95,122 +78,114 @@ export async function GET() {
     let importedPlayers = 0;
     let importedAttacks = 0;
 
-    const cwl =
-      await checkForNewCWL();
+    const importedWarTags = new Set<string>();
+    const importedSeasons = new Set<string>();
+
+    let activeClans = 0;
 
     /*
-     * =====================================================
-     * ACTIEVE CWL
-     * =====================================================
+     * Iedere TDG-clan kan in een andere CWL-groep zitten.
+     * Daarom halen we voor iedere clan afzonderlijk de
+     * actuele leaguegroup op.
      */
+    for (const phoenixClan of PHOENIX.clans) {
+      let league: any = null;
 
-    if (cwl.active && cwl.league) {
-      const league = cwl.league;
+      try {
+        league = await fetchClash(
+          `/clans/%23${phoenixClan.tag.replace(
+            "#",
+            ""
+          )}/currentwar/leaguegroup`
+        );
+      } catch (error) {
+        console.log(
+          `⚠️ Geen actieve CWL beschikbaar voor ${phoenixClan.name}.`
+        );
+        continue;
+      }
+
+      if (
+        !league?.season ||
+        !Array.isArray(league.rounds)
+      ) {
+        console.log(
+          `⚠️ Ongeldige CWL-data voor ${phoenixClan.name}.`
+        );
+        continue;
+      }
+
+      activeClans++;
+
       const season = league.season;
 
-      console.log(
-        `🔥 Actieve CWL importeren: ${season}`
-      );
+      importedSeasons.add(season);
 
-      const importedWarTags =
-        new Set<string>();
+      console.log(
+        `🔥 Actieve CWL importeren voor ${phoenixClan.name}: ${season}`
+      );
 
       for (
         let round = 0;
         round < league.rounds.length;
         round++
       ) {
-        const currentRound =
-          league.rounds[round];
+        const currentRound = league.rounds[round];
 
         for (
-          const warTag of
-          currentRound.warTags
+          const warTag of currentRound.warTags ?? []
         ) {
           if (warTag === "#0") {
             continue;
           }
 
-          if (
-            importedWarTags.has(warTag)
-          ) {
+          if (importedWarTags.has(warTag)) {
             continue;
           }
 
           importedWarTags.add(warTag);
 
-          const war =
-            await fetchClash(
-              `/clanwarleagues/wars/%23${warTag.replace(
-                "#",
-                ""
-              )}`
-            );
+          const war = await fetchClash(
+            `/clanwarleagues/wars/%23${warTag.replace(
+              "#",
+              ""
+            )}`
+          );
 
-          const result =
-            await importWar(
-              warTag,
-              season,
-              round + 1,
-              war
-            );
+          const result = await importWar(
+            warTag,
+            season,
+            round + 1,
+            war
+          );
 
           if (result.isOurClan) {
             importedWars++;
-            importedPlayers +=
-              result.players;
-            importedAttacks +=
-              result.attacks;
+            importedPlayers += result.players;
+            importedAttacks += result.attacks;
           }
         }
       }
+    }
 
+    if (activeClans > 0) {
       return NextResponse.json({
         success: true,
         mode: "active-cwl",
-        season,
+        seasons: Array.from(importedSeasons),
+        activeClans,
         importedWars,
         importedPlayers,
         importedAttacks,
       });
     }
 
-    /*
-     * =====================================================
-     * GEEN BESCHIKBARE ACTIEVE CWL
-     * =====================================================
-     *
-     * Het ontbreken van /currentwar/leaguegroup betekent
-     * niet automatisch dat een CWL is afgelopen.
-     *
-     * Rond de overgang tussen CWL-seizoenen kan Clash deze
-     * endpoint tijdelijk niet beschikbaar maken.
-     *
-     * Daarom finaliseren we hier NIET automatisch.
-     *
-     * Een definitieve selectie wordt pas gewisseld wanneer
-     * de actieve CWL-cyclus daadwerkelijk voorbij is.
-     */
-
     return NextResponse.json({
       success: true,
       mode: "waiting-for-cwl",
       message:
-        "Geen actieve CWL leaguegroup beschikbaar. Geen finalisatie uitgevoerd.",
-      importedWars: 0,
-      importedPlayers: 0,
-      importedAttacks: 0,
-    });
-
-    /*
-     * Nog nooit een CWL geïmporteerd.
-     */
-
-    return NextResponse.json({
-      success: true,
-      mode: "idle",
-      message:
-        "Geen actieve of eerder opgeslagen CWL gevonden.",
+        "Geen actieve CWL leaguegroup beschikbaar voor de TDG-clans.",
+      activeClans: 0,
       importedWars: 0,
       importedPlayers: 0,
       importedAttacks: 0,
