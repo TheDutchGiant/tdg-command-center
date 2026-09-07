@@ -7,32 +7,49 @@ export type VisionChallengeResult = {
   timeSeconds: number | null;
 };
 
-function extractJson(text: string): VisionChallengeResult | null {
-  const match = text.match(/\{[\s\S]*\}/);
+const FREE_VISION_MODEL =
+  "google/gemma-4-26b-a4b-it:free";
+
+function extractJson(
+  text: string,
+): VisionChallengeResult | null {
+  const match =
+    text.match(
+      /\{[\s\S]*\}/,
+    );
 
   if (!match) {
     return null;
   }
 
   try {
-    const parsed = JSON.parse(match[0]);
+    const parsed =
+      JSON.parse(
+        match[0],
+      );
 
     const stars =
-      Number.isInteger(parsed.stars) &&
+      Number.isInteger(
+        parsed.stars,
+      ) &&
       parsed.stars >= 0 &&
       parsed.stars <= 3
         ? parsed.stars
         : null;
 
     const destruction =
-      Number.isInteger(parsed.destruction) &&
+      Number.isInteger(
+        parsed.destruction,
+      ) &&
       parsed.destruction >= 0 &&
       parsed.destruction <= 100
         ? parsed.destruction
         : null;
 
     const timeSeconds =
-      Number.isInteger(parsed.timeSeconds) &&
+      Number.isInteger(
+        parsed.timeSeconds,
+      ) &&
       parsed.timeSeconds >= 0 &&
       parsed.timeSeconds <= 600
         ? parsed.timeSeconds
@@ -70,7 +87,7 @@ export async function analyzeChallengeScreenshot(
     return {
       result: null,
       raw: null,
-      model: "openrouter/free",
+      model: FREE_VISION_MODEL,
       error:
         "OPENROUTER_API_KEY ontbreekt.",
     };
@@ -83,7 +100,9 @@ export async function analyzeChallengeScreenshot(
       );
 
     const imageBase64 =
-      imageBuffer.toString("base64");
+      imageBuffer.toString(
+        "base64",
+      );
 
     const response =
       await fetch(
@@ -102,7 +121,7 @@ export async function analyzeChallengeScreenshot(
           },
           body: JSON.stringify({
             model:
-              "openrouter/free",
+              FREE_VISION_MODEL,
             messages: [
               {
                 role: "user",
@@ -112,7 +131,8 @@ export async function analyzeChallengeScreenshot(
                     text: `
 Analyseer deze Clash of Clans screenshot.
 
-Geef uitsluitend JSON terug in exact deze vorm:
+Geef uitsluitend geldige JSON terug:
+
 {
   "playerName": string|null,
   "stars": integer|null,
@@ -123,18 +143,16 @@ Geef uitsluitend JSON terug in exact deze vorm:
 BELANGRIJKE REGELS:
 
 1. Zoek de aanvaller rechtsboven.
-2. Zoek vervolgens de challenge/resultaatregel die bij diezelfde speler hoort.
-3. Tel uitsluitend de daadwerkelijk GEVAULDE sterren.
-   Een zwarte/lege ster telt NIET mee.
-4. Gebruik NOOIT het percentage om het aantal sterren af te leiden.
-5. De vaste "0%" rechtsonder van de Clash-interface is GEEN challenge-resultaat en moet worden genegeerd.
-6. Gebruik uitsluitend visueel zichtbare informatie uit het screenshot.
-7. "100%" betekent dus NIET automatisch 3 sterren; tel de zichtbare gevulde sterren.
-8. De zichtbare aanvalstijd is de aanvalstijd in seconden.
-9. "Herhaling eindigt over" mag alleen als tijd worden gebruikt wanneer dat daadwerkelijk de aanvalstijd is.
+2. Zoek de challenge/resultaatregel die bij DIEZELFDE speler hoort.
+3. Tel uitsluitend de daadwerkelijk GEVULDE sterren.
+4. Een zwarte of lege ster telt NIET mee.
+5. Gebruik het percentage NOOIT om het aantal sterren af te leiden.
+6. De vaste "0%" rechtsonder van de Clash-interface is GEEN challenge-resultaat.
+7. Gebruik alleen informatie die daadwerkelijk visueel zichtbaar is.
+8. De zichtbare aanvalstijd moet in seconden worden teruggegeven.
+9. "Herhaling eindigt over" is alleen de aanvalstijd wanneer dit daadwerkelijk de zichtbare aanvalstijd is.
 10. Bij twijfel over een veld: gebruik null.
-
-Antwoord alleen met JSON.
+11. Antwoord uitsluitend met JSON.
                     `.trim(),
                   },
                   {
@@ -156,7 +174,7 @@ Antwoord alleen met JSON.
       return {
         result: null,
         raw: null,
-        model: "openrouter/free",
+        model: FREE_VISION_MODEL,
         error:
           `OpenRouter HTTP ${response.status}`,
       };
@@ -182,14 +200,15 @@ Antwoord alleen met JSON.
           : null,
       raw,
       model:
-        "openrouter/free",
+        FREE_VISION_MODEL,
       error: null,
     };
   } catch (error) {
     return {
       result: null,
       raw: null,
-      model: "openrouter/free",
+      model:
+        FREE_VISION_MODEL,
       error:
         error instanceof Error
           ? error.message
