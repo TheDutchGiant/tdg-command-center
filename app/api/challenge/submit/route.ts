@@ -181,6 +181,19 @@ function parseDestruction(
           "6",
         );
 
+    /*
+     * Veelvoorkomende Tesseract-fout bij Clash:
+     * "100%" kan als "DO%" of "D0%" worden gelezen.
+     *
+     * In dat geval ontbreekt de tweede nul in de OCR.
+     */
+    if (
+      /^(?:D0|DO)$/.test(token)
+    ) {
+      values.push(100);
+      continue;
+    }
+
     if (
       /^\d{1,3}$/.test(token)
     ) {

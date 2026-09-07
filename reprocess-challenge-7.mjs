@@ -399,6 +399,7 @@ try {
       );
 
       resultFocusText = [
+        percentageLine.text,
         "[PASS1]",
         pass1.data.text,
         "",
