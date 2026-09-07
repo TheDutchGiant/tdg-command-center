@@ -1734,6 +1734,20 @@ export async function POST(
 
             processingStatus:
               "COMPLETED",
+
+            vision: {
+              model:
+                visionAnalysis.model,
+
+              result:
+                visionAnalysis.result,
+
+              raw:
+                visionAnalysis.raw,
+
+              error:
+                visionAnalysis.error,
+            },
           },
 
           adminNote:
