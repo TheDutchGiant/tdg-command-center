@@ -89,6 +89,11 @@ function parseDestruction(text) {
       .replace(/B/g, "8")
       .replace(/G/g, "6");
 
+    if (/^(?:D0|DO)$/.test(token)) {
+      values.push(100);
+      continue;
+    }
+
     if (/^\d{1,3}$/.test(token)) {
       const value = Number(token);
 
