@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
+import ChallengeSelector from "./ChallengeSelector";
 
 export const dynamic = "force-dynamic";
 
@@ -373,9 +374,6 @@ export default async function ChallengeLeaderboardPage({
       {challenge?.status === "ACTIVE" && (
         <meta httpEquiv="refresh" content="15" />
       )}
-      {challenge?.status === "ACTIVE" && (
-        <meta httpEquiv="refresh" content="15" />
-      )}
       <div className="mx-auto max-w-5xl">
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -388,29 +386,19 @@ export default async function ChallengeLeaderboardPage({
           </a>
 
           {challenge && (
-            <form method="GET">
-              <select
-                name="challengeId"
-                defaultValue={String(challenge.id)}
-                onChange={(event) => {
-                  window.location.href =
-                    `/challenge/leaderboard?challengeId=${event.target.value}`;
-                }}
-                className="max-w-[240px] rounded-lg border border-white/10 bg-neutral-900 px-3 py-2 text-xs font-bold text-white outline-none"
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="challenge-selector"
+                className="sr-only"
               >
-                {challenges.map((item) => (
-                  <option
-                    key={item.id}
-                    value={String(item.id)}
-                  >
-                    {item.title}
-                    {item.status === "ACTIVE"
-                      ? " — huidige"
-                      : ""}
-                  </option>
-                ))}
-              </select>
-            </form>
+                Challenge kiezen
+              </label>
+
+              <ChallengeSelector
+                challenges={challenges}
+                selectedId={challenge.id}
+              />
+            </div>
           )}
 
         </div>
