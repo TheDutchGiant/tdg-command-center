@@ -25,8 +25,14 @@ export default async function CWLPage({ params }: Props) {
   const { tag } = await params;
   const clan = PHOENIX.clans.find((c) => c.tag === tag);
 
-  const season =
-    getCwlDisplaySeason();
+  // De actuele CWL hoort bij de huidige kalendermaand.
+  // getCwlDisplaySeason() wordt hieronder bewust apart
+  // gebruikt voor de bestaande selectie-logica.
+  const season = getCwlDisplaySeason();
+
+  const now = new Date();
+  const currentCwlSeason =
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const wars = await prisma.war.findMany({
     where: {
@@ -108,20 +114,17 @@ export default async function CWLPage({ params }: Props) {
       ? currentPlan.clanPlans[0]
       : null;
 
-  const now = new Date();
-
   /*
-   * De "actuele CWL" volgt de display-season.
-   * Een CWL blijft hier dus zichtbaar nadat de laatste
-   * war day is afgelopen, totdat de volgende CWL-cyclus
-   * als nieuwe display-season geldt.
+   * De actuele CWL is de CWL van de huidige kalendermaand.
+   * Ook wanneer er op dit exacte moment geen war day loopt,
+   * blijven de rondes van deze CWL onder "Actuele CWL" staan.
    */
   const currentWars = wars.filter(
-    (war) => war.season.season === season
+    (war) => war.season.season === currentCwlSeason
   );
 
   const historyWars = wars.filter(
-    (war) => war.season.season !== season
+    (war) => war.season.season !== currentCwlSeason
   );
 
   const historySeasons = Array.from(
