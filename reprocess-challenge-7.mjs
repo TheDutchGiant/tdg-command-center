@@ -177,46 +177,178 @@ try {
   console.log(`Score: ${bestScore}`);
 
   /*
-   * 3. NIEUWE RESULTAATZONE
+   * 3. RESULTAAT ZOEKEN OP BASIS VAN CONTEXT
    *
-   * Dit is exact de aangepaste logica:
-   * - 50% breedte i.p.v. 35%
-   * - minimaal 180 px hoog
-   * - extra ruimte onder de chatregel
-   * - SPARSE_TEXT
-   * - geen whitelist
+   * Niet meer uitgaan van één vaste positie.
+   * We zoeken eerst alle OCR-regels met een percentage
+   * vlak onder/rond de gevonden chatregel.
    */
   let resultFocusText = "";
 
   if (bestLine && bestScore >= 80) {
-    const focusTop = Math.max(
+    const contextTop = Math.max(
       0,
-      Math.round(bestLine.y0 - 18),
+      Math.round(bestLine.y0 - 20),
     );
 
-    const focusBottom = Math.min(
+    const contextBottom = Math.min(
       imageHeight,
-      Math.round(bestLine.y1 + 110),
+      Math.round(bestLine.y1 + 170),
     );
 
-    const resultFocusZone = {
+    const contextZone = {
       left: 0,
-      top: focusTop,
-      width: Math.round(imageWidth * 0.50),
+      top: contextTop,
+      width: Math.round(imageWidth * 0.45),
       height: Math.max(
-        180,
-        focusBottom - focusTop + 70,
+        120,
+        contextBottom - contextTop,
       ),
     };
 
-    console.log("\n========== RESULTAATZONE ==========");
-    console.log(resultFocusZone);
-
-    const resultOcr = await worker.recognize(imageBuffer, {
-      rectangle: resultFocusZone,
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SPARSE_TEXT,
     });
 
-    resultFocusText = resultOcr.data.text ?? "";
+    const contextOcr = await worker.recognize(
+      imageBuffer,
+      {
+        rectangle: contextZone,
+      },
+      {
+        blocks: true,
+      },
+    );
+
+    const resultLines = [];
+
+    for (const block of contextOcr.data.blocks ?? []) {
+      for (const paragraph of block.paragraphs ?? []) {
+        for (const line of paragraph.lines ?? []) {
+          const text = line.text
+            ?.replace(/\s+/g, " ")
+            .trim();
+
+          if (!text || !line.bbox) continue;
+
+          resultLines.push({
+            text,
+            x0: line.bbox.x0,
+            x1: line.bbox.x1,
+            y0: line.bbox.y0,
+            y1: line.bbox.y1,
+          });
+        }
+      }
+    }
+
+    console.log("\n========== CONTEXT REGELS ==========");
+    for (const line of resultLines) {
+      console.log(
+        `[x:${line.x0}-${line.x1}] ` +
+        `[y:${line.y0}-${line.y1}] ` +
+        `"${line.text}"`
+      );
+    }
+
+    const percentageCandidates = resultLines
+      .filter((line) => /%/.test(line.text))
+      .filter(
+        (line) =>
+          line.y0 >= bestLine.y1 - 10 &&
+          line.y0 <= bestLine.y1 + 160,
+      )
+      .sort((a, b) => {
+        const da = Math.abs(a.y0 - bestLine.y1);
+        const db = Math.abs(b.y0 - bestLine.y1);
+        return da - db;
+      });
+
+    const percentageLine =
+      percentageCandidates[0] ?? null;
+
+    console.log("\n========== PERCENTAGE KANDIDAAT ==========");
+    console.log(percentageLine);
+
+    if (percentageLine) {
+      const rowTop = Math.max(
+        0,
+        Math.round(percentageLine.y0 - 32),
+      );
+
+      /*
+       * We nemen bewust de hele chatregel mee.
+       * Daardoor vallen de sterren links van de %
+       * ook binnen dezelfde OCR-context.
+       */
+      const rowZone = {
+        left: Math.max(
+          0,
+          Math.round(percentageLine.x0 - 280),
+        ),
+        top: rowTop,
+        width: Math.min(
+          imageWidth -
+            Math.max(
+              0,
+              Math.round(percentageLine.x0 - 280),
+            ),
+          600,
+        ),
+        height: Math.min(
+          imageHeight - rowTop,
+          100,
+        ),
+      };
+
+      console.log("\n========== GERichte RESULTAATZONE ==========");
+      console.log(rowZone);
+
+      /*
+       * Pass 1: normale OCR
+       */
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_LINE,
+        tessedit_char_whitelist:
+          "0123456789%★⭐*OoDQ",
+      });
+
+      const pass1 = await worker.recognize(
+        imageBuffer,
+        {
+          rectangle: rowZone,
+        },
+      );
+
+      /*
+       * Pass 2: sparse text.
+       * Soms leest Tesseract de grote 100% beter
+       * als losse tekstobjecten.
+       */
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+        tessedit_char_whitelist:
+          "0123456789%★⭐*OoDQ",
+      });
+
+      const pass2 = await worker.recognize(
+        imageBuffer,
+        {
+          rectangle: rowZone,
+        },
+      );
+
+      resultFocusText = [
+        "[PASS1]",
+        pass1.data.text,
+        "",
+        "[PASS2]",
+        pass2.data.text,
+      ].join("\n");
+    } else {
+      resultFocusText =
+        contextOcr.data.text;
+    }
   }
 
   console.log("\n========== NIEUWE RESULTAAT OCR ==========");

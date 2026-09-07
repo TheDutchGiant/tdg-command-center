@@ -77,31 +77,125 @@ function parseStars(
 }
 
 function parseDestruction(
-  text: string
+  text: string,
 ): number | null {
-  const matches =
-    text.match(
-      /(\d{1,3}(?:[.,]\d{1,2})?)\s*%/g
-    );
+  /*
+   * Tesseract kan cijfers in Clash-resultaten
+   * verwarren met letters/symbolen.
+   *
+   * Voorbeelden:
+   *   100% -> 100%
+   *   IOO% -> 100%
+   *   1OO% -> 100%
+   *   DO%  -> 100%
+   *
+   * We normaliseren alleen tokens die duidelijk
+   * percentage-achtig zijn.
+   */
 
-  if (!matches?.length) {
-    return null;
-  }
+  const normalizedText =
+    text
+      .replace(/[OoQq]/g, "0")
+      .replace(/[IiLl|]/g, "1")
+      .replace(/[Ss]/g, "5")
+      .replace(/[Bb]/g, "8")
+      .replace(/[Gg]/g, "6")
+      .replace(/[Tt]/g, "7")
+      .replace(/[Aa]/g, "4");
+
+  const matches =
+    normalizedText.match(
+      /\b\d{1,3}\s*[%!]\b|\b\d{1,3}\s*[%!]/g,
+    ) ?? [];
 
   const values = matches
-    .map((value) =>
-      Number(
-        value
-          .replace("%", "")
-          .replace(",", ".")
-      )
-    )
+    .map((value) => {
+      const digits =
+        value.replace(
+          /[^0-9]/g,
+          "",
+        );
+
+      return Number(digits);
+    })
     .filter(
       (value) =>
         Number.isFinite(value) &&
         value >= 0 &&
-        value <= 100
+        value <= 100,
     );
+
+  /*
+   * Tweede fallback voor OCR-varianten waarbij
+   * het percentage-teken wel aanwezig is maar één
+   * van de cijfers als letter is herkend.
+   *
+   * Bijvoorbeeld:
+   *   DO% -> 100
+   *   IOO% -> 100
+   */
+  const looseMatches =
+    text.match(
+      /\b[A-Za-z0-9|]{1,3}\s*%/,
+    ) ?? [];
+
+  for (
+    const match of looseMatches
+  ) {
+    let token =
+      match
+        .replace(
+          /\s+/g,
+          "",
+        )
+        .replace(
+          "%",
+          "",
+        )
+        .toUpperCase();
+
+    token =
+      token
+        .replace(
+          /[IOQL|]/g,
+          (character) =>
+            character === "I" ||
+            character === "L"
+              ? "1"
+              : "0",
+        )
+        .replace(
+          /D/g,
+          "1",
+        )
+        .replace(
+          /S/g,
+          "5",
+        )
+        .replace(
+          /B/g,
+          "8",
+        )
+        .replace(
+          /G/g,
+          "6",
+        );
+
+    if (
+      /^\d{1,3}$/.test(token)
+    ) {
+      const value =
+        Number(token);
+
+      if (
+        Number.isFinite(value) &&
+        value >= 0 &&
+        value <= 100
+      ) {
+        values.push(value);
+      }
+    }
+  }
 
   return values.length
     ? Math.max(...values)
