@@ -4,6 +4,7 @@ import {
   validateChallengeResult,
 } from "@/app/lib/challenge/validateResult";
 import { recalculateChallengeRanking } from "@/app/lib/challenge/ranking";
+import { analyzeChallengeScreenshot } from "@/app/lib/challenge/openRouterVision";
 import { createWorker, PSM } from "tesseract.js";
 
 function parseStars(
@@ -1500,7 +1501,7 @@ export async function POST(
         resultFocusText,
       );
 
-    const destruction =
+    let destruction =
       parseDestruction(
         resultFocusText,
       );
@@ -1516,10 +1517,50 @@ export async function POST(
       stars = 3;
     }
 
-    const timeSeconds =
-      parseTime(
-        timeText,
+    /*
+     * ---------------------------------------------------------
+     * VISION AI CONTROLE
+     * ---------------------------------------------------------
+     *
+     * De originele screenshot wordt naast Tesseract ook
+     * bekeken door OpenRouter.
+     *
+     * Vision is leidend wanneer het geldige waarden
+     * teruggeeft. Tesseract blijft fallback.
+     */
+    const visionAnalysis =
+      await analyzeChallengeScreenshot(
+        screenshotFile,
       );
+
+    const visionResult =
+      visionAnalysis.result;
+
+    if (
+      visionResult
+    ) {
+      if (
+        visionResult.stars !== null
+      ) {
+        stars =
+          visionResult.stars;
+      }
+
+      if (
+        visionResult.destruction !== null
+      ) {
+        destruction =
+          visionResult.destruction;
+      }
+    }
+
+    const timeSeconds =
+      visionResult &&
+      visionResult.timeSeconds !== null
+        ? visionResult.timeSeconds
+        : parseTime(
+            timeText,
+          );
 
     const clashResultDetected =
       stars !== null &&
