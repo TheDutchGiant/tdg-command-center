@@ -110,14 +110,18 @@ export default async function CWLPage({ params }: Props) {
 
   const now = new Date();
 
+  /*
+   * De "actuele CWL" volgt de display-season.
+   * Een CWL blijft hier dus zichtbaar nadat de laatste
+   * war day is afgelopen, totdat de volgende CWL-cyclus
+   * als nieuwe display-season geldt.
+   */
   const currentWars = wars.filter(
-    (war) =>
-      war.warStartTime <= now &&
-      war.warEndTime >= now
+    (war) => war.season.season === season
   );
 
   const historyWars = wars.filter(
-    (war) => war.warEndTime < now
+    (war) => war.season.season !== season
   );
 
   const historySeasons = Array.from(
