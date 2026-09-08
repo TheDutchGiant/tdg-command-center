@@ -1827,60 +1827,6 @@ export async function POST(
         screenshotDetected,
       });
 
-    const finalPlayerTag =
-      matchedPlayerTag ??
-      `OCR:${normalizePlayerName(
-        matchedPlayerName ??
-          "unknown",
-      )}`;
-
-    /*
-     * Een speler mag binnen dezelfde Challenge en difficulty
-     * maar één inzending hebben.
-     *
-     * De huidige verwerking heeft tijdelijk een UPLOAD:-tag.
-     * Zodra OCR een echte speler oplevert, kan er al een oudere
-     * inzending van diezelfde speler bestaan.
-     *
-     * In dat geval vervangen we de oude inzending door deze
-     * nieuwste verwerking. De gekoppelde RandomChallengeResult
-     * wordt door onDelete: Cascade automatisch verwijderd en
-     * hieronder opnieuw aangemaakt wanneer de nieuwe score geldig is.
-     */
-    const existingEntry =
-      await prisma.randomChallengeEntry.findFirst({
-        where: {
-          challengeId:
-            challenge.id,
-
-          playerTag:
-            finalPlayerTag,
-
-          difficulty:
-            variant.difficulty,
-
-          NOT: {
-            id:
-              processingEntry.id,
-          },
-        },
-
-        select: {
-          id: true,
-        },
-      });
-
-    if (
-      existingEntry
-    ) {
-      await prisma.randomChallengeEntry.delete({
-        where: {
-          id:
-            existingEntry.id,
-        },
-      });
-    }
-
     const entry =
       await prisma.randomChallengeEntry.update({
         where: {
@@ -1890,7 +1836,11 @@ export async function POST(
 
         data: {
           playerTag:
-            finalPlayerTag,
+            matchedPlayerTag ??
+            `OCR:${normalizePlayerName(
+              matchedPlayerName ??
+                "unknown",
+            )}`,
 
           playerName:
             matchedPlayerName ??
