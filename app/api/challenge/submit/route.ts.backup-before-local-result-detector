@@ -951,18 +951,8 @@ export async function POST(
     let timeText = "";
     let chatText = "";
     let resultFocusText = "";
-    let starsOcrText = "";
-    let percentageOcrText = "";
-    let resultTimeOcrText = "";
     let matchedChatLineText = "";
     let attackerPlayer:
-      | {
-          playerTag: string;
-          currentName: string;
-        }
-      | null = null;
-
-    let bestMatchedPlayer:
       | {
           playerTag: string;
           currentName: string;
@@ -1297,304 +1287,178 @@ export async function POST(
        * Vanaf hier gebruiken we uitsluitend deze echte
        * database-naam om de juiste FC-regel te vinden.
        */
+      const attackerName =
+        attackerPlayer &&
+        bestPlayerScore >= 0.90
+          ? normalizePlayerName(
+              attackerPlayer.currentName,
+            )
+          : "";
+
       /*
        * -------------------------------------------------------
-       * 4. FC-ZOEKER: ONDERSTE 40% VAN DE CHAT
+       * 5. JUISTE FC-REGEL ZOEKEN
        * -------------------------------------------------------
        *
-       * We gebruiken bewust NIET meer de naam rechtsboven
-       * als primaire bron.
+       * Sterke signalen:
+       * - naam komt in de regel voor
+       * - pijl tussen namen
+       * - percentage aanwezig
        *
-       * De gebruiker kan op verschillende apparaten/scherm-
-       * verhoudingen screenshots maken. Daarom werken we
-       * uitsluitend met relatieve percentages van de afbeelding.
-       *
-       * Zoekgebied:
-       * - alleen linker 35% = chat
-       * - alleen onderste 40% van de afbeelding
-       *
-       * Daar zoeken we naar een FC-regel waarin dezelfde
-       * bekende spelernaam twee keer voorkomt:
-       *
-       *   TDG Maarten -> TDG Maarten
-       *
-       * De laagst gelegen geldige regel wint.
+       * We kijken alleen naar het linkerpaneel, dus tekst
+       * uit het aanvalsscherm kan niet per ongeluk de
+       * chatselectie beïnvloeden.
        */
       let bestLine:
         | OcrLine
-        | null = null;
+        | null =
+          null;
 
-      bestMatchedPlayer = null;
-
-      let bestLineScore = 0;
-
-      const lowerChatTop =
-        Math.round(imageHeight * 0.60);
+      let bestScore = 0;
 
       for (
-        const line of chatLines
+        const line of
+          chatLines
       ) {
-        /*
-         * Alleen de onderste 40% van de chat.
-         */
-        if (
-          line.y1 <
-          lowerChatTop
-        ) {
-          continue;
-        }
-
         const lineNormalized =
           normalizePlayerName(
             line.text,
           );
 
         if (
-          lineNormalized.length < 4
+          lineNormalized.length <
+          2
         ) {
           continue;
         }
+
+        let score = 0;
 
         /*
-         * Een echte FC-regel heeft bij voorkeur een pijl.
+         * De echte database-naam is het primaire anker.
          */
-        const hasArrow =
-          /(?:→|->|=>)/.test(
-            line.text,
-          );
-
-        if (!hasArrow) {
-          continue;
-        }
-
-        let lineBestPlayer:
-          | {
-              playerTag: string;
-              currentName: string;
-            }
-          | null = null;
-
-        let lineBestOccurrences = 0;
-        let lineBestNameLength = 0;
-        let lineAmbiguous = false;
-
-        for (
-          const player of players
+        if (
+          attackerName &&
+          lineNormalized.includes(
+            attackerName,
+          )
         ) {
-          const playerNameNormalized =
-            normalizePlayerName(
-              player.currentName,
+          score +=
+            200 +
+            attackerName.length;
+        } else if (
+          attackerName
+        ) {
+          const similarity =
+            nameSimilarity(
+              lineNormalized,
+              attackerName,
             );
 
           if (
-            playerNameNormalized.length < 4
+            similarity >=
+            0.75
           ) {
-            continue;
-          }
-
-          /*
-           * Zoek de naam letterlijk twee keer in dezelfde OCR-regel.
-           */
-          const occurrences =
-            lineNormalized
-              .split(
-                playerNameNormalized,
-              ).length - 1;
-
-          if (
-            occurrences >= 2
-          ) {
-            if (
-              occurrences >
-              lineBestOccurrences
-            ) {
-              lineBestPlayer =
-                player;
-              lineBestOccurrences =
-                occurrences;
-              lineBestNameLength =
-                playerNameNormalized.length;
-              lineAmbiguous = false;
-            } else if (
-              occurrences ===
-                lineBestOccurrences &&
-              playerNameNormalized.length ===
-                lineBestNameLength &&
-              lineBestPlayer &&
-              player.playerTag !==
-                lineBestPlayer.playerTag
-            ) {
-              lineAmbiguous = true;
-            }
+            score += Math.round(
+              similarity * 70,
+            );
           }
         }
 
-        /*
-         * Geen dubbele bekende naam = geen FC-anker.
-         */
         if (
-          !lineBestPlayer ||
-          lineBestOccurrences < 2
+          /(?:→|->|=>|>)/
+            .test(
+              line.text,
+            )
         ) {
-          continue;
+          score += 30;
         }
 
-        /*
-         * Score:
-         * - dubbele naam zeer sterk
-         * - pijl sterk
-         * - zo laag mogelijk in de chat wint bij gelijke kwaliteit
-         *
-         * Bij een daadwerkelijke naamconflict laten we
-         * bestMatchedPlayer null, zodat de admin moet beoordelen.
-         */
-        let score =
-          200 +
-          lineBestOccurrences * 60 +
-          lineBestNameLength;
-
-        if (hasArrow) {
-          score += 50;
-        }
-
-        /*
-         * Een percentage op dezelfde regel is mooi meegenomen,
-         * maar niet vereist.
-         */
         if (
-          /\d+(?:[.,]\d+)?\s*%/.test(
-            line.text,
-          )
+          /\d+(?:[.,]\d+)?\s*%/
+            .test(
+              line.text,
+            )
         ) {
-          score += 25;
+          score += 40;
         }
 
-        /*
-         * De laagst gelegen FC heeft prioriteit.
-         * Daarom nemen we bij dezelfde score de regel met
-         * de hoogste y1.
-         */
-        const isBetter =
-          score > bestLineScore ||
-          (
-            score === bestLineScore &&
-            bestLine !== null &&
-            line.y1 > bestLine.y1
-          );
-
-        if (isBetter) {
+        if (
+          score > bestScore
+        ) {
+          bestScore =
+            score;
           bestLine =
             line;
-          bestLineScore =
-            score;
-          bestMatchedPlayer =
-            lineAmbiguous
-              ? null
-              : lineBestPlayer;
         }
       }
 
       /*
        * -------------------------------------------------------
-       * 5. LOKALE RESULTAATZONE
+       * 6. RESULTAATZONE ROND DE GEVONDEN CHATREGEL
        * -------------------------------------------------------
-       *
-       * Heel belangrijk:
-       * alleen het gebied rond de geselecteerde FC wordt
-       * opnieuw gelezen.
-       *
-       * Daardoor kan bijvoorbeeld een eerdere 100% elders
-       * in de chat nooit meer als resultaat worden gebruikt.
        */
       if (
-        bestLine
+        attackerPlayer &&
+        bestLine &&
+        bestScore >= 80
       ) {
         matchedChatLineText =
           bestLine.text;
 
-        /*
-         * We beginnen bijna exact op de FC-regel.
-         * Slechts 1.5% marge erboven voorkomt dat een vorige
-         * chatkaart/100%-regel weer wordt meegenomen.
-         */
-        const localTop =
+        const focusTop =
           Math.max(
-            lowerChatTop,
+            0,
             Math.round(
               bestLine.y0 -
-              imageHeight * 0.015,
+              18,
             ),
           );
 
-        const localBottom =
+        const focusBottom =
           Math.min(
             imageHeight,
             Math.round(
               bestLine.y1 +
-              imageHeight * 0.14,
+              110,
             ),
-          );
-
-        const localHeight =
-          Math.max(
-            Math.round(
-              imageHeight * 0.10,
-            ),
-            localBottom -
-              localTop,
           );
 
         const resultFocusZone = {
+          /*
+           * De uitslag staat rechts van de chatregel.
+           * 35% bleek te smal waardoor een deel van de
+           * uitslag buiten de OCR-zone viel.
+           */
           left: 0,
-          top: localTop,
+          top:
+            focusTop,
           width:
             Math.round(
-              imageWidth * 0.35,
+              imageWidth * 0.50,
             ),
-          height: localHeight,
+          height:
+            Math.max(
+              180,
+              focusBottom -
+                focusTop +
+                70,
+            ),
         };
 
         /*
-         * ---------------------------------------------------
-         * 5A. PERCENTAGE OCR
-         * ---------------------------------------------------
-         */
-        await worker.setParameters({
-          tessedit_pageseg_mode:
-            PSM.SPARSE_TEXT,
-          tessedit_char_whitelist:
-            "0123456789.,%!",
-        });
-
-        const percentageOcr =
-          await worker.recognize(
-            imageBuffer,
-            {
-              rectangle:
-                resultFocusZone,
-            },
-          );
-
-        percentageOcrText =
-          percentageOcr.data.text;
-
-        /*
-         * ---------------------------------------------------
-         * 5B. STERREN OCR
-         * ---------------------------------------------------
+         * Alleen de gevonden FC-resultaatzone opnieuw OCR'en.
          *
-         * Sterren zijn lastiger omdat het echte iconen zijn.
-         * Daarom laten we Tesseract zowel stertekens als cijfers
-         * herkennen. parseStars() verwerkt beide vormen.
+         * Hier bewust geen character whitelist:
+         * Tesseract moet zowel cijfers, %, sterren als
+         * overige OCR-tekens kunnen herkennen.
          */
         await worker.setParameters({
           tessedit_pageseg_mode:
             PSM.SPARSE_TEXT,
-          tessedit_char_whitelist:
-            "0123★⭐*☆",
         });
 
-        const starsOcr =
+        const resultOcr =
           await worker.recognize(
             imageBuffer,
             {
@@ -1603,50 +1467,9 @@ export async function POST(
             },
           );
 
-        starsOcrText =
-          starsOcr.data.text;
-
-        /*
-         * ---------------------------------------------------
-         * 5C. TIJD OCR
-         * ---------------------------------------------------
-         */
-        await worker.setParameters({
-          tessedit_pageseg_mode:
-            PSM.SPARSE_TEXT,
-          tessedit_char_whitelist:
-            "0123456789mMsS:",
-        });
-
-        const resultTimeOcr =
-          await worker.recognize(
-            imageBuffer,
-            {
-              rectangle:
-                resultFocusZone,
-            },
-          );
-
-        resultTimeOcrText =
-          resultTimeOcr.data.text;
-
-        /*
-         * Voor de bestaande debugweergave combineren we de
-         * lokale OCR-resultaten.
-         */
         resultFocusText =
-          [
-            "[PERCENTAGE]",
-            percentageOcrText.trim(),
-            "",
-            "[STERREN]",
-            starsOcrText.trim(),
-            "",
-            "[TIJD]",
-            resultTimeOcrText.trim(),
-          ].join("\n");
+          resultOcr.data.text;
       }
-
     } finally {
       await worker.terminate();
     }
@@ -1669,36 +1492,24 @@ export async function POST(
         "[RESULTAATZONE]",
         resultFocusText.trim(),
         "",
-        "[PERCENTAGE OCR]",
-        percentageOcrText.trim(),
-        "",
-        "[STERREN OCR]",
-        starsOcrText.trim(),
-        "",
-        "[TIJD RESULTAATZONE OCR]",
-        resultTimeOcrText.trim(),
-        "",
         "[VOLLEDIGE CHAT OCR]",
         chatText.trim(),
       ].join("\n");
 
     let stars =
       parseStars(
-        starsOcrText,
+        resultFocusText,
       );
 
     let destruction =
       parseDestruction(
-        percentageOcrText,
+        resultFocusText,
       );
 
     /*
      * Clash-resultaatregel met 100% = altijd 3 sterren.
-     * Dit blijft onze afgesproken backup/validatieregel.
-     *
-     * Omdat destruction nu uitsluitend uit de lokale
-     * geselecteerde FC-zone komt, kan een eerdere 100% elders
-     * in de chat deze waarde niet meer beïnvloeden.
+     * Daarmee hoeft OCR de visuele ster-iconen niet perfect
+     * te herkennen.
      */
     if (
       destruction === 100
@@ -1707,10 +1518,15 @@ export async function POST(
     }
 
     /*
-     * Vision AI mag de lokale OCR-resultaatzone NIET overschrijven.
+     * ---------------------------------------------------------
+     * VISION AI CONTROLE
+     * ---------------------------------------------------------
      *
-     * De screenshot kan meerdere FC-resultaten bevatten.
-     * Daarom gebruiken we Vision alleen voor logging/debugging.
+     * De originele screenshot wordt naast Tesseract ook
+     * bekeken door OpenRouter.
+     *
+     * Vision is leidend wanneer het geldige waarden
+     * teruggeeft. Tesseract blijft fallback.
      */
     const visionAnalysis =
       await analyzeChallengeScreenshot(
@@ -1720,13 +1536,31 @@ export async function POST(
     const visionResult =
       visionAnalysis.result;
 
+    if (
+      visionResult
+    ) {
+      if (
+        visionResult.stars !== null
+      ) {
+        stars =
+          visionResult.stars;
+      }
+
+      if (
+        visionResult.destruction !== null
+      ) {
+        destruction =
+          visionResult.destruction;
+      }
+    }
+
     const timeSeconds =
-      parseTime(
-        resultTimeOcrText,
-      ) ??
-      parseTime(
-        timeText,
-      );
+      visionResult &&
+      visionResult.timeSeconds !== null
+        ? visionResult.timeSeconds
+        : parseTime(
+            timeText,
+          );
 
     const clashResultDetected =
       stars !== null &&
@@ -1768,15 +1602,16 @@ export async function POST(
      *   -> NOT_FOUND
      */
     const playerNameMatchStatus =
-      bestMatchedPlayer
-        ? "UNIQUE"
-        : exactPlayerNameMatches.length > 1
-          ? "AMBIGUOUS"
+      exactPlayerNameMatches.length > 1
+        ? "AMBIGUOUS"
+        : attackerPlayer &&
+            bestPlayerScore >= 0.93
+          ? "UNIQUE"
           : "NOT_FOUND";
 
     const playerNameMatch =
       playerNameMatchStatus === "UNIQUE"
-        ? bestMatchedPlayer
+        ? attackerPlayer
         : null;
 
     const playerNameReviewRequired =
