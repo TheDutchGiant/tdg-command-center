@@ -1359,13 +1359,6 @@ export async function POST(
         | OcrLine
         | null = null;
 
-      let bestMatchedPlayer:
-        | {
-            playerTag: string;
-            currentName: string;
-          }
-        | null = null;
-
       let bestLineScore = -1;
 
       const lowerChatTop =
