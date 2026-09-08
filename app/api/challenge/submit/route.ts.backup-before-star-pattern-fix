@@ -11,99 +11,70 @@ function parseStars(
   text: string
 ): number | null {
   /*
-   * De sterrenzone wordt apart OCR'en.
+   * OCR kan sterren als cijfers herkennen, maar soms ook
+   * als ★ / ⭐ / *.
    *
-   * Belangrijk voorbeeld uit onze echte test:
-   *
-   *   1
-   *   *
-   *   22
-   *
-   * Dit kan visueel betekenen:
-   *   ★  -> OCR "1"
-   *   ★  -> OCR "*"
-   *   ☆  -> OCR "22"
-   *
-   * Dus: 2 gevulde sterren + 1 lege ster = 2 sterren.
-   *
-   * We behandelen de OCR daarom als een patroon van
-   * visuele sterobjecten en niet als een gewoon getal.
+   * Zoek daarom eerst naar een duidelijke reeks stertekens.
    */
+  const starRuns =
+    text.match(/[★⭐*☆]{1,3}/g) ?? [];
 
-  const normalized =
-    text
-      .replace(/\r/g, "")
-      .trim();
+  let bestStarCount: number | null = null;
 
-  if (!normalized) {
-    return null;
-  }
-
-  /*
-   * 1. Echte stertekens.
-   */
-  const filledSymbolCount =
-    (
-      normalized.match(
-        /[★⭐*]/g
-      ) ?? []
+  for (const run of starRuns) {
+    const count = (
+      run.match(/[★⭐*]/g) ?? []
     ).length;
-
-  /*
-   * 2. Losse "1" in de speciale sterzone.
-   *
-   * Tesseract leest een gevulde ster in onze test als "1".
-   * Alleen een LOSSE 1 telt mee.
-   */
-  const standaloneOneCount =
-    (
-      normalized.match(
-        /(?:^|\s)1(?:\s|$)/g
-      ) ?? []
-    ).length;
-
-  /*
-   * 3. Losse 0/2/3 mogen niet zomaar als steraantal
-   * worden geïnterpreteerd.
-   *
-   * Met name "22" laten we bewust buiten beschouwing:
-   * dat is waarschijnlijk OCR van een leeg stericoon.
-   */
-
-  const filledStars =
-    filledSymbolCount +
-    standaloneOneCount;
-
-  if (
-    filledStars >= 1 &&
-    filledStars <= 3
-  ) {
-    return filledStars;
-  }
-
-  /*
-   * Klassieke fallback wanneer Tesseract wél netjes
-   * één numerieke sterwaarde teruggeeft.
-   */
-  const numeric =
-    normalized.match(
-      /(?:^|\s)([0-3])(?:\s|$)/
-    );
-
-  if (numeric) {
-    const value =
-      Number(numeric[1]);
 
     if (
-      Number.isInteger(value) &&
-      value >= 0 &&
-      value <= 3
+      count >= 1 &&
+      count <= 3 &&
+      (
+        bestStarCount === null ||
+        count > bestStarCount
+      )
     ) {
-      return value;
+      bestStarCount = count;
     }
   }
 
-  return null;
+  /*
+   * Fallback: OCR kan het sterresultaat als 0/1/2/3 lezen.
+   * Gebruik uitsluitend losse cijfers, zodat 100% niet als
+   * drie losse waarden wordt geïnterpreteerd.
+   */
+  const matches =
+    text.match(
+      /(?:^|\\s)([0-3])(?:\\s|$)/g
+    );
+
+  if (matches?.length) {
+    const values =
+      matches
+        .map((value) =>
+          Number(value.trim())
+        )
+        .filter(
+          (value) =>
+            Number.isInteger(value) &&
+            value >= 0 &&
+            value <= 3
+        );
+
+    if (values.length) {
+      const numericStars =
+        Math.max(...values);
+
+      if (
+        bestStarCount === null ||
+        numericStars > bestStarCount
+      ) {
+        bestStarCount = numericStars;
+      }
+    }
+  }
+
+  return bestStarCount;
 }
 
 function parseDestruction(
