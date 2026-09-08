@@ -6,7 +6,6 @@ import {
 import { recalculateChallengeRanking } from "@/app/lib/challenge/ranking";
 import { analyzeChallengeScreenshot } from "@/app/lib/challenge/openRouterVision";
 import { createWorker, PSM } from "tesseract.js";
-import { fetchClash } from "@/app/lib/clash";
 
 function parseStars(
   text: string
@@ -908,27 +907,20 @@ export async function POST(
      * eerst gekoppeld aan deze tabel. Daarna gebruiken we
      * de echte database-naam als anker voor de chat.
      */
-    /*
-     * ---------------------------------------------------------
-     * LIVE CLANLEDEN ALS ACCOUNTBRON
-     * ---------------------------------------------------------
-     *
-     * De clanledenpagina gebruikt de actuele Clash clanleden.
-     * Voor screenshot-koppeling gebruiken we daarom dezelfde
-     * live bron in plaats van een mogelijk verouderde Player-
-     * snapshot uit de database.
-     *
-     * We halen alle TDG-clans op zodat een speler die net naar
-     * een andere TDG-clan is verhuisd nog steeds gevonden kan
-     * worden.
-     */
-    const tdgClanTags = [
-      "2JLLPVGUU",
-      "2CVVG00QQ",
-      "2CQ2LGQJ2",
-    ];
+    const rawPlayers =
+      await prisma.player.findMany({
+        select: {
+          playerTag: true,
+          currentName: true,
+        },
+      });
 
-    const livePlayersByTag =
+    /*
+     * Sommige syncs hebben dezelfde Clash-account zowel met
+     * als zonder "#" opgeslagen. Voor OCR-koppeling moeten
+     * die als één account worden behandeld.
+     */
+    const playersByCanonicalTag =
       new Map<
         string,
         {
@@ -938,55 +930,50 @@ export async function POST(
       >();
 
     for (
-      const clanTag of tdgClanTags
+      const player of rawPlayers
     ) {
-      try {
-        const clanMembers =
-          await fetchClash(
-            `/clans/%23${clanTag}/members?limit=50`,
-          );
+      const canonicalTag =
+        player.playerTag
+          .trim()
+          .replace(/^#/, "")
+          .toUpperCase();
 
-        for (
-          const member of
-            clanMembers.items ?? []
-        ) {
-          if (
-            !member?.tag ||
-            !member?.name
-          ) {
-            continue;
-          }
+      if (
+        !canonicalTag
+      ) {
+        continue;
+      }
 
-          const canonicalTag =
-            String(member.tag)
-              .replace(/^#/, "")
-              .toUpperCase();
+      const existing =
+        playersByCanonicalTag.get(
+          canonicalTag,
+        );
 
-          livePlayersByTag.set(
-            canonicalTag,
-            {
-              playerTag:
-                String(member.tag),
-              currentName:
-                String(member.name),
-            },
-          );
-        }
-      } catch (error) {
-        /*
-         * Eén onbereikbare clan mag de hele screenshot-
-         * verwerking niet laten falen.
-         */
-        console.warn(
-          `⚠️ Live clanleden niet opgehaald voor ${clanTag}:`,
-          error,
+      /*
+       * Geef de variant mét # de voorkeur als beide bestaan.
+       */
+      if (
+        !existing ||
+        (
+          player.playerTag.startsWith("#") &&
+          !existing.playerTag.startsWith("#")
+        )
+      ) {
+        playersByCanonicalTag.set(
+          canonicalTag,
+          {
+            playerTag:
+              player.playerTag,
+            currentName:
+              player.currentName,
+          },
         );
       }
     }
 
     const players =
       Array.from(
-        livePlayersByTag.values(),
+        playersByCanonicalTag.values(),
       );
 
     let nameText = "";
@@ -1957,9 +1944,6 @@ export async function POST(
             playerNameMatchedAccount:
               playerNameMatch?.currentName ??
               null,
-
-            accountSource:
-              "LIVE_TDG_CLAN_MEMBERS",
 
             playerNameCandidates:
               playerMatches.map(
