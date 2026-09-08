@@ -1224,18 +1224,10 @@ export async function POST(
        * -------------------------------------------------------
        * 2. TIJD MIDDEN ONDER
        * -------------------------------------------------------
-       *
-       * De aanvalstijd staat midden onderin het volledige
-       * screenshot en is daarom volledig onafhankelijk van
-       * de chat/FC-detectie.
-       *
-       * We gebruiken meerdere OCR-passes op exact dezelfde
-       * relatieve zone. Tesseract krijgt daarbij eerst vrije
-       * tekst en daarna een strikte tijd-whitelist.
        */
       await worker.setParameters({
         tessedit_pageseg_mode:
-          PSM.SPARSE_TEXT,
+          PSM.SINGLE_LINE,
         tessedit_char_whitelist:
           "0123456789mMsS:",
       });
@@ -1251,47 +1243,6 @@ export async function POST(
 
       timeText =
         timeOcr.data.text;
-
-      /*
-       * Tweede pass met SINGLE_LINE. Dit helpt wanneer de tijd
-       * visueel één horizontale regel vormt.
-       */
-      await worker.setParameters({
-        tessedit_pageseg_mode:
-          PSM.SINGLE_LINE,
-        tessedit_char_whitelist:
-          "0123456789mMsS:",
-      });
-
-      const timeOcrSingleLine =
-        await worker.recognize(
-          imageBuffer,
-          {
-            rectangle:
-              timeZone,
-          },
-        );
-
-      const timeTextSingleLine =
-        timeOcrSingleLine.data.text;
-
-      if (
-        parseTime(timeText) === null &&
-        parseTime(timeTextSingleLine) !== null
-      ) {
-        timeText =
-          timeTextSingleLine;
-      } else if (
-        timeTextSingleLine.trim()
-      ) {
-        timeText =
-          [
-            timeText.trim(),
-            timeTextSingleLine.trim(),
-          ]
-            .filter(Boolean)
-            .join("\n");
-      }
 
       /*
        * -------------------------------------------------------
