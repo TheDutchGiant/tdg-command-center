@@ -1,26 +1,16 @@
 import { prisma } from "@/app/lib/prisma";
 
-const BASE_CATALOG_URL =
-  "https://raw.githubusercontent.com/nschmeller/clash-bases/main/bases.json";
+const BASEMELON_WAR_URL =
+  "https://basemelon.com/coc-bases-th18/war";
 
 const DEFAULT_IMPORT_COUNT = 10;
 const MAX_BASE_AGE_DAYS = 7;
 
-type RemoteBase = {
-  id?: string;
-  name?: string;
-  town_hall?: number;
-  type?: string;
-  link?: string;
-  image?: string;
-  description?: string;
-  builder?: string;
-  tags?: string[];
-  added?: string;
-};
-
-type RemoteCatalog = {
-  bases?: RemoteBase[];
+type ScrapedBase = {
+  name: string;
+  imageUrl: string;
+  baseLink: string;
+  sourceUrl: string;
 };
 
 function shuffle<T>(items: T[]): T[] {
@@ -28,6 +18,7 @@ function shuffle<T>(items: T[]): T[] {
 
   for (let index = copy.length - 1; index > 0; index -= 1) {
     const swap = Math.floor(Math.random() * (index + 1));
+
     [copy[index], copy[swap]] = [
       copy[swap],
       copy[index],
@@ -37,78 +28,170 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-function parseDate(value: unknown): Date | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime())
-    ? null
-    : date;
+function decodeHtml(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }
 
-function looksLikeShowBase(base: RemoteBase): boolean {
-  const text = [
-    base.name ?? "",
-    base.description ?? "",
-    ...(Array.isArray(base.tags) ? base.tags : []),
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  const blockedTerms = [
-    "showbase",
-    "show base",
-    "funbase",
-    "fun base",
-    "trollbase",
-    "troll base",
-    "artbase",
-    "art base",
-    "pixel",
-    "farming",
-    "farm base",
-    "progress base",
-    "progression",
-  ];
-
-  return blockedTerms.some((term) =>
-    text.includes(term),
-  );
-}
-
-async function fetchCatalog(): Promise<RemoteBase[]> {
-  const response = await fetch(BASE_CATALOG_URL, {
+async function fetchHtml(url: string) {
+  const response = await fetch(url, {
     cache: "no-store",
     headers: {
-      Accept: "application/json",
-      "User-Agent": "TDG-Phoenix/1.0",
+      Accept: "text/html,application/xhtml+xml",
+      "User-Agent":
+        "Mozilla/5.0 (compatible; TDG-Phoenix/1.0)",
     },
   });
 
   if (!response.ok) {
     throw new Error(
-      `Base catalogus gaf HTTP ${response.status} terug.`,
+      `BaseMelon gaf HTTP ${response.status} terug voor ${url}.`,
     );
   }
 
-  const data = (await response.json()) as RemoteCatalog;
+  return response.text();
+}
 
-  if (!Array.isArray(data.bases)) {
-    throw new Error(
-      "Base catalogus bevat geen geldige bases-array.",
-    );
+function extractNewBaseLinks(html: string): string[] {
+  const links = new Set<string>();
+
+  /*
+   * BaseMelon zet de nieuwste layouts op de eerste
+   * Latest-pagina en markeert verse layouts met NEW.
+   *
+   * We zoeken alleen echte TH18 War-layout links.
+   */
+  const regex =
+    /<a[^>]+href=["']([^"']*\/coc-bases-th18\/war(?:-[^"'<> ]+)?(?:-id\d+)?|[^"']*\/coc-bases-th18\/war-id\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(html)) !== null) {
+    const href = decodeHtml(match[1]);
+    const content = match[2]
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!/NEW/i.test(content)) {
+      continue;
+    }
+
+    const absolute = new URL(
+      href,
+      "https://basemelon.com",
+    ).toString();
+
+    if (
+      absolute.includes("/coc-bases-th18/war") &&
+      !absolute.includes("/page-")
+    ) {
+      links.add(absolute);
+    }
   }
 
-  return data.bases;
+  return [...links];
+}
+
+function extractFirstImage(html: string): string | null {
+  const ogImage =
+    html.match(
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+    )?.[1] ??
+    html.match(
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+    )?.[1];
+
+  if (ogImage) {
+    return decodeHtml(ogImage);
+  }
+
+  const baseImage =
+    html.match(
+      /<img[^>]+src=["']([^"']*img\.basemelon\.com[^"']+)["']/i,
+    )?.[1];
+
+  return baseImage
+    ? decodeHtml(baseImage)
+    : null;
+}
+
+function extractName(html: string): string | null {
+  const title =
+    html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1];
+
+  if (!title) {
+    return null;
+  }
+
+  return decodeHtml(
+    title
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+function extractCopyLink(html: string): string | null {
+  const matches = [
+    ...html.matchAll(
+      /<a[^>]+href=["']([^"']*link\.clashofclans\.com[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    ),
+  ];
+
+  for (const match of matches) {
+    const text = match[2]
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (/copy base|layout link/i.test(text)) {
+      return decodeHtml(match[1]);
+    }
+  }
+
+  return null;
+}
+
+async function scrapeBase(
+  sourceUrl: string,
+): Promise<ScrapedBase | null> {
+  const html = await fetchHtml(sourceUrl);
+
+  const name = extractName(html);
+  const imageUrl = extractFirstImage(html);
+  const baseLink = extractCopyLink(html);
+
+  if (!name || !imageUrl || !baseLink) {
+    console.warn(
+      `[BASE-POOL] Kon layout niet volledig uitlezen: ${sourceUrl}`,
+    );
+
+    return null;
+  }
+
+  return {
+    name,
+    imageUrl,
+    baseLink,
+    sourceUrl,
+  };
 }
 
 export async function refreshBasePool(
   townHall = 18,
   count = DEFAULT_IMPORT_COUNT,
 ) {
+  if (townHall !== 18) {
+    throw new Error(
+      "De BaseMelon importer is momenteel ingericht voor TH18.",
+    );
+  }
+
   const now = new Date();
 
   const oldestAllowed = new Date(
@@ -121,27 +204,16 @@ export async function refreshBasePool(
   );
 
   /*
-   * Oude community-bases mogen niet blijven meetellen
-   * als beschikbare pool.
+   * Automatisch geïmporteerde bases ouder dan 7 dagen
+   * worden uit de actieve Challenge-pool gehaald.
    */
   await prisma.base.updateMany({
     where: {
       townHall,
-      createdBy: "Community Base Library",
-      OR: [
-        {
-          createdAt: {
-            lt: oldestAllowed,
-          },
-        },
-        {
-          isActive: false,
-          expiresAt: {
-            not: null,
-            lte: now,
-          },
-        },
-      ],
+      createdBy: "BaseMelon",
+      createdAt: {
+        lt: oldestAllowed,
+      },
     },
     data: {
       isActive: false,
@@ -151,7 +223,7 @@ export async function refreshBasePool(
   const existing = await prisma.base.findMany({
     where: {
       townHall,
-      createdBy: "Community Base Library",
+      createdBy: "BaseMelon",
     },
     select: {
       baseLink: true,
@@ -162,96 +234,70 @@ export async function refreshBasePool(
     existing.map((base) => base.baseLink),
   );
 
-  const catalog = await fetchCatalog();
-
-  /*
-   * Alleen entries waarvan de bron zelf een recente
-   * datum opgeeft, mogen in de Challenge-pool.
-   */
-  const recentCandidates = catalog
-    .filter((base) => {
-      if (base.town_hall !== townHall) {
-        return false;
-      }
-
-      if (
-        !base.link ||
-        !base.image ||
-        !base.name
-      ) {
-        return false;
-      }
-
-      if (existingLinks.has(base.link)) {
-        return false;
-      }
-
-      const added = parseDate(base.added);
-
-      if (!added) {
-        return false;
-      }
-
-      if (added < oldestAllowed) {
-        return false;
-      }
-
-      if (looksLikeShowBase(base)) {
-        return false;
-      }
-
-      const type = String(
-        base.type ?? "",
-      ).toLowerCase();
-
-      return (
-        type === "war" ||
-        type === "hybrid" ||
-        type === "trophy"
-      );
-    });
-
-  /*
-   * Meest recent eerst.
-   * Binnen dezelfde datum houden we random variatie.
-   */
-  const sorted = [...recentCandidates].sort(
-    (a, b) => {
-      const aDate = parseDate(a.added)?.getTime() ?? 0;
-      const bDate = parseDate(b.added)?.getTime() ?? 0;
-
-      return bDate - aDate;
-    },
+  const listingHtml = await fetchHtml(
+    BASEMELON_WAR_URL,
   );
 
-  const freshPool: RemoteBase[] = [];
+  const candidateLinks =
+    extractNewBaseLinks(listingHtml);
 
-  for (const base of sorted) {
-    if (
-      freshPool.length >= count
-    ) {
-      break;
-    }
-
-    freshPool.push(base);
-  }
-
-  /*
-   * Kleine randomisering zodat dezelfde topbase niet
-   * elke week automatisch bovenaan eindigt.
-   */
-  const selected = shuffle(
-    freshPool,
-  );
-
-  if (!selected.length) {
+  if (!candidateLinks.length) {
     console.warn(
-      `[BASE-POOL] Geen recente TH${townHall}-bases ≤ ${MAX_BASE_AGE_DAYS} dagen gevonden.`,
+      "[BASE-POOL] BaseMelon gaf momenteel geen NEW-layoutlinks terug.",
     );
 
     return {
       imported: 0,
-      catalogCandidates: recentCandidates.length,
+      candidates: 0,
+      maxAgeDays: MAX_BASE_AGE_DAYS,
+    };
+  }
+
+  const scraped: ScrapedBase[] = [];
+
+  for (const sourceUrl of candidateLinks) {
+    if (scraped.length >= count) {
+      break;
+    }
+
+    try {
+      const base = await scrapeBase(sourceUrl);
+
+      if (!base) {
+        continue;
+      }
+
+      if (existingLinks.has(base.baseLink)) {
+        continue;
+      }
+
+      if (
+        scraped.some(
+          (item) => item.baseLink === base.baseLink,
+        )
+      ) {
+        continue;
+      }
+
+      scraped.push(base);
+    } catch (error) {
+      console.warn(
+        `[BASE-POOL] Layout kon niet worden gelezen: ${sourceUrl}`,
+        error,
+      );
+    }
+  }
+
+  const selected = shuffle(scraped);
+
+  if (!selected.length) {
+    console.warn(
+      "[BASE-POOL] Geen nieuwe BaseMelon-layouts geïmporteerd.",
+    );
+
+    return {
+      imported: 0,
+      candidates: candidateLinks.length,
       maxAgeDays: MAX_BASE_AGE_DAYS,
     };
   }
@@ -260,37 +306,24 @@ export async function refreshBasePool(
     data: selected.map((base) => ({
       townHall,
       category: "Challenge",
-      name: base.name!.trim(),
-      description: [
-        base.description?.trim(),
-        base.builder
-          ? `Builder: ${base.builder.trim()}`
-          : null,
-        Array.isArray(base.tags) &&
-        base.tags.length
-          ? `Tags: ${base.tags.join(", ")}`
-          : null,
-        base.added
-          ? `Bron toegevoegd: ${base.added}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(" · ") || null,
-      baseLink: base.link!.trim(),
-      imageUrl: base.image!.trim(),
-      createdBy: "Community Base Library",
+      name: base.name,
+      description:
+        `TDG Challenge Base · BaseMelon · ${base.sourceUrl}`,
+      baseLink: base.baseLink,
+      imageUrl: base.imageUrl,
+      createdBy: "BaseMelon",
       expiresAt: null,
       isActive: false,
     })),
   });
 
   console.log(
-    `[BASE-POOL] ${selected.length} recente TH${townHall}-bases geïmporteerd.`,
+    `[BASE-POOL] ${selected.length} nieuwe BaseMelon TH${townHall}-bases geïmporteerd.`,
   );
 
   return {
     imported: selected.length,
-    catalogCandidates: recentCandidates.length,
+    candidates: candidateLinks.length,
     maxAgeDays: MAX_BASE_AGE_DAYS,
   };
 }
@@ -301,28 +334,23 @@ export async function chooseChallengeBase(
 ) {
   const now = new Date();
 
-  /*
-   * Alleen bases die:
-   * - uit onze automatische pool komen
-   * - maximaal 7 dagen oud zijn
-   * - niet al actief zijn
-   * mogen voor een Challenge gebruikt worden.
-   */
-  const available = await prisma.base.findMany({
+  const oldestAllowed = new Date(
+    now.getTime() -
+      MAX_BASE_AGE_DAYS *
+        24 *
+        60 *
+        60 *
+        1000,
+  );
+
+  let available = await prisma.base.findMany({
     where: {
       townHall,
-      createdBy: "Community Base Library",
-      isActive: false,
+      createdBy: "BaseMelon",
       createdAt: {
-        gte: new Date(
-          now.getTime() -
-            MAX_BASE_AGE_DAYS *
-              24 *
-              60 *
-              60 *
-              1000,
-        ),
+        gte: oldestAllowed,
       },
+      isActive: false,
       ...(excludedBaseId
         ? {
             id: {
@@ -334,12 +362,58 @@ export async function chooseChallengeBase(
     orderBy: {
       createdAt: "desc",
     },
+    take: 100,
   });
+
+  /*
+   * Geen verse pool? Dan vullen we hem automatisch bij.
+   * Daardoor hoeft de Challenge-start geen aparte
+   * handmatige importer meer te hebben.
+   */
+  if (!available.length) {
+    try {
+      await refreshBasePool(
+        townHall,
+        DEFAULT_IMPORT_COUNT,
+      );
+    } catch (error) {
+      console.error(
+        "[BASE-POOL] Automatisch bijvullen mislukt:",
+        error,
+      );
+    }
+
+    available = await prisma.base.findMany({
+      where: {
+        townHall,
+        createdBy: "BaseMelon",
+        createdAt: {
+          gte: oldestAllowed,
+        },
+        isActive: false,
+        ...(excludedBaseId
+          ? {
+              id: {
+                not: excludedBaseId,
+              },
+            }
+          : {}),
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 100,
+    });
+  }
 
   if (!available.length) {
     return null;
   }
 
+  /*
+   * De nieuwste bases hebben de voorkeur, maar we
+   * houden random variatie binnen de verse pool.
+   */
   return available[
     Math.floor(
       Math.random() * available.length,
@@ -351,29 +425,22 @@ export async function activateBaseForChallenge(
   baseId: number | null,
   expiresAt: Date,
 ) {
-  await prisma.$transaction(async (tx) => {
-    await tx.base.updateMany({
-      where: {
-        townHall: 18,
-        isActive: true,
-      },
-      data: {
-        isActive: false,
-      },
-    });
+  /*
+   * Bewaard voor compatibiliteit met bestaande code.
+   *
+   * De Challenge Base hoort NIET dezelfde status te krijgen
+   * als de algemene Base van de Week.
+   */
+  if (!baseId) {
+    return;
+  }
 
-    if (baseId === null) {
-      return;
-    }
-
-    await tx.base.update({
-      where: {
-        id: baseId,
-      },
-      data: {
-        isActive: true,
-        expiresAt,
-      },
-    });
+  await prisma.base.update({
+    where: {
+      id: baseId,
+    },
+    data: {
+      expiresAt,
+    },
   });
 }
