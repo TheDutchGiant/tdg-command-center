@@ -210,13 +210,7 @@ export async function refreshBasePool(
   await prisma.base.updateMany({
     where: {
       townHall,
-      createdBy: {
-        in: [
-          "BaseMelon",
-          "Community Base Library",
-          "Cocbases",
-        ],
-      },
+      createdBy: "BaseMelon",
       createdAt: {
         lt: oldestAllowed,
       },
@@ -229,13 +223,7 @@ export async function refreshBasePool(
   const existing = await prisma.base.findMany({
     where: {
       townHall,
-      createdBy: {
-        in: [
-          "BaseMelon",
-          "Community Base Library",
-          "Cocbases",
-        ],
-      },
+      createdBy: "BaseMelon",
     },
     select: {
       baseLink: true,
@@ -358,13 +346,7 @@ export async function chooseChallengeBase(
   let available = await prisma.base.findMany({
     where: {
       townHall,
-      createdBy: {
-        in: [
-          "BaseMelon",
-          "Community Base Library",
-          "Cocbases",
-        ],
-      },
+      createdBy: "BaseMelon",
       createdAt: {
         gte: oldestAllowed,
       },
