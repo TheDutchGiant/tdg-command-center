@@ -72,12 +72,29 @@ export default function ChallengeAdminPage() {
         }
       );
 
-      const data = await response.json();
+      const contentType =
+        response.headers.get("content-type") || "";
+
+      let data: {
+        success?: boolean;
+        error?: string;
+      } = {};
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const raw = await response.text();
+
+        throw new Error(
+          `Server gaf geen JSON terug (HTTP ${response.status}). ` +
+            `Response: ${raw.slice(0, 180)}`
+        );
+      }
 
       if (!response.ok || !data.success) {
         throw new Error(
           data.error ||
-            "Nieuwe Challenge kon niet worden gestart."
+            `Nieuwe Challenge kon niet worden gestart (HTTP ${response.status}).`
         );
       }
 
