@@ -4,6 +4,7 @@ const BASE_CATALOG_URL =
   "https://raw.githubusercontent.com/nschmeller/clash-bases/main/bases.json";
 
 const DEFAULT_IMPORT_COUNT = 10;
+const MAX_BASE_AGE_DAYS = 7;
 
 type RemoteBase = {
   id?: string;
@@ -15,6 +16,7 @@ type RemoteBase = {
   description?: string;
   builder?: string;
   tags?: string[];
+  added?: string;
 };
 
 type RemoteCatalog = {
@@ -24,12 +26,57 @@ type RemoteCatalog = {
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
 
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[swap]] = [
+      copy[swap],
+      copy[index],
+    ];
   }
 
   return copy;
+}
+
+function parseDate(value: unknown): Date | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? null
+    : date;
+}
+
+function looksLikeShowBase(base: RemoteBase): boolean {
+  const text = [
+    base.name ?? "",
+    base.description ?? "",
+    ...(Array.isArray(base.tags) ? base.tags : []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  const blockedTerms = [
+    "showbase",
+    "show base",
+    "funbase",
+    "fun base",
+    "trollbase",
+    "troll base",
+    "artbase",
+    "art base",
+    "pixel",
+    "farming",
+    "farm base",
+    "progress base",
+    "progression",
+  ];
+
+  return blockedTerms.some((term) =>
+    text.includes(term),
+  );
 }
 
 async function fetchCatalog(): Promise<RemoteBase[]> {
@@ -62,9 +109,49 @@ export async function refreshBasePool(
   townHall = 18,
   count = DEFAULT_IMPORT_COUNT,
 ) {
+  const now = new Date();
+
+  const oldestAllowed = new Date(
+    now.getTime() -
+      MAX_BASE_AGE_DAYS *
+        24 *
+        60 *
+        60 *
+        1000,
+  );
+
+  /*
+   * Oude community-bases mogen niet blijven meetellen
+   * als beschikbare pool.
+   */
+  await prisma.base.updateMany({
+    where: {
+      townHall,
+      createdBy: "Community Base Library",
+      OR: [
+        {
+          createdAt: {
+            lt: oldestAllowed,
+          },
+        },
+        {
+          isActive: false,
+          expiresAt: {
+            not: null,
+            lte: now,
+          },
+        },
+      ],
+    },
+    data: {
+      isActive: false,
+    },
+  });
+
   const existing = await prisma.base.findMany({
     where: {
       townHall,
+      createdBy: "Community Base Library",
     },
     select: {
       baseLink: true,
@@ -77,42 +164,95 @@ export async function refreshBasePool(
 
   const catalog = await fetchCatalog();
 
-  const candidates = catalog.filter((base) => {
-    if (base.town_hall !== townHall) {
-      return false;
-    }
+  /*
+   * Alleen entries waarvan de bron zelf een recente
+   * datum opgeeft, mogen in de Challenge-pool.
+   */
+  const recentCandidates = catalog
+    .filter((base) => {
+      if (base.town_hall !== townHall) {
+        return false;
+      }
 
+      if (
+        !base.link ||
+        !base.image ||
+        !base.name
+      ) {
+        return false;
+      }
+
+      if (existingLinks.has(base.link)) {
+        return false;
+      }
+
+      const added = parseDate(base.added);
+
+      if (!added) {
+        return false;
+      }
+
+      if (added < oldestAllowed) {
+        return false;
+      }
+
+      if (looksLikeShowBase(base)) {
+        return false;
+      }
+
+      const type = String(
+        base.type ?? "",
+      ).toLowerCase();
+
+      return (
+        type === "war" ||
+        type === "hybrid" ||
+        type === "trophy"
+      );
+    });
+
+  /*
+   * Meest recent eerst.
+   * Binnen dezelfde datum houden we random variatie.
+   */
+  const sorted = [...recentCandidates].sort(
+    (a, b) => {
+      const aDate = parseDate(a.added)?.getTime() ?? 0;
+      const bDate = parseDate(b.added)?.getTime() ?? 0;
+
+      return bDate - aDate;
+    },
+  );
+
+  const freshPool: RemoteBase[] = [];
+
+  for (const base of sorted) {
     if (
-      !base.link ||
-      !base.image ||
-      !base.name
+      freshPool.length >= count
     ) {
-      return false;
+      break;
     }
 
-    if (existingLinks.has(base.link)) {
-      return false;
-    }
+    freshPool.push(base);
+  }
 
-    const type = String(
-      base.type ?? "",
-    ).toLowerCase();
-
-    return (
-      type === "war" ||
-      type === "hybrid" ||
-      type === "trophy"
-    );
-  });
-
+  /*
+   * Kleine randomisering zodat dezelfde topbase niet
+   * elke week automatisch bovenaan eindigt.
+   */
   const selected = shuffle(
-    candidates,
-  ).slice(0, count);
+    freshPool,
+  );
 
   if (!selected.length) {
+    console.warn(
+      `[BASE-POOL] Geen recente TH${townHall}-bases ≤ ${MAX_BASE_AGE_DAYS} dagen gevonden.`,
+    );
+
     return {
       imported: 0,
-      catalogCandidates: candidates.length,
+      catalogCandidates: recentCandidates.length,
+      maxAgeDays: MAX_BASE_AGE_DAYS,
     };
   }
 
@@ -130,6 +270,9 @@ export async function refreshBasePool(
         base.tags.length
           ? `Tags: ${base.tags.join(", ")}`
           : null,
+        base.added
+          ? `Bron toegevoegd: ${base.added}`
+          : null,
       ]
         .filter(Boolean)
         .join(" · ") || null,
@@ -142,45 +285,66 @@ export async function refreshBasePool(
   });
 
   console.log(
-    `[BASE-POOL] ${selected.length} nieuwe TH${townHall}-bases geïmporteerd.`,
+    `[BASE-POOL] ${selected.length} recente TH${townHall}-bases geïmporteerd.`,
   );
 
   return {
     imported: selected.length,
-    catalogCandidates: candidates.length,
+    catalogCandidates: recentCandidates.length,
+    maxAgeDays: MAX_BASE_AGE_DAYS,
   };
 }
 
 export async function chooseChallengeBase(
   townHall: number,
+  excludedBaseId?: number,
 ) {
+  const now = new Date();
+
+  /*
+   * Alleen bases die:
+   * - uit onze automatische pool komen
+   * - maximaal 7 dagen oud zijn
+   * - niet al actief zijn
+   * mogen voor een Challenge gebruikt worden.
+   */
   const available = await prisma.base.findMany({
     where: {
       townHall,
+      createdBy: "Community Base Library",
       isActive: false,
+      createdAt: {
+        gte: new Date(
+          now.getTime() -
+            MAX_BASE_AGE_DAYS *
+              24 *
+              60 *
+              60 *
+              1000,
+        ),
+      },
+      ...(excludedBaseId
+        ? {
+            id: {
+              not: excludedBaseId,
+            },
+          }
+        : {}),
     },
     orderBy: {
       createdAt: "desc",
     },
-    take: 100,
   });
 
-  if (available.length) {
-    return available[
-      Math.floor(
-        Math.random() * available.length,
-      )
-    ];
+  if (!available.length) {
+    return null;
   }
 
-  return prisma.base.findFirst({
-    where: {
-      townHall,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  return available[
+    Math.floor(
+      Math.random() * available.length,
+    )
+  ];
 }
 
 export async function activateBaseForChallenge(

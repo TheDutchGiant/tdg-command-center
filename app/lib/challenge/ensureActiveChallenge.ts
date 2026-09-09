@@ -651,9 +651,18 @@ async function chooseBase(
    * De Base Pool wordt vooraf gevuld door de importer.
    * We doen hier daarom GEEN externe HTTP-request.
    */
-  return chooseChallengeBase(
-    townHall,
-  );
+  const base =
+    await chooseChallengeBase(
+      townHall,
+    );
+
+  if (!base) {
+    throw new Error(
+      "Geen recente TH18-base beschikbaar. De Challenge wordt niet gestart met een oude base.",
+    );
+  }
+
+  return base;
 }
 
 function buildVariantShareCode(
