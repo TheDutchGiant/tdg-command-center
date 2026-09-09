@@ -11,6 +11,11 @@ import {
 } from "./gameData";
 import { buildArmyLink as buildClashArmyLink } from "./armyLink";
 import {
+  refreshBasePool,
+  chooseChallengeBase,
+  activateBaseForChallenge,
+} from "@/app/lib/bases/basePool";
+import {
   generateRandomArmy,
   type GeneratedArmy,
   type GeneratedHero,
@@ -640,28 +645,21 @@ async function chooseSourceArmy() {
 async function chooseBase(
   townHall: number,
 ) {
-  const now =
-    new Date();
-
-  return prisma.base.findFirst({
-    where: {
+  try {
+    await refreshBasePool(
       townHall,
-      isActive: true,
-      OR: [
-        {
-          expiresAt: null,
-        },
-        {
-          expiresAt: {
-            gt: now,
-          },
-        },
-      ],
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+      10,
+    );
+  } catch (error) {
+    console.error(
+      "[BASE-POOL] Automatisch importeren mislukt:",
+      error,
+    );
+  }
+
+  return chooseChallengeBase(
+    townHall,
+  );
 }
 
 function buildVariantShareCode(
@@ -951,8 +949,6 @@ export async function startNewChallenge(options?: {
 
   const source = await chooseSourceArmy();
 
-  const base = await chooseBase(townHall);
-
   /*
    * Alles begint exact op hetzelfde moment.
    */
@@ -964,6 +960,13 @@ export async function startNewChallenge(options?: {
     now.getTime() +
       CHALLENGE_DURATION_DAYS * 24 * 60 * 60 * 1000
   );
+
+  /*
+   * Bij iedere nieuwe Challenge:
+   * 1. eerst nieuwe bases ophalen;
+   * 2. daarna één nog niet gebruikte base kiezen.
+   */
+  const base = await chooseBase(townHall);
 
   /*
    * Eerst de challenge aanmaken.
@@ -981,6 +984,15 @@ export async function startNewChallenge(options?: {
       sourceArmyName: source.name,
     },
   });
+
+  /*
+   * De gekozen base wordt nu de Base van de Week.
+   * De vorige actieve base wordt automatisch gedeactiveerd.
+   */
+  await activateBaseForChallenge(
+    base?.id ?? null,
+    endsAt,
+  );
 
   /*
    * Daarna direct de drie varianten genereren en locken.

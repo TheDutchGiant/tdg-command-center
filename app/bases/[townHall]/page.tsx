@@ -98,7 +98,7 @@ export default async function TownHallPage({
             </h2>
 
             <p className="mt-2 text-sm text-neutral-400">
-              TH18 · ClashKing
+              TH18 · Community Base Library
             </p>
           </div>
 
