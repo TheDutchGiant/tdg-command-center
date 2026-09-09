@@ -645,18 +645,12 @@ async function chooseSourceArmy() {
 async function chooseBase(
   townHall: number,
 ) {
-  try {
-    await refreshBasePool(
-      townHall,
-      10,
-    );
-  } catch (error) {
-    console.error(
-      "[BASE-POOL] Automatisch importeren mislukt:",
-      error,
-    );
-  }
-
+  /*
+   * Challenge-start moet snel zijn.
+   *
+   * De Base Pool wordt vooraf gevuld door de importer.
+   * We doen hier daarom GEEN externe HTTP-request.
+   */
   return chooseChallengeBase(
     townHall,
   );
