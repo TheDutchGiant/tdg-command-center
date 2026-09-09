@@ -404,7 +404,13 @@ export async function chooseChallengeBase(
     available = await prisma.base.findMany({
       where: {
         townHall,
-        createdBy: "BaseMelon",
+        createdBy: {
+          in: [
+            "BaseMelon",
+            "Community Base Library",
+            "Cocbases",
+          ],
+        },
         createdAt: {
           gte: oldestAllowed,
         },
