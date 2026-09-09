@@ -9,15 +9,7 @@ export default async function BasesPage() {
     },
   });
 
-  const grouped = new Map<number, number>();
-
-  for (const base of bases) {
-    grouped.set(base.townHall, (grouped.get(base.townHall) ?? 0) + 1);
-  }
-
-  const townHalls = [...grouped.entries()].sort(
-    ([a], [b]) => b - a,
-  );
+  type Base = (typeof bases)[number];
 
   return (
     <>
@@ -35,17 +27,17 @@ export default async function BasesPage() {
         <AddBaseButton />
       </div>
 
-      {townHalls.length === 0 ? (
+      {bases.length === 0 ? (
         <div className="rounded-xl border border-dashed border-neutral-700 p-8 text-center text-neutral-400">
           Er zijn nog geen bases toegevoegd.
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {townHalls.map(([townHall, amount]) => (
+          {bases.map((base: Base) => (
             <BaseCard
-              key={townHall}
-              townHall={townHall}
-              amount={amount}
+              key={base.id}
+              townHall={base.townHall}
+              amount={1}
             />
           ))}
         </div>

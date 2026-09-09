@@ -4,8 +4,6 @@ import ChallengeInteraction from "@/app/components/challenge/ChallengeInteractio
 import OffMetaGenerator from "@/app/components/challenge/OffMetaGenerator";
 import RandomArmyChallenge from "@/app/components/challenge/RandomArmyChallenge";
 import type { GeneratedArmy } from "@/app/lib/challenge/randomArmy";
-import { hasPermission } from "@/app/lib/auth/permissions";
-import SwapChallengeBaseButton from "@/app/components/challenge/SwapChallengeBaseButton";
 
 export const dynamic = "force-dynamic";
 
@@ -265,9 +263,6 @@ export default async function ChallengePage() {
   const challenge =
     await ensureActiveChallenge();
 
-  const canSwapChallengeBase =
-    await hasPermission("CHALLENGE", "EDIT");
-
   if (!challenge) {
     throw new Error(
       "Geen actieve TDG Challenge beschikbaar.",
@@ -459,12 +454,6 @@ export default async function ChallengePage() {
                 >
                   🏰 Open Challenge Base
                 </a>
-
-                {canSwapChallengeBase && (
-                  <SwapChallengeBaseButton
-                    challengeId={challenge.id}
-                  />
-                )}
               </>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center">
