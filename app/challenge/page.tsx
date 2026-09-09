@@ -470,8 +470,9 @@ export default async function ChallengePage() {
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/70">
                       📸 Voorbeeld screenshot
                     </p>
-                    <p className="mt-1 text-[10px] leading-4 text-white/35">
-                      Zo moet je screenshot eruitzien.
+                    <p className="mt-1 text-[10px] leading-4 text-white/55">
+                      Zorg dat het <strong className="text-orange-300">onderste chatbericht de FC</strong> is die je wilt laten controleren.
+                      Staat er daarna nog een bericht of een andere FC, dan kan Phoenix het verkeerde resultaat uitlezen.
                     </p>
                   </div>
 
