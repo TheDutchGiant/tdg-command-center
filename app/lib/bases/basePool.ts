@@ -7,7 +7,8 @@ const MAX_CANDIDATES_PER_SOURCE = 100;
 type SourceProvider =
   | "CocMap"
   | "CocBaseNet"
-  | "CoClanLayouts";
+  | "CoClanLayouts"
+  | "ClashOfClansLayouts";
 
 type SourceConfig = {
   provider: SourceProvider;
@@ -703,43 +704,85 @@ async function collectCocMap(
   return result;
 }
 
+
+function extractHrefLinks(
+  html: string,
+  baseUrl: string,
+): string[] {
+  const result = new Set<string>();
+
+  for (const match of html.matchAll(
+    /<a[^>]+href=["']([^"']+)["'][^>]*>/gi,
+  )) {
+    try {
+      const url = new URL(
+        decodeHtml(match[1]),
+        baseUrl,
+      ).toString();
+
+      result.add(url);
+    } catch {
+      // Ongeldige URL negeren.
+    }
+  }
+
+  return [...result];
+}
+
+function isLikelyBaseDetail(
+  url: string,
+  provider: SourceProvider,
+): boolean {
+  switch (provider) {
+    case "CocMap":
+      return /cocmap\.com\/.*\/layouts\/.*\/[a-f0-9]{20,}/i.test(
+        url,
+      );
+
+    case "CocBaseNet":
+      return /cocbase\.net\/th18-[^/?#]+(?:[/?#]|$)/i.test(
+        url,
+      );
+
+    case "CoClanLayouts":
+      return /coclanlayouts\.com\/th18-bases\/[^/?#]+/i.test(
+        url,
+      );
+
+    case "ClashOfClansLayouts":
+      return /clashofclanslayouts\.org\/town-hall-plans\/th18\/layout_\d+\.html(?:[?#].*)?$/i.test(
+        url,
+      );
+
+    default:
+      return false;
+  }
+}
+
 async function collectStandardProvider(
   config: SourceConfig,
 ): Promise<ScrapedBase[]> {
   const result: ScrapedBase[] = [];
-  const seenDetails =
-    new Set<string>();
-  const seenLinks =
-    new Set<string>();
+  const seenDetails = new Set<string>();
+  const seenLinks = new Set<string>();
 
   for (const listingUrl of config.listingUrls) {
     try {
-      const listing =
-        await fetchText(
+      const listing = await fetchText(listingUrl);
+
+      const allLinks =
+        extractHrefLinks(
+          listing,
           listingUrl,
         );
 
-      let detailUrls: string[] = [];
-
-      if (
-        config.provider ===
-        "CocBaseNet"
-      ) {
-        detailUrls =
-          extractCocBaseDetailUrls(
-            listing,
-          );
-      }
-
-      if (
-        config.provider ===
-        "CoClanLayouts"
-      ) {
-        detailUrls =
-          extractCoClanDetailUrls(
-            listing,
-          );
-      }
+      const detailUrls =
+        allLinks.filter((url) =>
+          isLikelyBaseDetail(
+            url,
+            config.provider,
+          ),
+        );
 
       console.log(
         `[BASE-POOL] ${config.provider}: ${detailUrls.length} detailpagina's gevonden via ${listingUrl}`,
@@ -781,19 +824,18 @@ async function collectStandardProvider(
             seenLinks.add(
               base.baseLink,
             );
-
             result.push(base);
           }
         } catch (error) {
           console.warn(
-            `[BASE-POOL] ${config.provider} detail mislukt ${detailUrl}`,
+            `[BASE-POOL] ${config.provider}: detail mislukt ${detailUrl}`,
             error,
           );
         }
       }
     } catch (error) {
       console.warn(
-        `[BASE-POOL] ${config.provider} listing mislukt ${listingUrl}`,
+        `[BASE-POOL] ${config.provider}: listing mislukt ${listingUrl}`,
         error,
       );
     }
@@ -806,8 +848,7 @@ async function collectProvider(
   config: SourceConfig,
 ): Promise<ScrapedBase[]> {
   if (
-    config.provider ===
-    "CocMap"
+    config.provider === "CocMap"
   ) {
     return collectCocMap(
       config,
