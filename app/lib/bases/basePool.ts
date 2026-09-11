@@ -817,137 +817,159 @@ async function collectReddit(
 ): Promise<ScrapedBase[]> {
   const result: ScrapedBase[] = [];
 
+  function decodeXml(value: string): string {
+    return value
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/gi, "'");
+  }
+
+  function stripCdata(value: string): string {
+    return value
+      .replace(/^<!\[CDATA\[/, "")
+      .replace(/\]\]>$/, "")
+      .trim();
+  }
+
+  function xmlField(entry: string, tag: string): string {
+    const match = entry.match(
+      new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"),
+    );
+
+    if (!match?.[1]) return "";
+
+    return decodeXml(stripCdata(match[1])).trim();
+  }
+
+  function xmlLinks(entry: string): string[] {
+    const links: string[] = [];
+
+    const attrRegex =
+      /<link[^>]+href=["']([^"']+)["'][^>]*>/gi;
+
+    for (const match of entry.matchAll(attrRegex)) {
+      if (match[1]) links.push(decodeXml(match[1]));
+    }
+
+    const textRegex =
+      /https?:\/\/link\.clashofclans\.com\/[^\s<>"')\]]+/gi;
+
+    for (const match of entry.matchAll(textRegex)) {
+      if (match[0]) links.push(match[0]);
+    }
+
+    return [...new Set(links)];
+  }
+
   for (const listingUrl of config.listingUrls) {
     try {
-      const raw =
-        await fetchHtml(listingUrl);
+      let raw = "";
 
-      const data = JSON.parse(raw);
+      try {
+        raw = await fetchHtml(listingUrl);
+      } catch {
+        const fallbackUrl = listingUrl.replace(
+          "www.reddit.com",
+          "old.reddit.com",
+        );
 
-      const children =
-        data?.data?.children ?? [];
-
-      for (
-        const child of children
-      ) {
-        if (
-          result.length >=
-          MAX_CANDIDATES_PER_SOURCE
-        ) {
-          break;
+        if (fallbackUrl !== listingUrl) {
+          raw = await fetchHtml(fallbackUrl);
+        } else {
+          throw new Error("Reddit-feed kon niet worden opgehaald.");
         }
+      }
 
-        const post =
-          child?.data;
+      const entries = raw.match(/<entry[\s\S]*?<\/entry>/gi) ?? [];
 
-        if (!post) {
-          continue;
-        }
+      console.log(
+        `[BASE-POOL] ${config.provider}: ${entries.length} RSS/Atom entries gevonden via ${listingUrl}`,
+      );
 
-        const title =
-          String(
-            post.title ?? "",
-          );
+      for (const entry of entries) {
+        const title = xmlField(entry, "title");
+        const content = xmlField(entry, "content");
+        const summary = xmlField(entry, "summary");
+        const combined = `${title} ${content} ${summary}`;
 
-        const body =
-          String(
-            post.selftext ?? "",
-          );
+        if (!looksLikeTh18Base(combined)) continue;
 
-        const combined =
-          `${title} ${body}`;
+        const normalized = combined
+          .replace(/[-_/]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
 
         if (
-          !/TH18|Town Hall 18/i.test(
-            combined,
+          /\b(?:farm|farming|progress|progression|resource|loot)\b/i.test(
+            normalized,
           )
         ) {
           continue;
         }
 
+        if (!categoryIsAllowed(normalized)) continue;
+
+        const dateText =
+          xmlField(entry, "updated") ||
+          xmlField(entry, "published");
+
+        const sourcePublishedAt = parseDate(dateText);
+
+        if (!sourcePublishedAt) continue;
+
+        const oldestAllowed = new Date(
+          Date.now() - MAX_BASE_AGE_HOURS * 60 * 60 * 1000,
+        );
+
         if (
-          isRejectedCategory(
-            combined,
-          )
+          sourcePublishedAt < oldestAllowed ||
+          sourcePublishedAt > new Date()
         ) {
           continue;
         }
 
-        if (
-          !isAllowedCategory(
-            combined,
-          )
-        ) {
-          continue;
-        }
+        const clashLinks = combined.match(
+          /https?:\/\/link\.clashofclans\.com\/[^\s<>"')\]]+/gi,
+        ) ?? [];
 
-        const created =
-          Number(
-            post.created_utc,
-          );
+        const links = [
+          ...clashLinks,
+          ...xmlLinks(entry),
+        ];
 
-        if (
-          !Number.isFinite(
-            created,
-          )
-        ) {
-          continue;
-        }
+        const baseLink = links.find((link) =>
+          /^https?:\/\/link\.clashofclans\.com\//i.test(link),
+        );
 
-        const publishedAt =
-          new Date(
-            created * 1000,
-          );
+        if (!baseLink) continue;
 
-        if (
-          !isFresh(
-            publishedAt,
-            new Date(),
-          )
-        ) {
-          continue;
-        }
-
-        const direct =
-          combined.match(
-            /https?:\/\/link\.clashofclans\.com\/[^\s)>\]]+/gi,
-          )?.[0];
-
-        if (!direct) {
-          continue;
-        }
-
-        const sourceUrl =
-          `https://www.reddit.com${post.permalink}`;
+        const imageMatch = combined.match(
+          /https?:\/\/[^\s<>"')\]]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s<>"')\]]*)?/i,
+        );
 
         const imageUrl =
-          post.url_overridden_by_dest &&
-          /\.(?:jpg|jpeg|png|webp)$/i.test(
-            post.url_overridden_by_dest,
-          )
-            ? post.url_overridden_by_dest
-            : "https://clashofclans.com/img/logo.png";
+          imageMatch?.[0] ??
+          "https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png";
 
         result.push({
-          name:
-            title.slice(0, 180) ||
-            "Reddit TH18 Base",
+          name: title || `TH18 Base via ${config.provider}`,
           imageUrl,
-          baseLink:
-            direct.replace(
-              /[),.;]+$/,
-              "",
-            ),
-          sourceUrl,
-          sourceProvider:
-            config.provider,
-          sourcePublishedAt:
-            publishedAt,
+          baseLink,
+          sourceUrl: listingUrl,
+          sourceProvider: config.provider,
+          sourcePublishedAt,
         });
+
+        if (result.length >= MAX_CANDIDATES_PER_SOURCE) {
+          return result;
+        }
       }
     } catch (error) {
-      console.error(
-        `[BASE-POOL] ${config.provider}: Reddit-feed mislukt.`,
+      console.warn(
+        `[BASE-POOL] ${config.provider}: Reddit-feed mislukt: ${listingUrl}`,
         error,
       );
     }
