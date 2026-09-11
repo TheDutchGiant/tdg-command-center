@@ -5,12 +5,14 @@ const MAX_BASE_AGE_HOURS = 48;
 const MAX_CANDIDATES_PER_SOURCE = 100;
 
 type SourceProvider =
-  | "RedditCoCBaseLink"
-  | "RedditCOCBaseLayouts"
-  | "ClashLayouts"
-  | "ClashBaseLink"
-  | "BaseMelon"
-  | "AllClash";
+  | "CocMap"
+  | "CocBaseNet"
+  | "CoClanLayouts";
+
+type SourceConfig = {
+  provider: SourceProvider;
+  listingUrls: string[];
+};
 
 type ScrapedBase = {
   name: string;
@@ -21,68 +23,55 @@ type ScrapedBase = {
   sourcePublishedAt: Date;
 };
 
-type SourceConfig = {
-  provider: SourceProvider;
-  urls: string[];
-};
-
 const SOURCES: SourceConfig[] = [
   {
-    provider: "RedditCoCBaseLink",
-    urls: [
-      "https://www.reddit.com/r/cocbaselink/new/.rss?limit=50",
-      "https://old.reddit.com/r/cocbaselink/new/.rss?limit=50",
+    provider: "CocMap",
+    listingUrls: [
+      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-war-base",
+      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-trophy-base",
+      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-cwl-base",
+      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-defense-base",
+      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-legend-base",
     ],
   },
   {
-    provider: "RedditCOCBaseLayouts",
-    urls: [
-      "https://www.reddit.com/r/COCBaseLayouts/new/.rss?limit=50",
-      "https://old.reddit.com/r/COCBaseLayouts/new/.rss?limit=50",
+    provider: "CocBaseNet",
+    listingUrls: [
+      "https://cocbase.net/town-hall-18-war-layouts",
+      "https://cocbase.net/town-hall-18-layouts",
     ],
   },
   {
-    provider: "ClashLayouts",
-    urls: [
-      "https://coclayouts.harshitrv.in/",
-    ],
-  },
-  {
-    provider: "ClashBaseLink",
-    urls: [
-      "https://clashbaselink.com/th18-base-layout/",
-    ],
-  },
-  {
-    provider: "BaseMelon",
-    urls: [
-      "https://basemelon.com/coc-bases-th18/war",
-      "https://basemelon.com/coc-bases-th18/trophy-defense",
-      "https://basemelon.com/coc-bases-th18/legend",
-    ],
-  },
-  {
-    provider: "AllClash",
-    urls: [
-      "https://www.allclash.com/the-best-th18-war-trophy-farming-base-layouts/",
+    provider: "CoClanLayouts",
+    listingUrls: [
+      "https://coclanlayouts.com/th18-bases",
     ],
   },
 ];
 
 const BLOCKED_TERMS =
-  /\b(?:farm|farming|progress|progression|resource|loot)\b/i;
+  /\b(?:farm|farming|progress|progression|resource|resources|loot)\b/i;
 
 const ALLOWED_TERMS =
-  /\b(?:war|cwl|trophy|trophy\s+defen[cs]e|legend|ranked|defen[cs]e|anti\s+(?:1|2|3)\s*star|anti\s+(?:everything|air|dragon|hydra|smash|thrower|electro\s*dragon))\b/i;
+  /\b(?:war|cwl|trophy|trophy\s+defen[cs]e|legend|ranked|defen[cs]e|anti\s*(?:1|2|3)\s*star|anti\s*(?:everything|air|dragon|hydra|blimp|root\s*rider|lava(?:loon)?|electro\s*dragon|e[-\s]?drag))\b/i;
 
 const CLASH_LINK_RE =
-  /https?:\/\/link\.clashofclans\.com\/[^\s"'<>\\)\]]+/gi;
+  /https?:\/\/link\.clashofclans\.com\/[^\s<>"')\]]+/gi;
 
-function cleanClashLink(value: string): string {
+const COCMAP_DETAIL_RE =
+  /https?:\/\/cocmap\.com\/[^\s<>"')\]]+/gi;
+
+const COCBASE_DETAIL_RE =
+  /https?:\/\/cocbase\.net\/[^\s<>"')\]]+/gi;
+
+const COCLAN_DETAIL_RE =
+  /https?:\/\/coclanlayouts\.com\/[^\s<>"')\]]+/gi;
+
+function cleanUrl(value: string): string {
   return value
     .replace(/&amp;/g, "&")
     .replace(/\\\//g, "/")
-    .replace(/[)\],.;]+$/g, "")
+    .replace(/[),.;]+$/g, "")
     .trim();
 }
 
@@ -96,12 +85,6 @@ function decodeHtml(value: string): string {
     .replace(/&gt;/g, ">");
 }
 
-function decodeXml(value: string): string {
-  return decodeHtml(value)
-    .replace(/<!\[CDATA\[/g, "")
-    .replace(/\]\]>/g, "");
-}
-
 function stripHtml(value: string): string {
   return value
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -111,34 +94,37 @@ function stripHtml(value: string): string {
     .trim();
 }
 
-function parseDate(value: string | null | undefined): Date | null {
-  if (!value) return null;
-
+function parseDate(value: string): Date | null {
   const parsed = new Date(value.trim());
 
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed;
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : parsed;
 }
 
-function isFresh(date: Date, now = new Date()): boolean {
+function isFresh(
+  date: Date,
+  now = new Date(),
+): boolean {
   const age = now.getTime() - date.getTime();
 
   return (
     age >= 0 &&
-    age <= MAX_BASE_AGE_HOURS * 60 * 60 * 1000
+    age <=
+      MAX_BASE_AGE_HOURS *
+        60 *
+        60 *
+        1000
   );
 }
 
 function looksLikeTh18(text: string): boolean {
-  return /\b(?:th\s*18|th18|town\s*hall\s*18|townhall\s*18)\b/i.test(
+  return /\b(?:TH\s*18|TH18|Town\s*Hall\s*18|TownHall\s*18)\b/i.test(
     text,
   );
 }
 
-function isAllowedBaseText(text: string): boolean {
+function isAllowedCategory(text: string): boolean {
   if (BLOCKED_TERMS.test(text)) {
     return false;
   }
@@ -146,98 +132,181 @@ function isAllowedBaseText(text: string): boolean {
   return ALLOWED_TERMS.test(text);
 }
 
-function extractClashLinks(text: string): string[] {
-  const found = new Set<string>();
+function extractClashLinks(
+  text: string,
+): string[] {
+  const result = new Set<string>();
 
-  for (const match of text.matchAll(CLASH_LINK_RE)) {
+  for (const match of text.matchAll(
+    CLASH_LINK_RE,
+  )) {
     if (match[0]) {
-      found.add(cleanClashLink(match[0]));
+      result.add(
+        cleanUrl(match[0]),
+      );
     }
   }
 
-  return [...found];
+  return [...result];
 }
 
-function extractFirstImage(html: string): string | null {
-  const og =
-    html.match(
-      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
-    )?.[1] ??
-    html.match(
-      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+function extractMarkdownLinks(
+  text: string,
+): string[] {
+  const result = new Set<string>();
+
+  for (const match of text.matchAll(
+    /\[[^\]]+\]\((https?:\/\/[^)\s]+)\)/gi,
+  )) {
+    if (match[1]) {
+      result.add(
+        cleanUrl(match[1]),
+      );
+    }
+  }
+
+  return [...result];
+}
+
+function extractFirstImage(
+  text: string,
+): string | null {
+  const markdown =
+    text.match(
+      /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i,
     )?.[1];
 
-  if (og) {
-    return decodeHtml(og);
+  if (markdown) {
+    return cleanUrl(markdown);
   }
 
   return (
-    html.match(
-      /<img[^>]+(?:src|data-src)=["']([^"']+)["']/i,
-    )?.[1] ?? null
+    text.match(
+      /https?:\/\/[^\s<>"')\]]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s<>"')\]]*)?/i,
+    )?.[0] ?? null
   );
 }
 
-function extractTitle(html: string): string {
-  const h1 = html.match(
-    /<h1[^>]*>([\s\S]*?)<\/h1>/i,
-  )?.[1];
+function extractTitle(
+  text: string,
+): string {
+  const heading =
+    text.match(
+      /(?:^|\n)\s*#{1,6}\s+(.+?)(?:\n|$)/,
+    )?.[1];
 
-  if (h1) {
-    return decodeHtml(stripHtml(h1));
+  if (heading) {
+    return heading
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
-  const title = html.match(
-    /<title[^>]*>([\s\S]*?)<\/title>/i,
-  )?.[1];
+  const htmlTitle =
+    text.match(
+      /<title[^>]*>([\s\S]*?)<\/title>/i,
+    )?.[1];
 
-  return title ? decodeHtml(stripHtml(title)) : "";
+  if (htmlTitle) {
+    return stripHtml(
+      decodeHtml(htmlTitle),
+    );
+  }
+
+  return "TH18 Base";
 }
 
-function extractExactSourceDate(html: string): Date | null {
+function extractCocMapDate(
+  text: string,
+): Date | null {
+  const patterns = [
+    /2026-[A-Z][a-z]{2}-\d{2}:\d{2}-\d{2}-\d{2}/g,
+    /2026-[A-Z][a-z]{2}-\d{2}[:\s]\d{2}[-:]\d{2}[-:]\d{2}/g,
+  ];
+
+  const dates: Date[] = [];
+
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(
+      pattern,
+    )) {
+      const value = match[0];
+
+      const parsed =
+        value.match(
+          /^(\d{4})-([A-Za-z]{3})-(\d{2}):(\d{2})-(\d{2})-(\d{2})$/,
+        );
+
+      if (!parsed) {
+        continue;
+      }
+
+      const months: Record<
+        string,
+        number
+      > = {
+        Jan: 0,
+        Feb: 1,
+        Mar: 2,
+        Apr: 3,
+        May: 4,
+        Jun: 5,
+        Jul: 6,
+        Aug: 7,
+        Sep: 8,
+        Oct: 9,
+        Nov: 10,
+        Dec: 11,
+      };
+
+      const month =
+        months[parsed[2]];
+
+      if (month === undefined) {
+        continue;
+      }
+
+      const date = new Date(
+        Number(parsed[1]),
+        month,
+        Number(parsed[3]),
+        Number(parsed[4]),
+        Number(parsed[5]),
+        Number(parsed[6]),
+      );
+
+      if (!Number.isNaN(date.getTime())) {
+        dates.push(date);
+      }
+    }
+  }
+
+  dates.sort(
+    (a, b) =>
+      b.getTime() - a.getTime(),
+  );
+
+  return dates[0] ?? null;
+}
+
+function extractStructuredDate(
+  text: string,
+): Date | null {
   const candidates: string[] = [];
 
-  const metaPatterns = [
-    /<meta[^>]+(?:property|name)=["']article:published_time["'][^>]+content=["']([^"']+)["']/gi,
-    /<meta[^>]+(?:property|name)=["']datePublished["'][^>]+content=["']([^"']+)["']/gi,
-    /<meta[^>]+(?:property|name)=["']published_time["'][^>]+content=["']([^"']+)["']/gi,
-    /<meta[^>]+(?:property|name)=["']date["'][^>]+content=["']([^"']+)["']/gi,
-  ];
-
-  for (const pattern of metaPatterns) {
-    for (const match of html.matchAll(pattern)) {
-      if (match[1]) {
-        candidates.push(match[1]);
-      }
-    }
-  }
-
-  const jsonLdPatterns = [
+  const patterns = [
     /"datePublished"\s*:\s*"([^"]+)"/gi,
     /"dateCreated"\s*:\s*"([^"]+)"/gi,
-    /"uploadDate"\s*:\s*"([^"]+)"/gi,
+    /"dateModified"\s*:\s*"([^"]+)"/gi,
     /"publishedAt"\s*:\s*"([^"]+)"/gi,
+    /"createdAt"\s*:\s*"([^"]+)"/gi,
+    /"updatedAt"\s*:\s*"([^"]+)"/gi,
+    /<meta[^>]+(?:property|name)=["'][^"']*(?:published|date|modified)[^"']*["'][^>]+content=["']([^"']+)["']/gi,
   ];
 
-  for (const pattern of jsonLdPatterns) {
-    for (const match of html.matchAll(pattern)) {
-      if (match[1]) {
-        candidates.push(match[1]);
-      }
-    }
-  }
-
-  const visibleText = stripHtml(html);
-
-  const visiblePatterns = [
-    /\bAdded\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/gi,
-    /\bPublished\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/gi,
-    /\bUpdated\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/gi,
-    /\bLast Updated\s*:?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/gi,
-  ];
-
-  for (const pattern of visiblePatterns) {
-    for (const match of visibleText.matchAll(pattern)) {
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(
+      pattern,
+    )) {
       if (match[1]) {
         candidates.push(match[1]);
       }
@@ -246,545 +315,438 @@ function extractExactSourceDate(html: string): Date | null {
 
   const dates = candidates
     .map(parseDate)
-    .filter((date): date is Date => date !== null)
-    .sort((a, b) => b.getTime() - a.getTime());
+    .filter(
+      (date): date is Date =>
+        date !== null,
+    )
+    .filter((date) =>
+      isFresh(date),
+    );
+
+  dates.sort(
+    (a, b) =>
+      b.getTime() - a.getTime(),
+  );
 
   return dates[0] ?? null;
 }
 
-async function fetchText(
-  url: string,
-  accept = "text/html,application/xhtml+xml,*/*;q=0.8",
-): Promise<string> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      Accept: accept,
-      "Accept-Language": "en-US,en;q=0.9",
-      "User-Agent":
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151 Safari/537.36 TDG-Phoenix/1.0",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} voor ${url}`);
-  }
-
-  return response.text();
-}
-
-function extractHrefLinks(
-  html: string,
-  baseUrl: string,
+function extractCocMapDetailUrls(
+  text: string,
 ): string[] {
   const links = new Set<string>();
 
-  for (const match of html.matchAll(
-    /<a[^>]+href=["']([^"']+)["'][^>]*>/gi,
+  for (const match of text.matchAll(
+    COCMAP_DETAIL_RE,
   )) {
-    try {
-      const url = new URL(
-        decodeHtml(match[1]),
-        baseUrl,
-      ).toString();
+    const url = cleanUrl(match[0]);
 
+    if (
+      /cocmap\.com\/.*\/layouts\//i.test(
+        url,
+      ) &&
+      /\/[a-f0-9]{20,}$/i.test(
+        url,
+      )
+    ) {
       links.add(url);
-    } catch {
-      // Ongeldige link negeren.
+    }
+  }
+
+  for (const link of extractMarkdownLinks(text)) {
+    if (
+      /cocmap\.com\/.*\/layouts\//i.test(
+        link,
+      ) &&
+      /\/[a-f0-9]{20,}(?:\?|$)/i.test(
+        link,
+      )
+    ) {
+      links.add(link);
     }
   }
 
   return [...links];
 }
 
-function isLikelyBaseDetail(
-  url: string,
-  provider: SourceProvider,
-): boolean {
-  switch (provider) {
-    case "ClashLayouts":
-      return /\/(?:th18|town-hall-18|townhall-18)[^/]*\/[^/]+/i.test(
+function extractCocBaseDetailUrls(
+  text: string,
+): string[] {
+  const links = new Set<string>();
+
+  for (const match of text.matchAll(
+    COCBASE_DETAIL_RE,
+  )) {
+    const url = cleanUrl(match[0]);
+
+    if (
+      /cocbase\.net\/th18-/i.test(
         url,
-      );
-
-    case "ClashBaseLink":
-      return /clashbaselink\.com\/th18-[^/]+-base/i.test(
-        url,
-      );
-
-    case "BaseMelon":
-      return /basemelon\.com\/coc-bases-th18\/[^/]+-id\d+/i.test(
-        url,
-      );
-
-    case "AllClash":
-      return /allclash\.com/i.test(url);
-
-    default:
-      return false;
+      )
+    ) {
+      links.add(url);
+    }
   }
+
+  for (const link of extractMarkdownLinks(text)) {
+    if (
+      /cocbase\.net\/th18-/i.test(
+        link,
+      )
+    ) {
+      links.add(link);
+    }
+  }
+
+  return [...links];
 }
 
-async function scrapeHtmlDetail(
+function extractCoClanDetailUrls(
+  text: string,
+): string[] {
+  const links = new Set<string>();
+
+  for (const match of text.matchAll(
+    COCLAN_DETAIL_RE,
+  )) {
+    const url = cleanUrl(match[0]);
+
+    if (
+      /coclanlayouts\.com\/th18-bases\//i.test(
+        url,
+      )
+    ) {
+      links.add(url);
+    }
+  }
+
+  for (const link of extractMarkdownLinks(text)) {
+    if (
+      /coclanlayouts\.com\/th18-bases\//i.test(
+        link,
+      )
+    ) {
+      links.add(link);
+    }
+  }
+
+  return [...links];
+}
+
+async function fetchText(
+  url: string,
+): Promise<string> {
+  const directResponse =
+    await fetch(url, {
+      cache: "no-store",
+      headers: {
+        Accept:
+          "text/html,application/xhtml+xml,text/plain,*/*;q=0.8",
+        "Accept-Language":
+          "en-US,en;q=0.9",
+        "User-Agent":
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151 Safari/537.36 TDG-Phoenix/1.0",
+      },
+    });
+
+  if (directResponse.ok) {
+    return directResponse.text();
+  }
+
+  /*
+   * Sommige bronnen blokkeren het VPS-IP.
+   * Jina gebruiken we uitsluitend als fetch-proxy.
+   */
+  const jinaUrl =
+    `https://r.jina.ai/${url}`;
+
+  const jinaResponse =
+    await fetch(jinaUrl, {
+      cache: "no-store",
+      headers: {
+        Accept:
+          "text/plain,text/markdown,*/*;q=0.8",
+        "User-Agent":
+          "TDG-Phoenix-BaseAggregator/1.0",
+      },
+    });
+
+  if (!jinaResponse.ok) {
+    throw new Error(
+      `Direct HTTP ${directResponse.status}; Jina HTTP ${jinaResponse.status} voor ${url}`,
+    );
+  }
+
+  return jinaResponse.text();
+}
+
+async function scrapeDetail(
   url: string,
   provider: SourceProvider,
 ): Promise<ScrapedBase | null> {
-  const html = await fetchText(url);
-  const visibleText = stripHtml(html);
-  const title = extractTitle(html);
+  const text =
+    await fetchText(url);
 
-  const combinedText = `${url} ${title} ${visibleText}`;
+  const plain =
+    stripHtml(text);
 
-  if (!looksLikeTh18(combinedText)) {
+  const title =
+    extractTitle(text);
+
+  const combined =
+    `${url}\n${title}\n${plain}`;
+
+  if (!looksLikeTh18(combined)) {
     console.log(
-      `[BASE-POOL] ${provider}: geen TH18: ${url}`,
+      `[BASE-POOL] ${provider}: geen TH18 ${url}`,
     );
     return null;
   }
 
-  if (!isAllowedBaseText(combinedText)) {
+  if (!isAllowedCategory(combined)) {
     console.log(
-      `[BASE-POOL] ${provider}: geen toegestane categorie: ${url}`,
+      `[BASE-POOL] ${provider}: categorie uitgesloten ${url}`,
     );
     return null;
   }
 
-  const baseLink =
-    extractClashLinks(html)[0] ??
+  const clashLinks =
+    extractClashLinks(text);
+
+  if (!clashLinks.length) {
+    console.log(
+      `[BASE-POOL] ${provider}: geen directe Clash-link ${url}`,
+    );
+    return null;
+  }
+
+  let sourcePublishedAt: Date | null =
     null;
 
-  if (!baseLink) {
-    console.log(
-      `[BASE-POOL] ${provider}: geen Clash-link: ${url}`,
-    );
-    return null;
+  if (provider === "CocMap") {
+    sourcePublishedAt =
+      extractCocMapDate(
+        combined,
+      ) ??
+      extractStructuredDate(
+        text,
+      );
+  } else {
+    sourcePublishedAt =
+      extractStructuredDate(
+        text,
+      );
   }
-
-  const sourcePublishedAt =
-    extractExactSourceDate(html);
 
   if (!sourcePublishedAt) {
     console.log(
-      `[BASE-POOL] ${provider}: geen exacte publicatiedatum: ${url}`,
+      `[BASE-POOL] ${provider}: geen betrouwbare exacte datum ${url}`,
     );
     return null;
   }
 
   if (!isFresh(sourcePublishedAt)) {
     console.log(
-      `[BASE-POOL] ${provider}: ouder dan 48 uur: ${url}`,
+      `[BASE-POOL] ${provider}: ouder dan 48 uur ${url}`,
     );
     return null;
   }
 
   const imageUrl =
-    extractFirstImage(html);
+    extractFirstImage(text);
 
   if (!imageUrl) {
     console.log(
-      `[BASE-POOL] ${provider}: geen afbeelding: ${url}`,
+      `[BASE-POOL] ${provider}: geen afbeelding ${url}`,
     );
     return null;
   }
 
   return {
     name:
-      title.slice(0, 180) ||
-      `TH18 Base via ${provider}`,
+      title.slice(0, 180),
     imageUrl,
-    baseLink,
+    baseLink:
+      clashLinks[0],
     sourceUrl: url,
     sourceProvider: provider,
     sourcePublishedAt,
   };
 }
 
-function rssField(
-  entry: string,
-  field: string,
-): string {
-  const match = entry.match(
-    new RegExp(
-      `<${field}(?:\\s[^>]*)?>([\\s\\S]*?)</${field}>`,
-      "i",
-    ),
-  );
-
-  return match?.[1]
-    ? decodeXml(match[1]).trim()
-    : "";
-}
-
-function extractRssClashLinks(
-  entry: string,
-): string[] {
-  const found = new Set<string>();
-
-  for (const match of entry.matchAll(CLASH_LINK_RE)) {
-    if (match[0]) {
-      found.add(cleanClashLink(match[0]));
-    }
-  }
-
-  for (const match of entry.matchAll(
-    /<link[^>]+href=["']([^"']+)["'][^>]*>/gi,
-  )) {
-    if (
-      match[1] &&
-      /link\.clashofclans\.com/i.test(match[1])
-    ) {
-      found.add(cleanClashLink(match[1]));
-    }
-  }
-
-  return [...found];
-}
-
-function extractRssImage(entry: string): string | null {
-  const candidates = [
-    /<media:(?:content|thumbnail)[^>]+url=["']([^"']+)["']/i,
-    /<img[^>]+src=["']([^"']+)["']/i,
-    /https?:\/\/[^\s<>"')\]]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s<>"')\]]*)?/i,
-  ];
-
-  for (const pattern of candidates) {
-    const match = entry.match(pattern);
-
-    if (match?.[1] ?? match?.[0]) {
-      return decodeXml(match[1] ?? match[0]);
-    }
-  }
-
-  return null;
-}
-
-async function collectReddit(
+async function collectCocMap(
   config: SourceConfig,
 ): Promise<ScrapedBase[]> {
   const result: ScrapedBase[] = [];
-  const seenLinks = new Set<string>();
+  const seenDetails =
+    new Set<string>();
+  const seenLinks =
+    new Set<string>();
 
-  const now = new Date();
-  const oldestAllowed = new Date(
-    now.getTime() -
-      MAX_BASE_AGE_HOURS *
-        60 *
-        60 *
-        1000,
-  );
+  for (const listingUrl of config.listingUrls) {
+    try {
+      const listing =
+        await fetchText(
+          listingUrl,
+        );
 
-  function extractDateNear(
-    text: string,
-  ): Date | null {
-    const candidates: string[] = [];
+      const detailUrls =
+        extractCocMapDetailUrls(
+          listing,
+        );
 
-    const patterns = [
-      /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b/gi,
-      /\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}(?:\s+\d{2}:\d{2}(?::\d{2})?\s*(?:GMT|UTC)?)?/gi,
-      /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/gi,
-      /\b\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/gi,
-    ];
+      console.log(
+        `[BASE-POOL] CocMap: ${detailUrls.length} detailpagina's gevonden via ${listingUrl}`,
+      );
 
-    for (const pattern of patterns) {
-      for (const match of text.matchAll(pattern)) {
-        if (match[0]) {
-          candidates.push(match[0]);
+      for (const detailUrl of detailUrls) {
+        if (
+          result.length >=
+          MAX_CANDIDATES_PER_SOURCE
+        ) {
+          return result;
+        }
+
+        if (
+          seenDetails.has(
+            detailUrl,
+          )
+        ) {
+          continue;
+        }
+
+        seenDetails.add(
+          detailUrl,
+        );
+
+        try {
+          const base =
+            await scrapeDetail(
+              detailUrl,
+              "CocMap",
+            );
+
+          if (
+            base &&
+            !seenLinks.has(
+              base.baseLink,
+            )
+          ) {
+            seenLinks.add(
+              base.baseLink,
+            );
+
+            result.push(base);
+          }
+        } catch (error) {
+          console.warn(
+            `[BASE-POOL] CocMap detail mislukt ${detailUrl}`,
+            error,
+          );
         }
       }
-    }
-
-    const dates = candidates
-      .map((value) => {
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime())
-          ? null
-          : parsed;
-      })
-      .filter(
-        (date): date is Date =>
-          date !== null,
-      );
-
-    dates.sort(
-      (a, b) =>
-        Math.abs(
-          now.getTime() - a.getTime(),
-        ) -
-        Math.abs(
-          now.getTime() - b.getTime(),
-        ),
-    );
-
-    return dates[0] ?? null;
-  }
-
-  function extractTitleNear(
-    text: string,
-  ): string {
-    const headings = [
-      ...text.matchAll(
-        /(?:^|\n)\s*#{1,6}\s+(.+?)(?=\n|$)/g,
-      ),
-    ];
-
-    if (headings.length) {
-      return headings[0][1]
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 180);
-    }
-
-    const lines = text
-      .split(/\r?\n/)
-      .map((line) =>
-        line
-          .replace(/[*_`>]+/g, "")
-          .replace(/\s+/g, " ")
-          .trim(),
-      )
-      .filter(Boolean);
-
-    return (
-      lines.find((line) =>
-        /th\s*18|th18|town\s*hall\s*18/i.test(
-          line,
-        ),
-      )?.slice(0, 180) ??
-      "TH18 Base via Reddit"
-    );
-  }
-
-  function extractImageNear(
-    text: string,
-  ): string | null {
-    const markdownImage =
-      text.match(
-        /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i,
-      )?.[1];
-
-    if (markdownImage) {
-      return markdownImage;
-    }
-
-    return (
-      text.match(
-        /https?:\/\/[^\s<>"')\]]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s<>"')\]]*)?/i,
-      )?.[0] ?? null
-    );
-  }
-
-  async function fetchViaJina(
-    feedUrl: string,
-  ): Promise<string> {
-    const jinaUrl =
-      `https://r.jina.ai/${feedUrl}`;
-
-    return fetchText(
-      jinaUrl,
-      "text/plain,text/markdown,application/json,*/*;q=0.8",
-    );
-  }
-
-  for (const feedUrl of config.urls) {
-    let raw = "";
-
-    /*
-     * Eerst Jina gebruiken.
-     * Reddit RSS kan vanaf VPS-IP's 403/429 geven.
-     */
-    try {
-      raw = await fetchViaJina(feedUrl);
-      console.log(
-        `[BASE-POOL] ${config.provider}: Reddit via Jina opgehaald.`,
-      );
-    } catch (jinaError) {
+    } catch (error) {
       console.warn(
-        `[BASE-POOL] ${config.provider}: Jina mislukt, directe RSS fallback.`,
-        jinaError,
+        `[BASE-POOL] CocMap listing mislukt ${listingUrl}`,
+        error,
       );
-
-      try {
-        raw = await fetchText(
-          feedUrl,
-          "application/atom+xml,application/rss+xml,application/xml,text/xml,*/*;q=0.8",
-        );
-
-        console.log(
-          `[BASE-POOL] ${config.provider}: directe Reddit RSS opgehaald.`,
-        );
-      } catch (directError) {
-        console.warn(
-          `[BASE-POOL] ${config.provider}: directe Reddit RSS eveneens mislukt.`,
-          directError,
-        );
-        continue;
-      }
-    }
-
-    const clashLinks = [
-      ...raw.matchAll(
-        /https?:\/\/link\.clashofclans\.com\/[^\s<>"')\]]+/gi,
-      ),
-    ]
-      .map((match) =>
-        cleanClashLink(match[0]),
-      )
-      .filter(Boolean);
-
-    const uniqueClashLinks = [
-      ...new Set(clashLinks),
-    ];
-
-    console.log(
-      `[BASE-POOL] ${config.provider}: ${uniqueClashLinks.length} Clash-links gevonden.`,
-    );
-
-    for (const baseLink of uniqueClashLinks) {
-      if (
-        result.length >=
-        MAX_CANDIDATES_PER_SOURCE
-      ) {
-        return result;
-      }
-
-      if (seenLinks.has(baseLink)) {
-        continue;
-      }
-
-      seenLinks.add(baseLink);
-
-      const linkIndex =
-        raw.indexOf(baseLink);
-
-      const contextStart =
-        Math.max(0, linkIndex - 1800);
-
-      const contextEnd =
-        Math.min(
-          raw.length,
-          linkIndex + 1200,
-        );
-
-      const context =
-        raw.slice(
-          contextStart,
-          contextEnd,
-        );
-
-      if (!looksLikeTh18(context)) {
-        continue;
-      }
-
-      if (!isAllowedBaseText(context)) {
-        continue;
-      }
-
-      const sourcePublishedAt =
-        extractDateNear(context);
-
-      if (!sourcePublishedAt) {
-        console.log(
-          `[BASE-POOL] ${config.provider}: Clash-link zonder aantoonbare datum: ${baseLink}`,
-        );
-        continue;
-      }
-
-      if (
-        sourcePublishedAt <
-          oldestAllowed ||
-        sourcePublishedAt > now
-      ) {
-        continue;
-      }
-
-      const title =
-        extractTitleNear(context);
-
-      const imageUrl =
-        extractImageNear(context) ??
-        "https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png";
-
-      result.push({
-        name: title,
-        imageUrl,
-        baseLink,
-        sourceUrl: feedUrl,
-        sourceProvider: config.provider,
-        sourcePublishedAt,
-      });
     }
   }
 
   return result;
 }
 
-async function collectHtmlProvider(
+async function collectStandardProvider(
   config: SourceConfig,
 ): Promise<ScrapedBase[]> {
-  const candidates = new Set<string>();
+  const result: ScrapedBase[] = [];
+  const seenDetails =
+    new Set<string>();
+  const seenLinks =
+    new Set<string>();
 
-  for (const listingUrl of config.urls) {
+  for (const listingUrl of config.listingUrls) {
     try {
-      const html =
-        await fetchText(listingUrl);
-
-      const links =
-        extractHrefLinks(
-          html,
+      const listing =
+        await fetchText(
           listingUrl,
         );
 
-      for (const link of links) {
+      let detailUrls: string[] = [];
+
+      if (
+        config.provider ===
+        "CocBaseNet"
+      ) {
+        detailUrls =
+          extractCocBaseDetailUrls(
+            listing,
+          );
+      }
+
+      if (
+        config.provider ===
+        "CoClanLayouts"
+      ) {
+        detailUrls =
+          extractCoClanDetailUrls(
+            listing,
+          );
+      }
+
+      console.log(
+        `[BASE-POOL] ${config.provider}: ${detailUrls.length} detailpagina's gevonden via ${listingUrl}`,
+      );
+
+      for (const detailUrl of detailUrls) {
         if (
-          isLikelyBaseDetail(
-            link,
-            config.provider,
+          result.length >=
+          MAX_CANDIDATES_PER_SOURCE
+        ) {
+          return result;
+        }
+
+        if (
+          seenDetails.has(
+            detailUrl,
           )
         ) {
-          candidates.add(link);
+          continue;
+        }
+
+        seenDetails.add(
+          detailUrl,
+        );
+
+        try {
+          const base =
+            await scrapeDetail(
+              detailUrl,
+              config.provider,
+            );
+
+          if (
+            base &&
+            !seenLinks.has(
+              base.baseLink,
+            )
+          ) {
+            seenLinks.add(
+              base.baseLink,
+            );
+
+            result.push(base);
+          }
+        } catch (error) {
+          console.warn(
+            `[BASE-POOL] ${config.provider} detail mislukt ${detailUrl}`,
+            error,
+          );
         }
       }
-
-      for (const clashLink of extractClashLinks(html)) {
-        console.log(
-          `[BASE-POOL] ${config.provider}: losse Clash-link gevonden op listing ${clashLink}`,
-        );
-      }
     } catch (error) {
       console.warn(
-        `[BASE-POOL] ${config.provider}: listing mislukt ${listingUrl}`,
-        error,
-      );
-    }
-  }
-
-  console.log(
-    `[BASE-POOL] ${config.provider}: ${candidates.size} detailpagina kandidaten`,
-  );
-
-  const result: ScrapedBase[] = [];
-
-  for (const candidate of candidates) {
-    if (
-      result.length >=
-      MAX_CANDIDATES_PER_SOURCE
-    ) {
-      break;
-    }
-
-    try {
-      const base =
-        await scrapeHtmlDetail(
-          candidate,
-          config.provider,
-        );
-
-      if (base) {
-        result.push(base);
-      }
-    } catch (error) {
-      console.warn(
-        `[BASE-POOL] ${config.provider}: detail mislukt ${candidate}`,
+        `[BASE-POOL] ${config.provider} listing mislukt ${listingUrl}`,
         error,
       );
     }
@@ -798,14 +760,16 @@ async function collectProvider(
 ): Promise<ScrapedBase[]> {
   if (
     config.provider ===
-      "RedditCoCBaseLink" ||
-    config.provider ===
-      "RedditCOCBaseLayouts"
+    "CocMap"
   ) {
-    return collectReddit(config);
+    return collectCocMap(
+      config,
+    );
   }
 
-  return collectHtmlProvider(config);
+  return collectStandardProvider(
+    config,
+  );
 }
 
 export async function refreshBasePool(
@@ -817,7 +781,8 @@ export async function refreshBasePool(
     );
   }
 
-  const now = new Date();
+  const now =
+    new Date();
 
   const oldestAllowed =
     new Date(
@@ -829,8 +794,10 @@ export async function refreshBasePool(
     );
 
   /*
-   * Alleen automatische bases mogen hier worden opgeschoond.
-   * TDG-eigen bases hebben sourceProvider = null.
+   * Alleen automatische bases
+   * worden opgeschoond.
+   * TDG-eigen bases hebben
+   * sourceProvider = null.
    */
   await prisma.base.updateMany({
     where: {
@@ -870,32 +837,38 @@ export async function refreshBasePool(
   const existingLinks =
     new Set(
       existing.map(
-        (base) => base.baseLink,
+        (base) =>
+          base.baseLink,
       ),
     );
 
-  const collected: ScrapedBase[] = [];
+  const collected:
+    ScrapedBase[] = [];
+
   const sourceResults: {
     provider: SourceProvider;
     candidates: number;
     accepted: number;
   }[] = [];
 
-  /*
-   * Bronnen sequentieel uitvoeren.
-   * Dat voorkomt onnodige 429's bij Reddit en andere sites.
-   */
   for (const source of SOURCES) {
     try {
       const bases =
-        await collectProvider(source);
+        await collectProvider(
+          source,
+        );
 
-      collected.push(...bases);
+      collected.push(
+        ...bases,
+      );
 
       sourceResults.push({
-        provider: source.provider,
-        candidates: bases.length,
-        accepted: bases.length,
+        provider:
+          source.provider,
+        candidates:
+          bases.length,
+        accepted:
+          bases.length,
       });
 
       console.log(
@@ -903,21 +876,19 @@ export async function refreshBasePool(
       );
     } catch (error) {
       console.error(
-        `[BASE-POOL] ${source.provider}: collector volledig mislukt`,
+        `[BASE-POOL] ${source.provider}: collector mislukt`,
         error,
       );
 
       sourceResults.push({
-        provider: source.provider,
+        provider:
+          source.provider,
         candidates: 0,
         accepted: 0,
       });
     }
   }
 
-  /*
-   * Centrale veiligheidsfilter.
-   */
   const combined =
     collected
       .filter(
@@ -953,16 +924,18 @@ export async function refreshBasePool(
 
   if (!combined.length) {
     console.warn(
-      "[BASE-POOL] Geen verse base voldoet aan alle veiligheidsregels.",
+      "[BASE-POOL] Geen enkele verse veilige base gevonden.",
     );
 
     return {
       imported: 0,
       total: 0,
-      target: TOTAL_POOL_LIMIT,
+      target:
+        TOTAL_POOL_LIMIT,
       maxAgeHours:
         MAX_BASE_AGE_HOURS,
-      sources: sourceResults,
+      sources:
+        sourceResults,
     };
   }
 
@@ -970,21 +943,28 @@ export async function refreshBasePool(
     data: combined.map(
       (base) => ({
         townHall,
-        category: "Challenge",
-        name: base.name,
+        category:
+          "Challenge",
+        name:
+          base.name,
         description:
           `TDG Challenge Base · ${base.sourceProvider}`,
-        baseLink: base.baseLink,
-        imageUrl: base.imageUrl,
-        createdBy: base.sourceProvider,
+        baseLink:
+          base.baseLink,
+        imageUrl:
+          base.imageUrl,
+        createdBy:
+          base.sourceProvider,
         sourceProvider:
           base.sourceProvider,
         sourceUrl:
           base.sourceUrl,
         sourcePublishedAt:
           base.sourcePublishedAt,
-        expiresAt: null,
-        isActive: false,
+        expiresAt:
+          null,
+        isActive:
+          false,
       }),
     ),
   });
@@ -998,7 +978,7 @@ export async function refreshBasePool(
   );
 
   for (const source of SOURCES) {
-    const amount =
+    const count =
       combined.filter(
         (base) =>
           base.sourceProvider ===
@@ -1006,7 +986,7 @@ export async function refreshBasePool(
       ).length;
 
     console.log(
-      `[BASE-POOL] ${source.provider}: ${amount}`,
+      `[BASE-POOL] ${source.provider}: ${count}`,
     );
   }
 
@@ -1023,18 +1003,19 @@ export async function refreshBasePool(
       TOTAL_POOL_LIMIT,
     maxAgeHours:
       MAX_BASE_AGE_HOURS,
-    sources: SOURCES.map(
-      (source) => ({
-        provider:
-          source.provider,
-        imported:
-          combined.filter(
-            (base) =>
-              base.sourceProvider ===
-              source.provider,
-          ).length,
-      }),
-    ),
+    sources:
+      SOURCES.map(
+        (source) => ({
+          provider:
+            source.provider,
+          imported:
+            combined.filter(
+              (base) =>
+                base.sourceProvider ===
+                source.provider,
+            ).length,
+        }),
+      ),
   };
 }
 
@@ -1042,7 +1023,8 @@ export async function chooseChallengeBase(
   townHall: number,
   excludedBaseId?: number,
 ) {
-  const now = new Date();
+  const now =
+    new Date();
 
   const oldestAllowed =
     new Date(
@@ -1062,14 +1044,18 @@ export async function chooseChallengeBase(
             not: null,
           },
           sourcePublishedAt: {
-            gte: oldestAllowed,
-            lte: now,
+            gte:
+              oldestAllowed,
+            lte:
+              now,
           },
-          isActive: false,
+          isActive:
+            false,
           ...(excludedBaseId
             ? {
                 id: {
-                  not: excludedBaseId,
+                  not:
+                    excludedBaseId,
                 },
               }
             : {}),
@@ -1085,13 +1071,16 @@ export async function chooseChallengeBase(
           sourcePublishedAt:
             "desc",
         },
-        take: TOTAL_POOL_LIMIT,
+        take:
+          TOTAL_POOL_LIMIT,
       });
 
   let available =
     await findAvailable();
 
-  if (!available.length) {
+  if (
+    !available.length
+  ) {
     try {
       await refreshBasePool(
         townHall,
@@ -1107,7 +1096,9 @@ export async function chooseChallengeBase(
       await findAvailable();
   }
 
-  if (!available.length) {
+  if (
+    !available.length
+  ) {
     return null;
   }
 
@@ -1120,9 +1111,8 @@ export async function chooseChallengeBase(
 }
 
 /*
- * Oude helper behouden zodat bestaande imports
- * niet breken. Challenge-base wordt niet meer
- * via isActive gekoppeld aan Base of the Week.
+ * Behouden voor bestaande imports.
+ * Deze helper activeert geen Base of the Week.
  */
 export async function activateBaseForChallenge(
   baseId: number | null,
