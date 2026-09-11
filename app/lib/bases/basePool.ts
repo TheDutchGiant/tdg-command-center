@@ -319,20 +319,101 @@ function extractCopyLink(
   return null;
 }
 
-function isRejectedCategory(
-  text: string,
-): boolean {
-  return /\b(?:farm|farming|progress|progression|resource|loot)\b/i.test(
-    text,
-  );
+function isRejectedCategory(text: string): boolean {
+  return /\b(?:farm|farming|progress|progression|resource|loot)\b/i.test(text);
 }
 
-function isAllowedCategory(
-  text: string,
-): boolean {
-  return /\b(?:war|cwl|trophy|legend|ranked|anti[\s-]?(?:1|2|3)[\s-]?star|anti[\s-]?(?:everything|air|dragon|hydra|smash|thrower)|defen[cs]e)\b/i.test(
-    text,
-  );
+function isAllowedCategory(text: string): boolean {
+  return /\b(?:war|cwl|trophy|trophy[ -]?defen[cs]e|legend|ranked|anti[ -]?(?:1|2|3)[ -]?star|anti[ -]?(?:everything|air|dragon|hydra|smash|thrower)|defen[cs]e)\b/i.test(text);
+}
+
+function normalizeUrl(value: string, baseUrl: string): string | null {
+  try {
+    const decoded = decodeHtml(
+      value
+        .replace(/\\\//g, "/")
+        .replace(/&amp;/g, "&")
+        .trim(),
+    );
+
+    if (/^javascript:/i.test(decoded)) {
+      return null;
+    }
+
+    return new URL(decoded, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractHrefLinks(html: string, baseUrl: string): string[] {
+  const result = new Set<string>();
+
+  for (const match of html.matchAll(
+    /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+  )) {
+    const url = normalizeUrl(match[1], baseUrl);
+
+    if (url) {
+      result.add(url);
+    }
+  }
+
+  return [...result];
+}
+
+function isBaseMelonDetailUrl(url: string): boolean {
+  return /^https?:\/\/basemelon\.com\/coc-bases-th18\/[^/]+-id\d+(?:[/?#]|$)/i.test(url);
+}
+
+function isClanWardenDetailUrl(url: string): boolean {
+  return /^https?:\/\/clanwarden\.com\/bases\/th18\/[^/]+(?:[/?#]|$)/i.test(url)
+    && !/^https?:\/\/clanwarden\.com\/bases\/th18\/(?:war|cwl|trophy|legend|ranked|anti-[^/]+|defen[^/]*)(?:[/?#]|$)/i.test(url);
+}
+
+function isClashBaseLinkDetailUrl(url: string): boolean {
+  return /^https?:\/\/clashbaselink\.com\/th18-[^/]+-base\/?(?:[?#]|$)/i.test(url);
+}
+
+function isClashFoxDetailUrl(url: string): boolean {
+  return /^https?:\/\/clashfox\.com\/base\/th18\/[^/]+(?:[?#]|$)/i.test(url);
+}
+
+function isCocMapDetailUrl(url: string): boolean {
+  return /^https?:\/\/cocmap\.com\/(?:it\/)?clash-of-clans\/layouts\/[^/]+(?:[?#]|$)/i.test(url);
+}
+
+function looksLikeTh18Base(text: string): boolean {
+  return /(?:TH\s*18|TH18|Town\s*Hall\s*18|TownHall\s*18)/i.test(text);
+}
+
+function categoryIsAllowed(text: string): boolean {
+  if (/\b(?:farm|farming|progress|progression|resource|loot)\b/i.test(text)) {
+    return false;
+  }
+
+  return isAllowedCategory(text);
+}
+
+function extractCopyLinks(html: string): string[] {
+  const links = new Set<string>();
+
+  const patterns = [
+    /https?:\/\/link\.clashofclans\.com\/[^\s"'<>\\]+/gi,
+    /https?:\\\/\\\/link\.clashofclans\.com\\\/[^\s"'<>\\]+/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of html.matchAll(pattern)) {
+      const value = match[0]
+        .replace(/\\\//g, "/")
+        .replace(/[),.;]+$/, "");
+
+      links.add(value);
+    }
+  }
+
+  return [...links];
 }
 
 function sourceBasePattern(
@@ -346,7 +427,7 @@ function sourceBasePattern(
 
     case "BaseMelon":
       return [
-        /https?:\/\/basemelon\.com\/coc-bases-th18\/[^\s"'<>\\]+/gi,
+        /https?:\/\/basemelon\.com\/coc-bases-th18\/[^"'<>?\s]+-id\d+(?:\?[^"'<>]*)?/gi,
       ];
 
     case "ClanWarden":
@@ -361,22 +442,7 @@ function sourceBasePattern(
 
     case "ClashBaseLink":
       return [
-        /https?:\/\/clashbaselink\.com\/th18-[a-z0-9-]+/gi,
-      ];
-
-    case "AllClash":
-      return [
-        /https?:\/\/www\.allclash\.com\/[a-z0-9-]*th18[a-z0-9-]*/gi,
-      ];
-
-    case "BlueprintCoC":
-      return [
-        /https?:\/\/blueprintcoc\.com\/blogs\/[^\s"'<>]+/gi,
-      ];
-
-    case "ClashCodes":
-      return [
-        /https?:\/\/clashcodes\.com\/[a-z0-9-]+/gi,
+        /https?:\/\/clashbaselink\.com\/th18-[a-z0-9-]+-base\/?/gi,
       ];
 
     default:
@@ -384,137 +450,311 @@ function sourceBasePattern(
   }
 }
 
-function extractCandidateLinks(
-  html: string,
-  provider: SourceProvider,
-): string[] {
-  const links = new Set<string>();
+async function collectBaseMelon(): Promise<ScrapedBase[]> {
+  const result: ScrapedBase[] = [];
+  const seen = new Set<string>();
 
-  const add = (value: string) => {
+  const categories = [
+    "https://basemelon.com/coc-bases-th18/war",
+    "https://basemelon.com/coc-bases-th18/trophy-defense",
+    "https://basemelon.com/coc-bases-th18/legend",
+  ];
+
+  for (const categoryUrl of categories) {
     try {
-      const href = decodeHtml(
-        value
-          .replace(/\\\//g, "/")
-          .replace(/&amp;/g, "&"),
+      const html = await fetchHtml(categoryUrl);
+
+      const links = new Set<string>();
+
+      for (const pattern of sourceBasePattern("BaseMelon")) {
+        for (const match of html.matchAll(pattern)) {
+          const url = normalizeUrl(match[0], categoryUrl);
+
+          if (url && isBaseMelonDetailUrl(url)) {
+            links.add(url);
+          }
+        }
+      }
+
+      for (const href of extractHrefLinks(html, categoryUrl)) {
+        if (isBaseMelonDetailUrl(href)) {
+          links.add(href);
+        }
+      }
+
+      console.log(
+        `[BASE-POOL] BaseMelon: ${links.size} individuele bases uit ${categoryUrl}`,
       );
 
-      if (
-        /link\.clashofclans\.com/i.test(
-          href,
-        )
-      ) {
-        return;
+      for (const sourceUrl of links) {
+        if (result.length >= MAX_CANDIDATES_PER_SOURCE) break;
+        if (seen.has(sourceUrl)) continue;
+        seen.add(sourceUrl);
+
+        try {
+          const base = await scrapeDetail(sourceUrl, "BaseMelon");
+
+          if (base) {
+            result.push(base);
+          }
+        } catch (error) {
+          console.warn(
+            `[BASE-POOL] BaseMelon: detail mislukt: ${sourceUrl}`,
+            error,
+          );
+        }
       }
-
-      const baseHost =
-        provider === "ClashFox"
-          ? "https://clashfox.com"
-          : provider === "BaseMelon"
-            ? "https://basemelon.com"
-            : provider === "ClanWarden"
-              ? "https://clanwarden.com"
-              : provider === "CocMap"
-                ? "https://cocmap.com"
-                : provider === "ClashBaseLink"
-                  ? "https://clashbaselink.com"
-                  : provider === "AllClash"
-                    ? "https://www.allclash.com"
-                    : provider === "BlueprintCoC"
-                      ? "https://blueprintcoc.com"
-                      : "https://clashcodes.com";
-
-      const absolute = new URL(
-        href,
-        baseHost,
-      ).toString();
-
-      if (
-        isRejectedCategory(
-          absolute,
-        )
-      ) {
-        return;
-      }
-
-      links.add(absolute);
-    } catch {
-      // Ongeldige URL.
-    }
-  };
-
-  for (const match of html.matchAll(
-    /<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>([\s\S]*?)<\/a>/gi,
-  )) {
-    const href = match[1];
-    const text = stripHtml(match[2]);
-
-    if (
-      !/th18|town hall 18|townhall 18/i.test(
-        `${href} ${text}`,
-      )
-    ) {
-      continue;
-    }
-
-    if (
-      !isAllowedCategory(
-        `${href} ${text}`,
-      )
-    ) {
-      continue;
-    }
-
-    add(href);
-  }
-
-  for (const pattern of sourceBasePattern(
-    provider,
-  )) {
-    for (const match of html.matchAll(
-      pattern,
-    )) {
-      add(match[0]);
+    } catch (error) {
+      console.error(
+        `[BASE-POOL] BaseMelon: categorie mislukt: ${categoryUrl}`,
+        error,
+      );
     }
   }
 
-  return [...links];
+  return result;
+}
+
+async function collectClanWarden(): Promise<ScrapedBase[]> {
+  const result: ScrapedBase[] = [];
+  const seen = new Set<string>();
+
+  const categories = [
+    "https://clanwarden.com/bases/th18/war",
+    "https://clanwarden.com/bases/th18/cwl",
+    "https://clanwarden.com/bases/th18/trophy",
+    "https://clanwarden.com/bases/th18/legend",
+  ];
+
+  for (const categoryUrl of categories) {
+    try {
+      const html = await fetchHtml(categoryUrl);
+      const links = new Set<string>();
+
+      for (const href of extractHrefLinks(html, categoryUrl)) {
+        if (isClanWardenDetailUrl(href)) {
+          links.add(href);
+        }
+      }
+
+      for (const pattern of sourceBasePattern("ClanWarden")) {
+        for (const match of html.matchAll(pattern)) {
+          const url = normalizeUrl(match[0], categoryUrl);
+
+          if (url && isClanWardenDetailUrl(url)) {
+            links.add(url);
+          }
+        }
+      }
+
+      console.log(
+        `[BASE-POOL] ClanWarden: ${links.size} individuele bases uit ${categoryUrl}`,
+      );
+
+      for (const sourceUrl of links) {
+        if (result.length >= MAX_CANDIDATES_PER_SOURCE) break;
+        if (seen.has(sourceUrl)) continue;
+        seen.add(sourceUrl);
+
+        try {
+          const base = await scrapeDetail(sourceUrl, "ClanWarden");
+
+          if (base) {
+            result.push(base);
+          }
+        } catch (error) {
+          console.warn(
+            `[BASE-POOL] ClanWarden: detail mislukt: ${sourceUrl}`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[BASE-POOL] ClanWarden: categorie mislukt: ${categoryUrl}`,
+        error,
+      );
+    }
+  }
+
+  return result;
+}
+
+async function collectClashBaseLink(): Promise<ScrapedBase[]> {
+  const result: ScrapedBase[] = [];
+  const seen = new Set<string>();
+
+  for (const listingUrl of [
+    "https://clashbaselink.com/th18-base-layout/",
+  ]) {
+    try {
+      const html = await fetchHtml(listingUrl);
+      const links = new Set<string>();
+
+      for (const href of extractHrefLinks(html, listingUrl)) {
+        if (isClashBaseLinkDetailUrl(href)) {
+          links.add(href);
+        }
+      }
+
+      for (const pattern of sourceBasePattern("ClashBaseLink")) {
+        for (const match of html.matchAll(pattern)) {
+          const url = normalizeUrl(match[0], listingUrl);
+
+          if (url && isClashBaseLinkDetailUrl(url)) {
+            links.add(url);
+          }
+        }
+      }
+
+      console.log(
+        `[BASE-POOL] ClashBaseLink: ${links.size} individuele bases uit ${listingUrl}`,
+      );
+
+      for (const sourceUrl of links) {
+        if (result.length >= MAX_CANDIDATES_PER_SOURCE) break;
+        if (seen.has(sourceUrl)) continue;
+        seen.add(sourceUrl);
+
+        try {
+          const base = await scrapeDetail(sourceUrl, "ClashBaseLink");
+
+          if (base) {
+            result.push(base);
+          }
+        } catch (error) {
+          console.warn(
+            `[BASE-POOL] ClashBaseLink: detail mislukt: ${sourceUrl}`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[BASE-POOL] ClashBaseLink: listing mislukt: ${listingUrl}`,
+        error,
+      );
+    }
+  }
+
+  return result;
+}
+
+async function collectGenericProvider(
+  config: SourceConfig,
+): Promise<ScrapedBase[]> {
+  const result: ScrapedBase[] = [];
+  const seen = new Set<string>();
+
+  for (const listingUrl of config.listingUrls) {
+    try {
+      const html = await fetchHtml(listingUrl);
+      const links = new Set<string>();
+
+      for (const pattern of sourceBasePattern(config.provider)) {
+        for (const match of html.matchAll(pattern)) {
+          const url = normalizeUrl(match[0], listingUrl);
+
+          if (url) {
+            links.add(url);
+          }
+        }
+      }
+
+      for (const href of extractHrefLinks(html, listingUrl)) {
+        if (!looksLikeTh18Base(href)) {
+          continue;
+        }
+
+        if (config.provider === "ClashFox" && isClashFoxDetailUrl(href)) {
+          links.add(href);
+        }
+
+        if (config.provider === "CocMap" && isCocMapDetailUrl(href)) {
+          links.add(href);
+        }
+      }
+
+      console.log(
+        `[BASE-POOL] ${config.provider}: ${links.size} kandidaatlinks uit ${listingUrl}`,
+      );
+
+      for (const sourceUrl of links) {
+        if (result.length >= MAX_CANDIDATES_PER_SOURCE) break;
+        if (seen.has(sourceUrl)) continue;
+        seen.add(sourceUrl);
+
+        try {
+          const base = await scrapeDetail(
+            sourceUrl,
+            config.provider,
+          );
+
+          if (base) {
+            result.push(base);
+          }
+        } catch (error) {
+          console.warn(
+            `[BASE-POOL] ${config.provider}: detail mislukt: ${sourceUrl}`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[BASE-POOL] ${config.provider}: listing mislukt: ${listingUrl}`,
+        error,
+      );
+    }
+  }
+
+  return result;
 }
 
 async function scrapeDetail(
   sourceUrl: string,
   provider: SourceProvider,
 ): Promise<ScrapedBase | null> {
-  const html = await fetchHtml(
-    sourceUrl,
-  );
+  const html = await fetchHtml(sourceUrl);
+  const visibleText = stripHtml(html);
 
-  const visibleText =
-    stripHtml(html);
+  /*
+   * Belangrijk:
+   * We beoordelen de categorie NIET meer op de volledige pagina.
+   * Een algemene websitepagina kan ergens "farm" noemen terwijl
+   * de concrete base gewoon War/Trophy/Legend is.
+   */
 
-  if (
-    isRejectedCategory(
-      `${sourceUrl} ${visibleText}`,
-    )
-  ) {
+  if (!looksLikeTh18Base(`${sourceUrl} ${visibleText}`)) {
     console.log(
-      `[BASE-POOL] ${provider}: farm/progress uitgesloten: ${sourceUrl}`,
+      `[BASE-POOL] ${provider}: geen TH18-base: ${sourceUrl}`,
     );
     return null;
   }
 
+  const title =
+    extractName(html) ?? "";
+
+  const categoryText =
+    `${sourceUrl} ${title} ${visibleText.slice(0, 12000)}`;
+
   if (
-    !isAllowedCategory(
-      `${sourceUrl} ${visibleText}`,
+    /\b(?:farm|farming|progress|progression|resource|loot)\b/i.test(
+      title,
     )
   ) {
     console.log(
-      `[BASE-POOL] ${provider}: categorie niet toegestaan: ${sourceUrl}`,
+      `[BASE-POOL] ${provider}: basecategorie uitgesloten: ${sourceUrl}`,
     );
     return null;
   }
 
-  const name =
-    extractName(html);
+  if (!categoryIsAllowed(categoryText)) {
+    console.log(
+      `[BASE-POOL] ${provider}: geen toegestane basecategorie: ${sourceUrl}`,
+    );
+    return null;
+  }
 
   const imageUrl =
     extractFirstImage(html);
@@ -523,13 +763,10 @@ async function scrapeDetail(
     extractCopyLink(html);
 
   const sourcePublishedAt =
-    extractSourceDate(
-      html,
-      provider,
-    );
+    extractSourceDate(html, provider);
 
   if (
-    !name ||
+    !title ||
     !imageUrl ||
     !baseLink ||
     !sourcePublishedAt
@@ -540,12 +777,9 @@ async function scrapeDetail(
     return null;
   }
 
-  if (
-    !isFresh(
-      sourcePublishedAt,
-      new Date(),
-    )
-  ) {
+  const now = new Date();
+
+  if (!isFresh(sourcePublishedAt, now)) {
     console.log(
       `[BASE-POOL] ${provider}: ouder dan 48 uur: ${sourceUrl}`,
     );
@@ -553,7 +787,7 @@ async function scrapeDetail(
   }
 
   return {
-    name,
+    name: title.slice(0, 180),
     imageUrl,
     baseLink,
     sourceUrl,
@@ -710,106 +944,25 @@ async function collectProvider(
   config: SourceConfig,
 ): Promise<ScrapedBase[]> {
   if (
-    config.provider ===
-      "RedditCoCBaseLink" ||
-    config.provider ===
-      "RedditCOCBaseLayouts"
+    config.provider === "RedditCoCBaseLink" ||
+    config.provider === "RedditCOCBaseLayouts"
   ) {
-    return collectReddit(
-      config,
-    );
+    return collectReddit(config);
   }
 
-  const result: ScrapedBase[] = [];
-  const seen =
-    new Set<string>();
-
-  for (
-    const listingUrl of
-    config.listingUrls
-  ) {
-    try {
-      const html =
-        await fetchHtml(
-          listingUrl,
-        );
-
-      const links =
-        extractCandidateLinks(
-          html,
-          config.provider,
-        );
-
-      console.log(
-        `[BASE-POOL] ${config.provider}: ${links.length} kandidaatlinks uit ${listingUrl}`,
-      );
-
-      for (
-        const sourceUrl of links
-      ) {
-        if (
-          result.length >=
-          MAX_CANDIDATES_PER_SOURCE
-        ) {
-          break;
-        }
-
-        if (
-          seen.has(
-            sourceUrl,
-          )
-        ) {
-          continue;
-        }
-
-        seen.add(
-          sourceUrl,
-        );
-
-        try {
-          const base =
-            await scrapeDetail(
-              sourceUrl,
-              config.provider,
-            );
-
-          if (!base) {
-            continue;
-          }
-
-          if (
-            result.some(
-              (item) =>
-                item.baseLink ===
-                base.baseLink,
-            )
-          ) {
-            continue;
-          }
-
-          result.push(
-            base,
-          );
-        } catch (
-          error
-        ) {
-          console.warn(
-            `[BASE-POOL] ${config.provider}: detail mislukt: ${sourceUrl}`,
-            error,
-          );
-        }
-      }
-    } catch (
-      error
-    ) {
-      console.error(
-        `[BASE-POOL] ${config.provider}: listing mislukt: ${listingUrl}`,
-        error,
-      );
-    }
+  if (config.provider === "BaseMelon") {
+    return collectBaseMelon();
   }
 
-  return result;
+  if (config.provider === "ClanWarden") {
+    return collectClanWarden();
+  }
+
+  if (config.provider === "ClashBaseLink") {
+    return collectClashBaseLink();
+  }
+
+  return collectGenericProvider(config);
 }
 
 export async function refreshBasePool(
