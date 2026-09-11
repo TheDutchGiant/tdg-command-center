@@ -1,14 +1,13 @@
 import { prisma } from "@/app/lib/prisma";
 
 const TOTAL_POOL_LIMIT = 35;
-const MAX_BASE_AGE_HOURS = 168;
-const MAX_CANDIDATES_PER_SOURCE = 100;
+const MAX_BASE_AGE_HOURS = 60 * 24;
+const MAX_CANDIDATES_PER_SOURCE = 200;
 
 type SourceProvider =
-  | "CocMap"
   | "CocBaseNet"
-  | "CoClanLayouts"
-  | "ClashOfClansLayouts";
+  | "ClashLoot"
+  | "BaseForCoC";
 
 type SourceConfig = {
   provider: SourceProvider;
@@ -26,13 +25,11 @@ type ScrapedBase = {
 
 const SOURCES: SourceConfig[] = [
   {
-    provider: "CocMap",
+    provider: "ClashLoot",
     listingUrls: [
-      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-war-base",
-      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-trophy-base",
-      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-cwl-base",
-      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-defense-base",
-      "https://cocmap.com/clash-of-clans/layouts/town-hall-18-legend-base",
+      "https://clashloot.com/coc/bases/th-18/cwl_war/crafted-defenses",
+      "https://clashloot.com/coc/bases/th-18/ranked",
+      "https://clashloot.com/coc/bases/th-18/crafted-defenses",
     ],
   },
   {
@@ -42,52 +39,53 @@ const SOURCES: SourceConfig[] = [
       "https://cocbase.net/town-hall-18-war-layouts/page-2",
       "https://cocbase.net/town-hall-18-war-layouts/page-3",
       "https://cocbase.net/town-hall-18-war-layouts/page-4",
-      "https://cocbase.net/town-hall-18-war-layouts/page-5",
       "https://cocbase.net/town-hall-18-layouts",
       "https://cocbase.net/town-hall-18-layouts/page-2",
       "https://cocbase.net/town-hall-18-layouts/page-3",
-      "https://cocbase.net/town-hall-18-layouts/page-4",
-      "https://cocbase.net/town-hall-18-layouts/page-5",
       "https://cocbase.net/town-hall-trophy-layouts",
       "https://cocbase.net/town-hall-trophy-layouts/page-2",
-      "https://cocbase.net/town-hall-trophy-layouts/page-3",
     ],
   },
   {
-    provider: "CoClanLayouts",
+    provider: "BaseForCoC",
     listingUrls: [
-      "https://coclanlayouts.com/th18-bases/war",
-      "https://coclanlayouts.com/th18-bases/cwl",
-      "https://coclanlayouts.com/th18-bases/defense",
-      "https://coclanlayouts.com/th18-bases/anti-3-star",
-      "https://coclanlayouts.com/th18-bases",
+      "https://baseforcoc.com/th18",
+      "https://baseforcoc.com/events/clashiversary-bases/th18",
     ],
   },
 ];
 
-const BLOCKED_TERMS =
+const CURRENT_CRAFTED_DEFENSE_RE =
+  /\b(?:hero\s*hunter|hot\s*candle|cake\s*[- ]?\s*a\s*[- ]?\s*pult)\b/i;
+
+const BLOCKED_CATEGORY_RE =
   /\b(?:farm|farming|progress|progression|resource|resources|loot)\b/i;
 
-const ALLOWED_TERMS =
-  /\b(?:war|cwl|trophy|trophy\s+defen[cs]e|legend|ranked|defen[cs]e|anti\s*(?:1|2|3)\s*star|anti\s*(?:everything|air|dragon|hydra|blimp|root\s*rider|lava(?:loon)?|electro\s*dragon|e[-\s]?drag))\b/i;
+const ALLOWED_CATEGORY_RE =
+  /\b(?:war|cwl|ranked|trophy|defense|defence|legend|anti\s*(?:1|2|3)\s*star|anti\s*(?:everything|air|ground|dragon|hydra|thrower|root\s*rider|electro\s*dragon))\b/i;
 
 const CLASH_LINK_RE =
   /https?:\/\/link\.clashofclans\.com\/[^\s<>"')\]]+/gi;
 
-const COCMAP_DETAIL_RE =
-  /https?:\/\/cocmap\.com\/[^\s<>"')\]]+/gi;
-
-const COCBASE_DETAIL_RE =
-  /https?:\/\/cocbase\.net\/[^\s<>"')\]]+/gi;
-
-const COCLAN_DETAIL_RE =
-  /https?:\/\/coclanlayouts\.com\/[^\s<>"')\]]+/gi;
-
-function cleanUrl(value: string): string {
+function clean(value: string): string {
   return value
     .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/\\\//g, "/")
     .replace(/[),.;]+$/g, "")
+    .trim();
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -101,28 +99,25 @@ function decodeHtml(value: string): string {
     .replace(/&gt;/g, ">");
 }
 
-function stripHtml(value: string): string {
-  return value
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+function parseDate(value: string | null): Date | null {
+  if (!value) return null;
 
-function parseDate(value: string): Date | null {
-  const parsed = new Date(value.trim());
+  const date = new Date(
+    value.trim(),
+  );
 
-  return Number.isNaN(parsed.getTime())
+  return Number.isNaN(date.getTime())
     ? null
-    : parsed;
+    : date;
 }
 
 function isFresh(
   date: Date,
   now = new Date(),
 ): boolean {
-  const age = now.getTime() - date.getTime();
+  const age =
+    now.getTime() -
+    date.getTime();
 
   return (
     age >= 0 &&
@@ -134,180 +129,143 @@ function isFresh(
   );
 }
 
-function looksLikeTh18(text: string): boolean {
+function looksLikeTh18(
+  text: string,
+): boolean {
   return /\b(?:TH\s*18|TH18|Town\s*Hall\s*18|TownHall\s*18)\b/i.test(
     text,
   );
 }
 
-function isAllowedCategory(text: string): boolean {
-  if (BLOCKED_TERMS.test(text)) {
-    return false;
-  }
-
-  return ALLOWED_TERMS.test(text);
-}
-
 function extractClashLinks(
-  text: string,
+  html: string,
 ): string[] {
-  const result = new Set<string>();
+  const links = new Set<string>();
 
-  for (const match of text.matchAll(
+  for (const match of html.matchAll(
     CLASH_LINK_RE,
   )) {
     if (match[0]) {
-      result.add(
-        cleanUrl(match[0]),
+      links.add(
+        clean(match[0]),
       );
     }
   }
 
-  return [...result];
+  return [...links];
 }
 
-function extractMarkdownLinks(
-  text: string,
+function extractHrefLinks(
+  html: string,
+  baseUrl: string,
 ): string[] {
-  const result = new Set<string>();
+  const links = new Set<string>();
 
-  for (const match of text.matchAll(
-    /\[[^\]]+\]\((https?:\/\/[^)\s]+)\)/gi,
+  for (const match of html.matchAll(
+    /<a[^>]+href=["']([^"']+)["'][^>]*>/gi,
   )) {
-    if (match[1]) {
-      result.add(
-        cleanUrl(match[1]),
+    try {
+      const value = clean(
+        match[1],
       );
+
+      if (
+        !value ||
+        /^javascript:/i.test(value) ||
+        value.startsWith("#")
+      ) {
+        continue;
+      }
+
+      links.add(
+        new URL(
+          value,
+          baseUrl,
+        ).toString(),
+      );
+    } catch {
+      // Ongeldige links negeren.
     }
   }
 
-  return [...result];
-}
-
-function extractFirstImage(
-  text: string,
-): string | null {
-  const markdown =
-    text.match(
-      /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i,
-    )?.[1];
-
-  if (markdown) {
-    return cleanUrl(markdown);
-  }
-
-  return (
-    text.match(
-      /https?:\/\/[^\s<>"')\]]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s<>"')\]]*)?/i,
-    )?.[0] ?? null
-  );
+  return [...links];
 }
 
 function extractTitle(
-  text: string,
+  html: string,
 ): string {
-  const heading =
-    text.match(
-      /(?:^|\n)\s*#{1,6}\s+(.+?)(?:\n|$)/,
+  const h1 =
+    html.match(
+      /<h1[^>]*>([\s\S]*?)<\/h1>/i,
     )?.[1];
 
-  if (heading) {
-    return heading
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  const htmlTitle =
-    text.match(
-      /<title[^>]*>([\s\S]*?)<\/title>/i,
-    )?.[1];
-
-  if (htmlTitle) {
-    return stripHtml(
-      decodeHtml(htmlTitle),
-    );
-  }
-
-  return "TH18 Base";
-}
-
-function extractCocMapDate(
-  text: string,
-): Date | null {
-  const patterns = [
-    /2026-[A-Z][a-z]{2}-\d{2}:\d{2}-\d{2}-\d{2}/g,
-    /2026-[A-Z][a-z]{2}-\d{2}[:\s]\d{2}[-:]\d{2}[-:]\d{2}/g,
-  ];
-
-  const dates: Date[] = [];
-
-  for (const pattern of patterns) {
-    for (const match of text.matchAll(
-      pattern,
-    )) {
-      const value = match[0];
-
-      const parsed =
-        value.match(
-          /^(\d{4})-([A-Za-z]{3})-(\d{2}):(\d{2})-(\d{2})-(\d{2})$/,
-        );
-
-      if (!parsed) {
-        continue;
-      }
-
-      const months: Record<
-        string,
-        number
-      > = {
-        Jan: 0,
-        Feb: 1,
-        Mar: 2,
-        Apr: 3,
-        May: 4,
-        Jun: 5,
-        Jul: 6,
-        Aug: 7,
-        Sep: 8,
-        Oct: 9,
-        Nov: 10,
-        Dec: 11,
-      };
-
-      const month =
-        months[parsed[2]];
-
-      if (month === undefined) {
-        continue;
-      }
-
-      const date = new Date(
-        Number(parsed[1]),
-        month,
-        Number(parsed[3]),
-        Number(parsed[4]),
-        Number(parsed[5]),
-        Number(parsed[6]),
+  if (h1) {
+    const value =
+      decodeHtml(
+        stripHtml(h1),
       );
 
-      if (!Number.isNaN(date.getTime())) {
-        dates.push(date);
-      }
+    if (value) {
+      return value;
     }
   }
 
-  dates.sort(
-    (a, b) =>
-      b.getTime() - a.getTime(),
-  );
+  const title =
+    html.match(
+      /<title[^>]*>([\s\S]*?)<\/title>/i,
+    )?.[1];
 
-  return dates[0] ?? null;
+  return title
+    ? decodeHtml(
+        stripHtml(title),
+      )
+    : "TH18 Base";
+}
+
+function extractImage(
+  html: string,
+): string | null {
+  const ogImage =
+    html.match(
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+    )?.[1] ??
+    html.match(
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+    )?.[1];
+
+  if (ogImage) {
+    return clean(
+      ogImage,
+    );
+  }
+
+  const image =
+    html.match(
+      /<img[^>]+(?:src|data-src)=["']([^"']+)["']/i,
+    )?.[1];
+
+  if (image) {
+    return clean(
+      image,
+    );
+  }
+
+  const assetsImage =
+    html.match(
+      /https?:\/\/[^\s"'<>]+(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?/i,
+    )?.[0];
+
+  return assetsImage
+    ? clean(
+        assetsImage,
+      )
+    : null;
 }
 
 function extractStructuredDate(
-  text: string,
+  html: string,
 ): Date | null {
-  const candidates: string[] = [];
+  const values: string[] = [];
 
   const patterns = [
     /"datePublished"\s*:\s*"([^"]+)"/gi,
@@ -316,143 +274,89 @@ function extractStructuredDate(
     /"publishedAt"\s*:\s*"([^"]+)"/gi,
     /"createdAt"\s*:\s*"([^"]+)"/gi,
     /"updatedAt"\s*:\s*"([^"]+)"/gi,
-    /<meta[^>]+(?:property|name)=["'][^"']*(?:published|date|modified)[^"']*["'][^>]+content=["']([^"']+)["']/gi,
+    /<time[^>]+datetime=["']([^"']+)["']/gi,
+    /<meta[^>]+(?:property|name)=["'][^"']*(?:published|modified|updated|date)[^"']*["'][^>]+content=["']([^"']+)["']/gi,
   ];
 
   for (const pattern of patterns) {
-    for (const match of text.matchAll(
+    for (const match of html.matchAll(
       pattern,
     )) {
       if (match[1]) {
-        candidates.push(match[1]);
+        values.push(
+          match[1],
+        );
       }
     }
   }
 
-  const dates = candidates
-    .map(parseDate)
-    .filter(
-      (date): date is Date =>
-        date !== null,
-    )
-    .filter((date) =>
-      isFresh(date),
-    );
+  const dates =
+    values
+      .map(parseDate)
+      .filter(
+        (date): date is Date =>
+          date !== null,
+      );
 
   dates.sort(
     (a, b) =>
-      b.getTime() - a.getTime(),
+      b.getTime() -
+      a.getTime(),
   );
 
   return dates[0] ?? null;
 }
 
-function extractCocMapDetailUrls(
-  text: string,
-): string[] {
-  const links = new Set<string>();
-
-  for (const match of text.matchAll(
-    COCMAP_DETAIL_RE,
-  )) {
-    const url = cleanUrl(match[0]);
-
-    if (
-      /cocmap\.com\/.*\/layouts\//i.test(
-        url,
-      ) &&
-      /\/[a-f0-9]{20,}$/i.test(
-        url,
-      )
-    ) {
-      links.add(url);
-    }
-  }
-
-  for (const link of extractMarkdownLinks(text)) {
-    if (
-      /cocmap\.com\/.*\/layouts\//i.test(
-        link,
-      ) &&
-      /\/[a-f0-9]{20,}(?:\?|$)/i.test(
-        link,
-      )
-    ) {
-      links.add(link);
-    }
-  }
-
-  return [...links];
+function isClashLootDetailUrl(
+  url: string,
+): boolean {
+  return /^https?:\/\/clashloot\.com\/coc\/bases\/th18-[^/?#]+(?:[?#].*)?$/i.test(
+    url,
+  );
 }
 
-function extractCocBaseDetailUrls(
-  text: string,
-): string[] {
-  const links = new Set<string>();
-
-  for (const match of text.matchAll(
-    COCBASE_DETAIL_RE,
-  )) {
-    const url = cleanUrl(match[0]);
-
-    if (
-      /cocbase\.net\/th18-/i.test(
-        url,
-      )
-    ) {
-      links.add(url);
-    }
-  }
-
-  for (const link of extractMarkdownLinks(text)) {
-    if (
-      /cocbase\.net\/th18-/i.test(
-        link,
-      )
-    ) {
-      links.add(link);
-    }
-  }
-
-  return [...links];
+function isCocBaseDetailUrl(
+  url: string,
+): boolean {
+  return /^https?:\/\/cocbase\.net\/th18-[^/?#]+(?:[?#].*)?$/i.test(
+    url,
+  );
 }
 
-function extractCoClanDetailUrls(
-  text: string,
-): string[] {
-  const links = new Set<string>();
+function isBaseForCoCDetailUrl(
+  url: string,
+): boolean {
+  return /^https?:\/\/baseforcoc\.com\/bases\/th18-[^/?#]+(?:[?#].*)?$/i.test(
+    url,
+  );
+}
 
-  for (const match of text.matchAll(
-    COCLAN_DETAIL_RE,
-  )) {
-    const url = cleanUrl(match[0]);
-
-    if (
-      /coclanlayouts\.com\/th18-bases\//i.test(
+function isDetailUrl(
+  url: string,
+  provider: SourceProvider,
+): boolean {
+  switch (provider) {
+    case "ClashLoot":
+      return isClashLootDetailUrl(
         url,
-      )
-    ) {
-      links.add(url);
-    }
-  }
+      );
 
-  for (const link of extractMarkdownLinks(text)) {
-    if (
-      /coclanlayouts\.com\/th18-bases\//i.test(
-        link,
-      )
-    ) {
-      links.add(link);
-    }
-  }
+    case "CocBaseNet":
+      return isCocBaseDetailUrl(
+        url,
+      );
 
-  return [...links];
+    case "BaseForCoC":
+      return isBaseForCoCDetailUrl(
+        url,
+      );
+  }
 }
 
 async function fetchText(
   url: string,
 ): Promise<string> {
-  const directResponse =
+  const response =
     await fetch(url, {
       cache: "no-store",
       headers: {
@@ -461,383 +365,208 @@ async function fetchText(
         "Accept-Language":
           "en-US,en;q=0.9",
         "User-Agent":
-          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151 Safari/537.36 TDG-Phoenix/1.0",
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151 Safari/537.36 TDG-Phoenix-BasePool/1.0",
       },
     });
 
-  if (directResponse.ok) {
-    return directResponse.text();
-  }
-
-  /*
-   * Sommige bronnen blokkeren het VPS-IP.
-   * Jina gebruiken we uitsluitend als fetch-proxy.
-   */
-  const jinaUrl =
-    `https://r.jina.ai/${url}`;
-
-  const jinaResponse =
-    await fetch(jinaUrl, {
-      cache: "no-store",
-      headers: {
-        Accept:
-          "text/plain,text/markdown,*/*;q=0.8",
-        "User-Agent":
-          "TDG-Phoenix-BaseAggregator/1.0",
-      },
-    });
-
-  if (!jinaResponse.ok) {
+  if (!response.ok) {
     throw new Error(
-      `Direct HTTP ${directResponse.status}; Jina HTTP ${jinaResponse.status} voor ${url}`,
+      `HTTP ${response.status} voor ${url}`,
     );
   }
 
-  return jinaResponse.text();
+  return response.text();
 }
 
 async function scrapeDetail(
   url: string,
   provider: SourceProvider,
 ): Promise<ScrapedBase | null> {
-  const text =
+  const html =
     await fetchText(url);
 
-  const plain =
-    stripHtml(text);
-
   const title =
-    extractTitle(text);
+    extractTitle(html);
 
-  const combined =
-    `${url}\n${title}\n${plain}`;
+  const plain =
+    stripHtml(html);
 
-  /*
-   * BELANGRIJK:
-   * Gebruik voor de categorie NIET de volledige pagina.
-   * Algemene navigatie van base-sites bevat woorden als
-   * "Farming", "Progress" en "Loot", ook op een geldige
-   * War/CWL/Defense-basepagina.
-   *
-   * TH18 mag wel overal op de concrete pagina worden gezocht.
-   * De categorie wordt uitsluitend bepaald door URL + titel.
-   */
-  if (!looksLikeTh18(combined)) {
-    console.log(
-      `[BASE-POOL] ${provider}: geen TH18 ${url}`,
-    );
-    return null;
-  }
-
-  const categoryText =
+  const titleAndUrl =
     `${url}\n${title}`;
 
-  if (BLOCKED_TERMS.test(categoryText)) {
-    console.log(
-      `[BASE-POOL] ${provider}: verboden categorie ${url}`,
-    );
+  const allText =
+    `${titleAndUrl}\n${plain}`;
+
+  if (!looksLikeTh18(allText)) {
     return null;
   }
 
-  if (!ALLOWED_TERMS.test(categoryText)) {
-    console.log(
-      `[BASE-POOL] ${provider}: geen toegestane categorie ${url}`,
+  /*
+   * Categorie alleen bepalen op concrete
+   * detailgegevens, niet op site-navigatie.
+   */
+  if (
+    BLOCKED_CATEGORY_RE.test(
+      titleAndUrl,
+    )
+  ) {
+    return null;
+  }
+
+  if (
+    !ALLOWED_CATEGORY_RE.test(
+      titleAndUrl,
+    )
+  ) {
+    return null;
+  }
+
+  /*
+   * Alleen de huidige Crafted Defense-rotatie.
+   *
+   * ClashLoot /crafted-defenses en BaseForCoC's
+   * Clashiversary-pagina's zijn al specifiek hierop
+   * gericht. Voor gewone detailpagina's moet de titel
+   * zelf de huidige Crafted Defense noemen.
+   */
+  const currentCraftInTitle =
+    CURRENT_CRAFTED_DEFENSE_RE.test(
+      titleAndUrl,
     );
+
+  const currentCraftPage =
+    provider === "ClashLoot" &&
+    /\/crafted-defenses(?:[/?#]|$)/i.test(
+      url,
+    );
+
+  const currentEventPage =
+    provider === "BaseForCoC" &&
+    /clashiversary\s+crafted\s+defenses/i.test(
+      plain.slice(0, 1800),
+    );
+
+  if (
+    !currentCraftInTitle &&
+    !currentCraftPage &&
+    !currentEventPage
+  ) {
     return null;
   }
 
   const clashLinks =
-    extractClashLinks(text);
+    extractClashLinks(html);
 
   if (!clashLinks.length) {
     console.log(
-      `[BASE-POOL] ${provider}: geen directe Clash-link ${url}`,
+      `[BASE-POOL] ${provider}: geen Clash-link ${url}`,
     );
     return null;
   }
 
-  let sourcePublishedAt: Date | null =
-    null;
-
-  if (provider === "CocMap") {
-    sourcePublishedAt =
-      extractCocMapDate(
-        combined,
-      ) ??
-      extractStructuredDate(
-        text,
-      );
-  } else {
-    sourcePublishedAt =
-      extractStructuredDate(
-        text,
-      );
-  }
-
-  if (!sourcePublishedAt) {
-    /*
-     * CocBase.Net en CoClanLayouts tonen op de actuele
-     * "Newest" listing wel nieuwe bases en directe Clash-links,
-     * maar leveren niet consequent een exacte publicatiedatum
-     * op de detailpagina.
-     *
-     * Voor deze bronnen gebruiken we daarom het moment waarop
-     * Phoenix de base voor het EERST daadwerkelijk importeert.
-     * Bestaande bases worden daarna niet opnieuw gedateerd.
-     */
-    if (
-      provider === "CocBaseNet" ||
-      provider === "CoClanLayouts"
-    ) {
-      sourcePublishedAt = new Date();
-    } else {
-      console.log(
-        `[BASE-POOL] ${provider}: geen betrouwbare exacte datum ${url}`,
-      );
-      return null;
-    }
-  }
-
-  if (!isFresh(sourcePublishedAt)) {
-    console.log(
-      `[BASE-POOL] ${provider}: ouder dan 48 uur ${url}`,
-    );
-    return null;
-  }
+  const imageUrl =
+    extractImage(html);
 
   /*
-   * Niet iedere layout-site exposeert zijn afbeelding als een
-   * klassieke .jpg/.png URL. Dat mag een geldige base niet
-   * blokkeren zolang de TH18-, categorie-, datum- en Clash-link
-   * controles wel slagen.
+   * Geen placeholder meer.
+   * Zonder echte afbeelding komt de base niet in
+   * de automatische pool.
    */
-  const imageUrl =
-    extractFirstImage(text) ??
-    `https://placehold.co/1200x675/png?text=TH18+Base+%7C+${encodeURIComponent(provider)}`;
+  if (!imageUrl) {
+    console.log(
+      `[BASE-POOL] ${provider}: geen afbeelding ${url}`,
+    );
+    return null;
+  }
+
+  let sourcePublishedAt =
+    extractStructuredDate(
+      html,
+    );
+
+  /*
+   * De gespecialiseerde actuele catalogi hebben geen
+   * consequente detaildatum. Voor een kandidaat die
+   * expliciet aan de actuele Crafted Defense-rotatie
+   * gekoppeld is, gebruiken we het moment waarop Phoenix
+   * hem ontdekt.
+   *
+   * Bij een volgende refresh wordt de pool volledig
+   * vervangen, waardoor oude niet-meer-gepubliceerde
+   * kandidaten vanzelf verdwijnen.
+   */
+  if (
+    !sourcePublishedAt
+  ) {
+    sourcePublishedAt =
+      new Date();
+  }
+
+  if (
+    !isFresh(
+      sourcePublishedAt,
+    )
+  ) {
+    return null;
+  }
 
   return {
     name:
-      title.slice(0, 180),
+      title.slice(
+        0,
+        180,
+      ),
     imageUrl,
     baseLink:
       clashLinks[0],
     sourceUrl: url,
-    sourceProvider: provider,
+    sourceProvider:
+      provider,
     sourcePublishedAt,
   };
 }
 
-async function collectCocMap(
+async function collectProvider(
   config: SourceConfig,
 ): Promise<ScrapedBase[]> {
   const result: ScrapedBase[] = [];
-  const seenDetails =
+  const detailUrls =
     new Set<string>();
   const seenLinks =
     new Set<string>();
 
-  for (const listingUrl of config.listingUrls) {
+  for (
+    const listingUrl of
+    config.listingUrls
+  ) {
     try {
       const listing =
         await fetchText(
           listingUrl,
         );
 
-      const detailUrls =
-        extractCocMapDetailUrls(
-          listing,
-        );
-
-      console.log(
-        `[BASE-POOL] CocMap: ${detailUrls.length} detailpagina's gevonden via ${listingUrl}`,
-      );
-
-      for (const detailUrl of detailUrls) {
-        if (
-          result.length >=
-          MAX_CANDIDATES_PER_SOURCE
-        ) {
-          return result;
-        }
-
-        if (
-          seenDetails.has(
-            detailUrl,
-          )
-        ) {
-          continue;
-        }
-
-        seenDetails.add(
-          detailUrl,
-        );
-
-        try {
-          const base =
-            await scrapeDetail(
-              detailUrl,
-              "CocMap",
-            );
-
-          if (
-            base &&
-            !seenLinks.has(
-              base.baseLink,
-            )
-          ) {
-            seenLinks.add(
-              base.baseLink,
-            );
-
-            result.push(base);
-          }
-        } catch (error) {
-          console.warn(
-            `[BASE-POOL] CocMap detail mislukt ${detailUrl}`,
-            error,
-          );
-        }
-      }
-    } catch (error) {
-      console.warn(
-        `[BASE-POOL] CocMap listing mislukt ${listingUrl}`,
-        error,
-      );
-    }
-  }
-
-  return result;
-}
-
-
-function extractHrefLinks(
-  html: string,
-  baseUrl: string,
-): string[] {
-  const result = new Set<string>();
-
-  for (const match of html.matchAll(
-    /<a[^>]+href=["']([^"']+)["'][^>]*>/gi,
-  )) {
-    try {
-      const url = new URL(
-        decodeHtml(match[1]),
-        baseUrl,
-      ).toString();
-
-      result.add(url);
-    } catch {
-      // Ongeldige URL negeren.
-    }
-  }
-
-  return [...result];
-}
-
-function isLikelyBaseDetail(
-  url: string,
-  provider: SourceProvider,
-): boolean {
-  switch (provider) {
-    case "CocMap":
-      return /cocmap\.com\/.*\/layouts\/.*\/[a-f0-9]{20,}/i.test(
-        url,
-      );
-
-    case "CocBaseNet":
-      return /cocbase\.net\/th18-[^/?#]+(?:[/?#]|$)/i.test(
-        url,
-      );
-
-    case "CoClanLayouts":
-      return /coclanlayouts\.com\/th18-bases\/[^/?#]+/i.test(
-        url,
-      );
-
-    case "ClashOfClansLayouts":
-      return /clashofclanslayouts\.org\/town-hall-plans\/th18\/layout_\d+\.html(?:[?#].*)?$/i.test(
-        url,
-      );
-
-    default:
-      return false;
-  }
-}
-
-async function collectStandardProvider(
-  config: SourceConfig,
-): Promise<ScrapedBase[]> {
-  const result: ScrapedBase[] = [];
-  const seenDetails = new Set<string>();
-  const seenLinks = new Set<string>();
-
-  for (const listingUrl of config.listingUrls) {
-    try {
-      const listing = await fetchText(listingUrl);
-
-      const allLinks =
+      for (
+        const link of
         extractHrefLinks(
           listing,
           listingUrl,
-        );
-
-      const detailUrls =
-        allLinks.filter((url) =>
-          isLikelyBaseDetail(
-            url,
+        )
+      ) {
+        if (
+          isDetailUrl(
+            link,
             config.provider,
-          ),
-        );
-
-      console.log(
-        `[BASE-POOL] ${config.provider}: ${detailUrls.length} detailpagina's gevonden via ${listingUrl}`,
-      );
-
-      for (const detailUrl of detailUrls) {
-        if (
-          result.length >=
-          MAX_CANDIDATES_PER_SOURCE
-        ) {
-          return result;
-        }
-
-        if (
-          seenDetails.has(
-            detailUrl,
           )
         ) {
-          continue;
-        }
-
-        seenDetails.add(
-          detailUrl,
-        );
-
-        try {
-          const base =
-            await scrapeDetail(
-              detailUrl,
-              config.provider,
-            );
-
-          if (
-            base &&
-            !seenLinks.has(
-              base.baseLink,
-            )
-          ) {
-            seenLinks.add(
-              base.baseLink,
-            );
-            result.push(base);
-          }
-        } catch (error) {
-          console.warn(
-            `[BASE-POOL] ${config.provider}: detail mislukt ${detailUrl}`,
-            error,
+          detailUrls.add(
+            link,
           );
         }
       }
+
+      console.log(
+        `[BASE-POOL] ${config.provider}: ${detailUrls.size} detailpagina-kandidaten na ${listingUrl}`,
+      );
     } catch (error) {
       console.warn(
         `[BASE-POOL] ${config.provider}: listing mislukt ${listingUrl}`,
@@ -846,29 +575,90 @@ async function collectStandardProvider(
     }
   }
 
+  for (
+    const detailUrl of
+    detailUrls
+  ) {
+    if (
+      result.length >=
+      MAX_CANDIDATES_PER_SOURCE
+    ) {
+      break;
+    }
+
+    try {
+      const base =
+        await scrapeDetail(
+          detailUrl,
+          config.provider,
+        );
+
+      if (
+        base &&
+        !seenLinks.has(
+          base.baseLink,
+        )
+      ) {
+        seenLinks.add(
+          base.baseLink,
+        );
+
+        result.push(
+          base,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[BASE-POOL] ${config.provider}: detail mislukt ${detailUrl}`,
+        error,
+      );
+    }
+  }
+
+  console.log(
+    `[BASE-POOL] ${config.provider}: ${result.length} geldige kandidaten.`,
+  );
+
   return result;
 }
 
-async function collectProvider(
-  config: SourceConfig,
-): Promise<ScrapedBase[]> {
-  if (
-    config.provider === "CocMap"
-  ) {
-    return collectCocMap(
-      config,
-    );
-  }
+async function getProtectedChallengeBaseIds(
+  townHall: number,
+  now: Date,
+): Promise<number[]> {
+  const activeChallenges =
+    await prisma.randomChallenge.findMany({
+      where: {
+        townHall,
+        endsAt: {
+          gt: now,
+        },
+        baseId: {
+          not: null,
+        },
+      },
+      select: {
+        baseId: true,
+      },
+    });
 
-  return collectStandardProvider(
-    config,
-  );
+  return activeChallenges
+    .map(
+      (challenge) =>
+        challenge.baseId,
+    )
+    .filter(
+      (id): id is number =>
+        id !== null,
+    );
 }
 
 export async function refreshBasePool(
   townHall = 18,
 ) {
-  if (townHall !== 18) {
+  if (
+    townHall !== 18
+  ) {
     throw new Error(
       "De automatische Base Pool ondersteunt momenteel alleen TH18.",
     );
@@ -876,74 +666,6 @@ export async function refreshBasePool(
 
   const now =
     new Date();
-
-  const oldestAllowed =
-    new Date(
-      now.getTime() -
-        MAX_BASE_AGE_HOURS *
-          60 *
-          60 *
-          1000,
-    );
-
-  /*
-   * Alleen automatische bases
-   * worden opgeschoond.
-   * TDG-eigen bases hebben
-   * sourceProvider = null.
-   */
-  await prisma.base.updateMany({
-    where: {
-      townHall,
-      sourceProvider: {
-        not: null,
-      },
-      sourcePublishedAt: {
-        lt: oldestAllowed,
-      },
-      randomChallenges: {
-        none: {
-          endsAt: {
-            gt: now,
-          },
-        },
-      },
-    },
-    data: {
-      isActive: false,
-    },
-  });
-
-  const existing =
-    await prisma.base.findMany({
-      where: {
-        townHall,
-        sourceProvider: {
-          not: null,
-        },
-        sourcePublishedAt: {
-          gte: oldestAllowed,
-          lte: now,
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        imageUrl: true,
-        baseLink: true,
-        sourceUrl: true,
-        sourceProvider: true,
-        sourcePublishedAt: true,
-      },
-    });
-
-  const existingLinks =
-    new Set(
-      existing.map(
-        (base) =>
-          base.baseLink,
-      ),
-    );
 
   const collected:
     ScrapedBase[] = [];
@@ -954,7 +676,14 @@ export async function refreshBasePool(
     accepted: number;
   }[] = [];
 
-  for (const source of SOURCES) {
+  /*
+   * Eerst verzamelen.
+   * Pas wanneer we minstens één geldige kandidaat
+   * hebben, vervangen we de bestaande automatische pool.
+   */
+  for (
+    const source of SOURCES
+  ) {
     try {
       const bases =
         await collectProvider(
@@ -973,10 +702,6 @@ export async function refreshBasePool(
         accepted:
           bases.length,
       });
-
-      console.log(
-        `[BASE-POOL] ${source.provider}: ${bases.length} verse kandidaten.`,
-      );
     } catch (error) {
       console.error(
         `[BASE-POOL] ${source.provider}: collector mislukt`,
@@ -992,77 +717,32 @@ export async function refreshBasePool(
     }
   }
 
-  const existingAsPoolBases =
-    existing.map(
-      (base) => ({
-        name: base.name,
-        imageUrl: base.imageUrl,
-        baseLink: base.baseLink,
-        sourceUrl: base.sourceUrl,
-        sourceProvider:
-          base.sourceProvider as SourceProvider,
-        sourcePublishedAt:
-          base.sourcePublishedAt,
-      }),
-    );
-
-  const newBases =
+  /*
+   * Eén globale deduplicatie op Clash-link.
+   */
+  const unique =
     collected
       .filter(
-        (base) =>
-          !existingLinks.has(
-            base.baseLink,
-          ),
-      )
-      .filter(
         (base, index, all) =>
           all.findIndex(
-            (item) =>
-              item.baseLink ===
+            (other) =>
+              other.baseLink ===
               base.baseLink,
           ) === index,
-      )
-      .filter(
-        (base) =>
-          isFresh(
-            base.sourcePublishedAt,
-            now,
-          ),
-      );
-
-  const combined =
-    [
-      ...existingAsPoolBases,
-      ...newBases,
-    ]
-      .filter(
-        (base, index, all) =>
-          all.findIndex(
-            (item) =>
-              item.baseLink ===
-              base.baseLink,
-          ) === index,
-      )
-      .filter(
-        (base) =>
-          isFresh(
-            base.sourcePublishedAt!,
-            now,
-          ),
       )
       .sort(
         (a, b) =>
-          b.sourcePublishedAt!.getTime() -
-          a.sourcePublishedAt!.getTime(),
+          b.sourcePublishedAt.getTime() -
+          a.sourcePublishedAt.getTime(),
       )
       .slice(
         0,
         TOTAL_POOL_LIMIT,
       );
 
-  if (!combined.length) {
+  if (!unique.length) {
     console.warn(
-      "[BASE-POOL] Geen enkele verse veilige base gevonden.",
+      "[BASE-POOL] Geen geldige actuele bases gevonden. Bestaande automatische pool blijft behouden.",
     );
 
     return {
@@ -1077,58 +757,81 @@ export async function refreshBasePool(
     };
   }
 
-  const newBasesToInsert =
-    combined.filter(
-      (base) =>
-        !existingLinks.has(
-          base.baseLink,
-        ),
+  const protectedIds =
+    await getProtectedChallengeBaseIds(
+      townHall,
+      now,
     );
 
-  if (newBasesToInsert.length) {
-    await prisma.base.createMany({
-      data:
-        newBasesToInsert.map(
-          (base) => ({
-            townHall,
-            category:
-              "Challenge",
-            name:
-              base.name,
-            description:
-              `TDG Challenge Base · ${base.sourceProvider}`,
-            baseLink:
-              base.baseLink,
-            imageUrl:
-              base.imageUrl,
-            createdBy:
-              base.sourceProvider,
-            sourceProvider:
-              base.sourceProvider,
-            sourceUrl:
-              base.sourceUrl,
-            sourcePublishedAt:
-              base.sourcePublishedAt,
-            expiresAt:
-              null,
-            isActive:
-              false,
-          }),
-        ),
-    });
-  }
+  /*
+   * Automatische pool volledig vervangen.
+   *
+   * TDG-eigen bases hebben sourceProvider = null
+   * en worden dus niet geraakt.
+   *
+   * Actieve Challenge-bases worden beschermd.
+   */
+  await prisma.base.deleteMany({
+    where: {
+      townHall,
+      sourceProvider: {
+        not: null,
+      },
+      id: {
+        notIn:
+          protectedIds,
+      },
+    },
+  });
+
+  /*
+   * Beschermde Challenge-bases blijven bestaan maar tellen
+   * niet mee als nieuwe automatische pool.
+   */
+  await prisma.base.createMany({
+    data:
+      unique.map(
+        (base) => ({
+          townHall,
+          category:
+            "Challenge",
+          name:
+            base.name,
+          description:
+            `TDG Challenge Base · ${base.sourceProvider}`,
+          baseLink:
+            base.baseLink,
+          imageUrl:
+            base.imageUrl,
+          createdBy:
+            base.sourceProvider,
+          sourceProvider:
+            base.sourceProvider,
+          sourceUrl:
+            base.sourceUrl,
+          sourcePublishedAt:
+            base.sourcePublishedAt,
+          expiresAt:
+            null,
+          isActive:
+            false,
+        }),
+      ),
+  });
 
   console.log(
     `[BASE-POOL] ========================================`,
   );
 
   console.log(
-    `[BASE-POOL] ${combined.length}/${TOTAL_POOL_LIMIT} bases geïmporteerd.`,
+    `[BASE-POOL] Nieuwe automatische pool: ${unique.length}/${TOTAL_POOL_LIMIT}`,
   );
 
-  for (const source of SOURCES) {
+  for (
+    const source of SOURCES
+  ) {
     const count =
-      combined.filter(
+      unique.filter(
         (base) =>
           base.sourceProvider ===
           source.provider,
@@ -1145,24 +848,26 @@ export async function refreshBasePool(
 
   return {
     imported:
-      newBasesToInsert.length,
+      unique.length,
     total:
-      combined.length,
+      unique.length,
     target:
       TOTAL_POOL_LIMIT,
     maxAgeHours:
       MAX_BASE_AGE_HOURS,
     sources:
-      sourceResults.map(
+      SOURCES.map(
         (source) => ({
           provider:
             source.provider,
           candidates:
-            source.candidates,
-          accepted:
-            source.accepted,
+            sourceResults.find(
+              (item) =>
+                item.provider ===
+                source.provider,
+            )?.candidates ?? 0,
           imported:
-            combined.filter(
+            unique.filter(
               (base) =>
                 base.sourceProvider ===
                 source.provider,
@@ -1188,9 +893,68 @@ export async function chooseChallengeBase(
           1000,
     );
 
-  const findAvailable =
-    async () =>
-      prisma.base.findMany({
+  const protectedIds =
+    await getProtectedChallengeBaseIds(
+      townHall,
+      now,
+    );
+
+  const candidates =
+    await prisma.base.findMany({
+      where: {
+        townHall,
+        sourceProvider: {
+          not: null,
+        },
+        sourcePublishedAt: {
+          gte:
+            oldestAllowed,
+          lte:
+            now,
+        },
+        isActive:
+          false,
+        imageUrl: {
+          not: "",
+        },
+        id: {
+          notIn: [
+            ...protectedIds,
+            ...(excludedBaseId
+              ? [excludedBaseId]
+              : []),
+          ],
+        },
+        randomChallenges: {
+          none: {
+            endsAt: {
+              gt: now,
+            },
+          },
+        },
+      },
+      orderBy: {
+        sourcePublishedAt:
+          "desc",
+      },
+      take:
+        TOTAL_POOL_LIMIT,
+    });
+
+  if (!candidates.length) {
+    try {
+      await refreshBasePool(
+        townHall,
+      );
+    } catch (error) {
+      console.error(
+        "[BASE-POOL] Automatische refresh mislukt:",
+        error,
+      );
+    }
+
+    const refreshed =
+      await prisma.base.findMany({
         where: {
           townHall,
           sourceProvider: {
@@ -1200,10 +964,13 @@ export async function chooseChallengeBase(
             gte:
               oldestAllowed,
             lte:
-              now,
+              new Date(),
           },
           isActive:
             false,
+          imageUrl: {
+            not: "",
+          },
           ...(excludedBaseId
             ? {
                 id: {
@@ -1215,7 +982,7 @@ export async function chooseChallengeBase(
           randomChallenges: {
             none: {
               endsAt: {
-                gt: now,
+                gt: new Date(),
               },
             },
           },
@@ -1228,44 +995,29 @@ export async function chooseChallengeBase(
           TOTAL_POOL_LIMIT,
       });
 
-  let available =
-    await findAvailable();
-
-  if (
-    !available.length
-  ) {
-    try {
-      await refreshBasePool(
-        townHall,
-      );
-    } catch (error) {
-      console.error(
-        "[BASE-POOL] Automatische refresh mislukt:",
-        error,
-      );
+    if (!refreshed.length) {
+      return null;
     }
 
-    available =
-      await findAvailable();
+    return refreshed[
+      Math.floor(
+        Math.random() *
+          refreshed.length,
+      )
+    ];
   }
 
-  if (
-    !available.length
-  ) {
-    return null;
-  }
-
-  return available[
+  return candidates[
     Math.floor(
       Math.random() *
-        available.length,
+        candidates.length,
     )
   ];
 }
 
 /*
- * Behouden voor bestaande imports.
- * Deze helper activeert geen Base of the Week.
+ * Bestaande helper behouden voor compatibiliteit.
+ * Dit activeert de base niet als Base of the Week.
  */
 export async function activateBaseForChallenge(
   baseId: number | null,
