@@ -1024,10 +1024,14 @@ export async function refreshBasePool(
     maxAgeHours:
       MAX_BASE_AGE_HOURS,
     sources:
-      SOURCES.map(
+      sourceResults.map(
         (source) => ({
           provider:
             source.provider,
+          candidates:
+            source.candidates,
+          accepted:
+            source.accepted,
           imported:
             combined.filter(
               (base) =>
