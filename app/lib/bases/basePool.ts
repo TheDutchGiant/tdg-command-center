@@ -771,6 +771,31 @@ export async function refreshBasePool(
    *
    * Actieve Challenge-bases worden beschermd.
    */
+  /*
+   * Oude Challenge-bases uit de eerste poolversie opruimen.
+   *
+   * Dit zijn bases zonder sourceProvider die als Challenge-bases
+   * zijn opgeslagen. Ze mogen alleen weg als ze NIET aan een
+   * actieve Challenge gekoppeld zijn.
+   *
+   * TDG-eigen bases met een andere categorie worden hiermee
+   * niet geraakt.
+   */
+  await prisma.base.deleteMany({
+    where: {
+      townHall,
+      category: "Challenge",
+      sourceProvider: null,
+      id: {
+        notIn:
+          protectedIds,
+      },
+    },
+  });
+
+  /*
+   * Daarna oude automatische bronbases vervangen.
+   */
   await prisma.base.deleteMany({
     where: {
       townHall,
