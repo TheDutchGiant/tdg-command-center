@@ -916,9 +916,19 @@ export async function refreshBasePool(
         sourceProvider: {
           not: null,
         },
+        sourcePublishedAt: {
+          gte: oldestAllowed,
+          lte: now,
+        },
       },
       select: {
+        id: true,
+        name: true,
+        imageUrl: true,
         baseLink: true,
+        sourceUrl: true,
+        sourceProvider: true,
+        sourcePublishedAt: true,
       },
     });
 
@@ -977,7 +987,21 @@ export async function refreshBasePool(
     }
   }
 
-  const combined =
+  const existingAsPoolBases =
+    existing.map(
+      (base) => ({
+        name: base.name,
+        imageUrl: base.imageUrl,
+        baseLink: base.baseLink,
+        sourceUrl: base.sourceUrl,
+        sourceProvider:
+          base.sourceProvider as SourceProvider,
+        sourcePublishedAt:
+          base.sourcePublishedAt,
+      }),
+    );
+
+  const newBases =
     collected
       .filter(
         (base) =>
@@ -999,11 +1023,32 @@ export async function refreshBasePool(
             base.sourcePublishedAt,
             now,
           ),
+      );
+
+  const combined =
+    [
+      ...existingAsPoolBases,
+      ...newBases,
+    ]
+      .filter(
+        (base, index, all) =>
+          all.findIndex(
+            (item) =>
+              item.baseLink ===
+              base.baseLink,
+          ) === index,
+      )
+      .filter(
+        (base) =>
+          isFresh(
+            base.sourcePublishedAt!,
+            now,
+          ),
       )
       .sort(
         (a, b) =>
-          b.sourcePublishedAt.getTime() -
-          a.sourcePublishedAt.getTime(),
+          b.sourcePublishedAt!.getTime() -
+          a.sourcePublishedAt!.getTime(),
       )
       .slice(
         0,
@@ -1027,35 +1072,46 @@ export async function refreshBasePool(
     };
   }
 
-  await prisma.base.createMany({
-    data: combined.map(
-      (base) => ({
-        townHall,
-        category:
-          "Challenge",
-        name:
-          base.name,
-        description:
-          `TDG Challenge Base · ${base.sourceProvider}`,
-        baseLink:
+  const newBasesToInsert =
+    combined.filter(
+      (base) =>
+        !existingLinks.has(
           base.baseLink,
-        imageUrl:
-          base.imageUrl,
-        createdBy:
-          base.sourceProvider,
-        sourceProvider:
-          base.sourceProvider,
-        sourceUrl:
-          base.sourceUrl,
-        sourcePublishedAt:
-          base.sourcePublishedAt,
-        expiresAt:
-          null,
-        isActive:
-          false,
-      }),
-    ),
-  });
+        ),
+    );
+
+  if (newBasesToInsert.length) {
+    await prisma.base.createMany({
+      data:
+        newBasesToInsert.map(
+          (base) => ({
+            townHall,
+            category:
+              "Challenge",
+            name:
+              base.name,
+            description:
+              `TDG Challenge Base · ${base.sourceProvider}`,
+            baseLink:
+              base.baseLink,
+            imageUrl:
+              base.imageUrl,
+            createdBy:
+              base.sourceProvider,
+            sourceProvider:
+              base.sourceProvider,
+            sourceUrl:
+              base.sourceUrl,
+            sourcePublishedAt:
+              base.sourcePublishedAt,
+            expiresAt:
+              null,
+            isActive:
+              false,
+          }),
+        ),
+    });
+  }
 
   console.log(
     `[BASE-POOL] ========================================`,
@@ -1084,7 +1140,7 @@ export async function refreshBasePool(
 
   return {
     imported:
-      combined.length,
+      newBasesToInsert.length,
     total:
       combined.length,
     target:
