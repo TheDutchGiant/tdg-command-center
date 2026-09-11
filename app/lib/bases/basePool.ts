@@ -1,34 +1,37 @@
 import { prisma } from "@/app/lib/prisma";
 
-const BASEMELON_WAR_URL =
-  "https://basemelon.com/coc-bases-th18/war";
+const CLASHFOX_URL = "https://clashfox.com/daily-bases/th18";
+const BASEMELON_URL = "https://basemelon.com/coc-bases-th18/war";
 
-const DEFAULT_IMPORT_COUNT = 10;
-const MAX_BASE_AGE_DAYS = 7;
+const CLASHFOX_LIMIT = 25;
+const BASEMELON_LIMIT = 10;
+const TOTAL_POOL_LIMIT = 35;
+const MAX_BASE_AGE_HOURS = 48;
+
+const AUTOMATIC_PROVIDERS = [
+  "ClashFox",
+  "BaseMelon",
+  "Community Base Library",
+  "Cocbases",
+];
 
 type ScrapedBase = {
   name: string;
   imageUrl: string;
   baseLink: string;
   sourceUrl: string;
+  sourceProvider: "ClashFox" | "BaseMelon";
+  sourcePublishedAt: Date;
 };
 
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items];
-
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-
-    [copy[index], copy[swap]] = [
-      copy[swap],
-      copy[index],
-    ];
-  }
-
-  return copy;
+function stripHtml(value: string): string {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function decodeHtml(value: string) {
+function decodeHtml(value: string): string {
   return value
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
@@ -37,47 +40,191 @@ function decodeHtml(value: string) {
     .replace(/&gt;/g, ">");
 }
 
-async function fetchHtml(url: string) {
+async function fetchHtml(url: string): Promise<string> {
   const response = await fetch(url, {
     cache: "no-store",
     headers: {
       Accept: "text/html,application/xhtml+xml",
-      "User-Agent":
-        "Mozilla/5.0 (compatible; TDG-Phoenix/1.0)",
+      "User-Agent": "Mozilla/5.0 (compatible; TDG-Phoenix/1.0)",
     },
   });
 
   if (!response.ok) {
-    throw new Error(
-      `BaseMelon gaf HTTP ${response.status} terug voor ${url}.`,
-    );
+    throw new Error(`HTTP ${response.status} voor ${url}`);
   }
 
   return response.text();
 }
 
-function extractNewBaseLinks(html: string): string[] {
+function parseDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function extractSourceDate(html: string): Date | null {
+  const jsonLdMatches = [
+    ...html.matchAll(
+      /"(?:datePublished|dateModified|uploadDate|publishedAt|updatedAt)"\s*:\s*"([^"]+)"/gi,
+    ),
+  ];
+
+  for (const match of jsonLdMatches) {
+    const date = parseDate(match[1]);
+
+    if (date) {
+      return date;
+    }
+  }
+
+  const metaMatches = [
+    ...html.matchAll(
+      /<meta[^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|datePublished|dateModified)["'][^>]+content=["']([^"']+)["']/gi,
+    ),
+  ];
+
+  for (const match of metaMatches) {
+    const date = parseDate(match[1]);
+
+    if (date) {
+      return date;
+    }
+  }
+
+  return null;
+}
+
+function isFresh(date: Date, now: Date): boolean {
+  const age = now.getTime() - date.getTime();
+
+  return (
+    age >= 0 &&
+    age <= MAX_BASE_AGE_HOURS * 60 * 60 * 1000
+  );
+}
+
+function extractFirstImage(html: string): string | null {
+  const ogImage =
+    html.match(
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+    )?.[1] ??
+    html.match(
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+    )?.[1];
+
+  if (ogImage) {
+    return decodeHtml(ogImage);
+  }
+
+  const image =
+    html.match(
+      /<img[^>]+src=["']([^"']+)["']/i,
+    )?.[1];
+
+  return image ? decodeHtml(image) : null;
+}
+
+function extractName(html: string): string | null {
+  const h1 = html.match(
+    /<h1[^>]*>([\s\S]*?)<\/h1>/i,
+  )?.[1];
+
+  return h1 ? decodeHtml(stripHtml(h1)) : null;
+}
+
+function extractCopyLink(html: string): string | null {
+  const matches = [
+    ...html.matchAll(
+      /<a[^>]+href=["']([^"']*link\.clashofclans\.com[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    ),
+  ];
+
+  for (const match of matches) {
+    const text = stripHtml(match[2]);
+
+    if (/copy base|layout link|copy/i.test(text)) {
+      return decodeHtml(match[1]);
+    }
+  }
+
+  const direct =
+    html.match(
+      /https?:\/\/link\.clashofclans\.com\/[^\s"'<>]+/i,
+    )?.[0];
+
+  return direct ? decodeHtml(direct) : null;
+}
+
+async function scrapeDetail(
+  sourceUrl: string,
+  provider: "ClashFox" | "BaseMelon",
+): Promise<ScrapedBase | null> {
+  const html = await fetchHtml(sourceUrl);
+
+  const name = extractName(html);
+  const imageUrl = extractFirstImage(html);
+  const baseLink = extractCopyLink(html);
+  const sourcePublishedAt = extractSourceDate(html);
+
+  if (
+    !name ||
+    !imageUrl ||
+    !baseLink ||
+    !sourcePublishedAt
+  ) {
+    console.warn(
+      `[BASE-POOL] ${provider}: layout overgeslagen; ontbrekende broninformatie: ${sourceUrl}`,
+    );
+
+    return null;
+  }
+
+  if (!isFresh(sourcePublishedAt, new Date())) {
+    console.log(
+      `[BASE-POOL] ${provider}: layout ouder dan ${MAX_BASE_AGE_HOURS} uur: ${sourceUrl}`,
+    );
+
+    return null;
+  }
+
+  return {
+    name,
+    imageUrl,
+    baseLink,
+    sourceUrl,
+    sourceProvider: provider,
+    sourcePublishedAt,
+  };
+}
+
+function extractClashFoxLinks(html: string): string[] {
   const links = new Set<string>();
 
-  /*
-   * BaseMelon zet de nieuwste layouts op de eerste
-   * Latest-pagina en markeert verse layouts met NEW.
-   *
-   * We zoeken alleen echte TH18 War-layout links.
-   */
   const regex =
-    /<a[^>]+href=["']([^"']*\/coc-bases-th18\/war(?:-[^"'<> ]+)?(?:-id\d+)?|[^"']*\/coc-bases-th18\/war-id\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+    /https?:\/\/clashfox\.com\/base\/th18\/[a-z0-9-]+/gi;
 
-  let match: RegExpExecArray | null;
+  for (const match of html.matchAll(regex)) {
+    links.add(match[0]);
+  }
 
-  while ((match = regex.exec(html)) !== null) {
+  return [...links];
+}
+
+function extractBaseMelonLinks(html: string): string[] {
+  const links = new Set<string>();
+
+  const regex =
+    /<a[^>]+href=["']([^"']*\/coc-bases-th18\/war[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  for (const match of html.matchAll(regex)) {
     const href = decodeHtml(match[1]);
-    const content = match[2]
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    const text = stripHtml(match[2]);
 
-    if (!/NEW/i.test(content)) {
+    if (!/NEW/i.test(text)) {
       continue;
     }
 
@@ -97,98 +244,72 @@ function extractNewBaseLinks(html: string): string[] {
   return [...links];
 }
 
-function extractFirstImage(html: string): string | null {
-  const ogImage =
-    html.match(
-      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
-    )?.[1] ??
-    html.match(
-      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
-    )?.[1];
+async function collectProvider(
+  provider: "ClashFox" | "BaseMelon",
+  listingUrl: string,
+  limit: number,
+): Promise<ScrapedBase[]> {
+  try {
+    const listingHtml = await fetchHtml(listingUrl);
 
-  if (ogImage) {
-    return decodeHtml(ogImage);
-  }
+    const links =
+      provider === "ClashFox"
+        ? extractClashFoxLinks(listingHtml)
+        : extractBaseMelonLinks(listingHtml);
 
-  const baseImage =
-    html.match(
-      /<img[^>]+src=["']([^"']*img\.basemelon\.com[^"']+)["']/i,
-    )?.[1];
-
-  return baseImage
-    ? decodeHtml(baseImage)
-    : null;
-}
-
-function extractName(html: string): string | null {
-  const title =
-    html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1];
-
-  if (!title) {
-    return null;
-  }
-
-  return decodeHtml(
-    title
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim(),
-  );
-}
-
-function extractCopyLink(html: string): string | null {
-  const matches = [
-    ...html.matchAll(
-      /<a[^>]+href=["']([^"']*link\.clashofclans\.com[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
-    ),
-  ];
-
-  for (const match of matches) {
-    const text = match[2]
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (/copy base|layout link/i.test(text)) {
-      return decodeHtml(match[1]);
-    }
-  }
-
-  return null;
-}
-
-async function scrapeBase(
-  sourceUrl: string,
-): Promise<ScrapedBase | null> {
-  const html = await fetchHtml(sourceUrl);
-
-  const name = extractName(html);
-  const imageUrl = extractFirstImage(html);
-  const baseLink = extractCopyLink(html);
-
-  if (!name || !imageUrl || !baseLink) {
-    console.warn(
-      `[BASE-POOL] Kon layout niet volledig uitlezen: ${sourceUrl}`,
+    console.log(
+      `[BASE-POOL] ${provider}: ${links.length} kandidaatlinks gevonden.`,
     );
 
-    return null;
-  }
+    const result: ScrapedBase[] = [];
 
-  return {
-    name,
-    imageUrl,
-    baseLink,
-    sourceUrl,
-  };
+    for (const sourceUrl of links) {
+      if (result.length >= limit) {
+        break;
+      }
+
+      try {
+        const base = await scrapeDetail(
+          sourceUrl,
+          provider,
+        );
+
+        if (!base) {
+          continue;
+        }
+
+        if (
+          result.some(
+            (item) => item.baseLink === base.baseLink,
+          )
+        ) {
+          continue;
+        }
+
+        result.push(base);
+      } catch (error) {
+        console.warn(
+          `[BASE-POOL] ${provider}: detailpagina kon niet worden gelezen: ${sourceUrl}`,
+          error,
+        );
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error(
+      `[BASE-POOL] ${provider}: listing kon niet worden gelezen.`,
+      error,
+    );
+
+    return [];
+  }
 }
 
-export async function refreshBasePool(
-  townHall = 18,
-  count = DEFAULT_IMPORT_COUNT,
-) {
+export async function refreshBasePool(townHall = 18) {
   if (townHall !== 18) {
     throw new Error(
-      "De BaseMelon importer is momenteel ingericht voor TH18.",
+      "De automatische Base Pool ondersteunt momenteel alleen TH18.",
     );
   }
 
@@ -196,29 +317,31 @@ export async function refreshBasePool(
 
   const oldestAllowed = new Date(
     now.getTime() -
-      MAX_BASE_AGE_DAYS *
-        24 *
-        60 *
-        60 *
-        1000,
+      MAX_BASE_AGE_HOURS * 60 * 60 * 1000,
   );
 
   /*
-   * Automatisch geïmporteerde bases ouder dan 7 dagen
-   * worden uit de actieve Challenge-pool gehaald.
+   * Alleen automatisch geïmporteerde bases worden opgeschoond.
+   * TDG-eigen bases vallen buiten deze providers.
+   *
+   * Een base die nog aan een actieve challenge hangt,
+   * blijft behouden totdat die challenge voorbij is.
    */
   await prisma.base.updateMany({
     where: {
       townHall,
       createdBy: {
-        in: [
-          "BaseMelon",
-          "Community Base Library",
-          "Cocbases",
-        ],
+        in: AUTOMATIC_PROVIDERS,
       },
       createdAt: {
         lt: oldestAllowed,
+      },
+      randomChallenges: {
+        none: {
+          endsAt: {
+            gt: now,
+          },
+        },
       },
     },
     data: {
@@ -226,15 +349,16 @@ export async function refreshBasePool(
     },
   });
 
+  /*
+   * Volledige automatische pool:
+   * oude automatische bases worden niet verwijderd uit de DB,
+   * maar alleen buiten de actieve selectie gehouden.
+   */
   const existing = await prisma.base.findMany({
     where: {
       townHall,
       createdBy: {
-        in: [
-          "BaseMelon",
-          "Community Base Library",
-          "Cocbases",
-        ],
+        in: AUTOMATIC_PROVIDERS,
       },
     },
     select: {
@@ -246,97 +370,83 @@ export async function refreshBasePool(
     existing.map((base) => base.baseLink),
   );
 
-  const listingHtml = await fetchHtml(
-    BASEMELON_WAR_URL,
+  const clashFoxBases = await collectProvider(
+    "ClashFox",
+    CLASHFOX_URL,
+    CLASHFOX_LIMIT,
   );
 
-  const candidateLinks =
-    extractNewBaseLinks(listingHtml);
+  const baseMelonBases = await collectProvider(
+    "BaseMelon",
+    BASEMELON_URL,
+    BASEMELON_LIMIT,
+  );
 
-  if (!candidateLinks.length) {
-    console.warn(
-      "[BASE-POOL] BaseMelon gaf momenteel geen NEW-layoutlinks terug.",
-    );
-
-    return {
-      imported: 0,
-      candidates: 0,
-      maxAgeDays: MAX_BASE_AGE_DAYS,
-    };
-  }
-
-  const scraped: ScrapedBase[] = [];
-
-  for (const sourceUrl of candidateLinks) {
-    if (scraped.length >= count) {
-      break;
-    }
-
-    try {
-      const base = await scrapeBase(sourceUrl);
-
-      if (!base) {
-        continue;
-      }
-
-      if (existingLinks.has(base.baseLink)) {
-        continue;
-      }
-
-      if (
-        scraped.some(
+  const combined = [
+    ...clashFoxBases,
+    ...baseMelonBases,
+  ]
+    .filter(
+      (base) => !existingLinks.has(base.baseLink),
+    )
+    .filter(
+      (base, index, all) =>
+        all.findIndex(
           (item) => item.baseLink === base.baseLink,
-        )
-      ) {
-        continue;
-      }
+        ) === index,
+    )
+    .slice(0, TOTAL_POOL_LIMIT);
 
-      scraped.push(base);
-    } catch (error) {
-      console.warn(
-        `[BASE-POOL] Layout kon niet worden gelezen: ${sourceUrl}`,
-        error,
-      );
-    }
-  }
-
-  const selected = shuffle(scraped);
-
-  if (!selected.length) {
+  if (!combined.length) {
     console.warn(
-      "[BASE-POOL] Geen nieuwe BaseMelon-layouts geïmporteerd.",
+      "[BASE-POOL] Geen nieuwe bases voldeden aan de harde 48-uurscontrole.",
     );
 
     return {
       imported: 0,
-      candidates: candidateLinks.length,
-      maxAgeDays: MAX_BASE_AGE_DAYS,
+      clashFox: 0,
+      baseMelon: 0,
+      total: 0,
+      maxAgeHours: MAX_BASE_AGE_HOURS,
     };
   }
 
   await prisma.base.createMany({
-    data: selected.map((base) => ({
+    data: combined.map((base) => ({
       townHall,
       category: "Challenge",
       name: base.name,
       description:
-        `TDG Challenge Base · BaseMelon · ${base.sourceUrl}`,
+        `TDG Challenge Base · ${base.sourceProvider}`,
       baseLink: base.baseLink,
       imageUrl: base.imageUrl,
-      createdBy: "BaseMelon",
+      createdBy: base.sourceProvider,
+      sourceProvider: base.sourceProvider,
+      sourceUrl: base.sourceUrl,
+      sourcePublishedAt: base.sourcePublishedAt,
       expiresAt: null,
       isActive: false,
     })),
   });
 
+  const clashFoxCount = combined.filter(
+    (base) => base.sourceProvider === "ClashFox",
+  ).length;
+
+  const baseMelonCount = combined.filter(
+    (base) => base.sourceProvider === "BaseMelon",
+  ).length;
+
   console.log(
-    `[BASE-POOL] ${selected.length} nieuwe BaseMelon TH${townHall}-bases geïmporteerd.`,
+    `[BASE-POOL] Refresh klaar: ${combined.length} totaal (${clashFoxCount} ClashFox, ${baseMelonCount} BaseMelon).`,
   );
 
   return {
-    imported: selected.length,
-    candidates: candidateLinks.length,
-    maxAgeDays: MAX_BASE_AGE_DAYS,
+    imported: combined.length,
+    clashFox: clashFoxCount,
+    baseMelon: baseMelonCount,
+    total: combined.length,
+    maxAgeHours: MAX_BASE_AGE_HOURS,
   };
 }
 
@@ -348,25 +458,18 @@ export async function chooseChallengeBase(
 
   const oldestAllowed = new Date(
     now.getTime() -
-      MAX_BASE_AGE_DAYS *
-        24 *
-        60 *
-        60 *
-        1000,
+      MAX_BASE_AGE_HOURS * 60 * 60 * 1000,
   );
 
   let available = await prisma.base.findMany({
     where: {
       townHall,
       createdBy: {
-        in: [
-          "BaseMelon",
-          "Community Base Library",
-          "Cocbases",
-        ],
+        in: ["ClashFox", "BaseMelon"],
       },
-      createdAt: {
+      sourcePublishedAt: {
         gte: oldestAllowed,
+        lte: now,
       },
       isActive: false,
       ...(excludedBaseId
@@ -376,27 +479,26 @@ export async function chooseChallengeBase(
             },
           }
         : {}),
+      randomChallenges: {
+        none: {
+          endsAt: {
+            gt: now,
+          },
+        },
+      },
     },
     orderBy: {
-      createdAt: "desc",
+      sourcePublishedAt: "desc",
     },
-    take: 100,
+    take: TOTAL_POOL_LIMIT,
   });
 
-  /*
-   * Geen verse pool? Dan vullen we hem automatisch bij.
-   * Daardoor hoeft de Challenge-start geen aparte
-   * handmatige importer meer te hebben.
-   */
   if (!available.length) {
     try {
-      await refreshBasePool(
-        townHall,
-        DEFAULT_IMPORT_COUNT,
-      );
+      await refreshBasePool(townHall);
     } catch (error) {
       console.error(
-        "[BASE-POOL] Automatisch bijvullen mislukt:",
+        "[BASE-POOL] Automatisch refreshen mislukt:",
         error,
       );
     }
@@ -405,14 +507,11 @@ export async function chooseChallengeBase(
       where: {
         townHall,
         createdBy: {
-          in: [
-            "BaseMelon",
-            "Community Base Library",
-            "Cocbases",
-          ],
+          in: ["ClashFox", "BaseMelon"],
         },
-        createdAt: {
+        sourcePublishedAt: {
           gte: oldestAllowed,
+          lte: now,
         },
         isActive: false,
         ...(excludedBaseId
@@ -422,11 +521,18 @@ export async function chooseChallengeBase(
               },
             }
           : {}),
+        randomChallenges: {
+          none: {
+            endsAt: {
+              gt: now,
+            },
+          },
+        },
       },
       orderBy: {
-        createdAt: "desc",
+        sourcePublishedAt: "desc",
       },
-      take: 100,
+      take: TOTAL_POOL_LIMIT,
     });
   }
 
@@ -434,10 +540,6 @@ export async function chooseChallengeBase(
     return null;
   }
 
-  /*
-   * De nieuwste bases hebben de voorkeur, maar we
-   * houden random variatie binnen de verse pool.
-   */
   return available[
     Math.floor(
       Math.random() * available.length,
@@ -449,12 +551,6 @@ export async function activateBaseForChallenge(
   baseId: number | null,
   expiresAt: Date,
 ) {
-  /*
-   * Bewaard voor compatibiliteit met bestaande code.
-   *
-   * De Challenge Base hoort NIET dezelfde status te krijgen
-   * als de algemene Base van de Week.
-   */
   if (!baseId) {
     return;
   }
