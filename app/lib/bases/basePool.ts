@@ -496,6 +496,16 @@ async function scrapeDetail(
   const combined =
     `${url}\n${title}\n${plain}`;
 
+  /*
+   * BELANGRIJK:
+   * Gebruik voor de categorie NIET de volledige pagina.
+   * Algemene navigatie van base-sites bevat woorden als
+   * "Farming", "Progress" en "Loot", ook op een geldige
+   * War/CWL/Defense-basepagina.
+   *
+   * TH18 mag wel overal op de concrete pagina worden gezocht.
+   * De categorie wordt uitsluitend bepaald door URL + titel.
+   */
   if (!looksLikeTh18(combined)) {
     console.log(
       `[BASE-POOL] ${provider}: geen TH18 ${url}`,
@@ -503,9 +513,19 @@ async function scrapeDetail(
     return null;
   }
 
-  if (!isAllowedCategory(combined)) {
+  const categoryText =
+    `${url}\n${title}`;
+
+  if (BLOCKED_TERMS.test(categoryText)) {
     console.log(
-      `[BASE-POOL] ${provider}: categorie uitgesloten ${url}`,
+      `[BASE-POOL] ${provider}: verboden categorie ${url}`,
+    );
+    return null;
+  }
+
+  if (!ALLOWED_TERMS.test(categoryText)) {
+    console.log(
+      `[BASE-POOL] ${provider}: geen toegestane categorie ${url}`,
     );
     return null;
   }
