@@ -599,15 +599,15 @@ async function scrapeDetail(
     return null;
   }
 
+  /*
+   * Niet iedere layout-site exposeert zijn afbeelding als een
+   * klassieke .jpg/.png URL. Dat mag een geldige base niet
+   * blokkeren zolang de TH18-, categorie-, datum- en Clash-link
+   * controles wel slagen.
+   */
   const imageUrl =
-    extractFirstImage(text);
-
-  if (!imageUrl) {
-    console.log(
-      `[BASE-POOL] ${provider}: geen afbeelding ${url}`,
-    );
-    return null;
-  }
+    extractFirstImage(text) ??
+    `https://placehold.co/1200x675/png?text=TH18+Base+%7C+${encodeURIComponent(provider)}`;
 
   return {
     name:
