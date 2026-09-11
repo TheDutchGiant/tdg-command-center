@@ -1,7 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 
 const TOTAL_POOL_LIMIT = 35;
-const MAX_BASE_AGE_HOURS = 48;
+const MAX_BASE_AGE_HOURS = 168;
 const MAX_CANDIDATES_PER_SOURCE = 100;
 
 type SourceProvider =
@@ -38,12 +38,22 @@ const SOURCES: SourceConfig[] = [
     provider: "CocBaseNet",
     listingUrls: [
       "https://cocbase.net/town-hall-18-war-layouts",
+      "https://cocbase.net/town-hall-18-war-layouts/page-2",
+      "https://cocbase.net/town-hall-18-war-layouts/page-3",
       "https://cocbase.net/town-hall-18-layouts",
+      "https://cocbase.net/town-hall-18-layouts/page-2",
+      "https://cocbase.net/town-hall-18-layouts/page-3",
+      "https://cocbase.net/town-hall-trophy-layouts",
+      "https://cocbase.net/town-hall-trophy-layouts/page-2",
     ],
   },
   {
     provider: "CoClanLayouts",
     listingUrls: [
+      "https://coclanlayouts.com/th18-bases/war",
+      "https://coclanlayouts.com/th18-bases/cwl",
+      "https://coclanlayouts.com/th18-bases/defense",
+      "https://coclanlayouts.com/th18-bases/anti-3-star",
       "https://coclanlayouts.com/th18-bases",
     ],
   },
@@ -559,10 +569,27 @@ async function scrapeDetail(
   }
 
   if (!sourcePublishedAt) {
-    console.log(
-      `[BASE-POOL] ${provider}: geen betrouwbare exacte datum ${url}`,
-    );
-    return null;
+    /*
+     * CocBase.Net en CoClanLayouts tonen op de actuele
+     * "Newest" listing wel nieuwe bases en directe Clash-links,
+     * maar leveren niet consequent een exacte publicatiedatum
+     * op de detailpagina.
+     *
+     * Voor deze bronnen gebruiken we daarom het moment waarop
+     * Phoenix de base voor het EERST daadwerkelijk importeert.
+     * Bestaande bases worden daarna niet opnieuw gedateerd.
+     */
+    if (
+      provider === "CocBaseNet" ||
+      provider === "CoClanLayouts"
+    ) {
+      sourcePublishedAt = new Date();
+    } else {
+      console.log(
+        `[BASE-POOL] ${provider}: geen betrouwbare exacte datum ${url}`,
+      );
+      return null;
+    }
   }
 
   if (!isFresh(sourcePublishedAt)) {
