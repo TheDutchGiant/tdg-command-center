@@ -463,6 +463,7 @@ async function collectReddit(
 ): Promise<ScrapedBase[]> {
   const result: ScrapedBase[] = [];
   const seenLinks = new Set<string>();
+
   const now = new Date();
   const oldestAllowed = new Date(
     now.getTime() -
@@ -472,32 +473,173 @@ async function collectReddit(
         1000,
   );
 
+  function extractDateNear(
+    text: string,
+  ): Date | null {
+    const candidates: string[] = [];
+
+    const patterns = [
+      /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b/gi,
+      /\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}(?:\s+\d{2}:\d{2}(?::\d{2})?\s*(?:GMT|UTC)?)?/gi,
+      /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/gi,
+      /\b\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/gi,
+    ];
+
+    for (const pattern of patterns) {
+      for (const match of text.matchAll(pattern)) {
+        if (match[0]) {
+          candidates.push(match[0]);
+        }
+      }
+    }
+
+    const dates = candidates
+      .map((value) => {
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime())
+          ? null
+          : parsed;
+      })
+      .filter(
+        (date): date is Date =>
+          date !== null,
+      );
+
+    dates.sort(
+      (a, b) =>
+        Math.abs(
+          now.getTime() - a.getTime(),
+        ) -
+        Math.abs(
+          now.getTime() - b.getTime(),
+        ),
+    );
+
+    return dates[0] ?? null;
+  }
+
+  function extractTitleNear(
+    text: string,
+  ): string {
+    const headings = [
+      ...text.matchAll(
+        /(?:^|\n)\s*#{1,6}\s+(.+?)(?=\n|$)/g,
+      ),
+    ];
+
+    if (headings.length) {
+      return headings[0][1]
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 180);
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) =>
+        line
+          .replace(/[*_`>]+/g, "")
+          .replace(/\s+/g, " ")
+          .trim(),
+      )
+      .filter(Boolean);
+
+    return (
+      lines.find((line) =>
+        /th\s*18|th18|town\s*hall\s*18/i.test(
+          line,
+        ),
+      )?.slice(0, 180) ??
+      "TH18 Base via Reddit"
+    );
+  }
+
+  function extractImageNear(
+    text: string,
+  ): string | null {
+    const markdownImage =
+      text.match(
+        /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i,
+      )?.[1];
+
+    if (markdownImage) {
+      return markdownImage;
+    }
+
+    return (
+      text.match(
+        /https?:\/\/[^\s<>"')\]]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s<>"')\]]*)?/i,
+      )?.[0] ?? null
+    );
+  }
+
+  async function fetchViaJina(
+    feedUrl: string,
+  ): Promise<string> {
+    const jinaUrl =
+      `https://r.jina.ai/${feedUrl}`;
+
+    return fetchText(
+      jinaUrl,
+      "text/plain,text/markdown,application/json,*/*;q=0.8",
+    );
+  }
+
   for (const feedUrl of config.urls) {
     let raw = "";
 
+    /*
+     * Eerst Jina gebruiken.
+     * Reddit RSS kan vanaf VPS-IP's 403/429 geven.
+     */
     try {
-      raw = await fetchText(
-        feedUrl,
-        "application/atom+xml,application/rss+xml,application/xml,text/xml,*/*;q=0.8",
+      raw = await fetchViaJina(feedUrl);
+      console.log(
+        `[BASE-POOL] ${config.provider}: Reddit via Jina opgehaald.`,
       );
-    } catch (error) {
+    } catch (jinaError) {
       console.warn(
-        `[BASE-POOL] ${config.provider}: feed mislukt ${feedUrl}`,
-        error,
+        `[BASE-POOL] ${config.provider}: Jina mislukt, directe RSS fallback.`,
+        jinaError,
       );
-      continue;
+
+      try {
+        raw = await fetchText(
+          feedUrl,
+          "application/atom+xml,application/rss+xml,application/xml,text/xml,*/*;q=0.8",
+        );
+
+        console.log(
+          `[BASE-POOL] ${config.provider}: directe Reddit RSS opgehaald.`,
+        );
+      } catch (directError) {
+        console.warn(
+          `[BASE-POOL] ${config.provider}: directe Reddit RSS eveneens mislukt.`,
+          directError,
+        );
+        continue;
+      }
     }
 
-    const entries = [
-      ...(raw.match(/<entry[\s\S]*?<\/entry>/gi) ?? []),
-      ...(raw.match(/<item[\s\S]*?<\/item>/gi) ?? []),
+    const clashLinks = [
+      ...raw.matchAll(
+        /https?:\/\/link\.clashofclans\.com\/[^\s<>"')\]]+/gi,
+      ),
+    ]
+      .map((match) =>
+        cleanClashLink(match[0]),
+      )
+      .filter(Boolean);
+
+    const uniqueClashLinks = [
+      ...new Set(clashLinks),
     ];
 
     console.log(
-      `[BASE-POOL] ${config.provider}: ${entries.length} RSS/Atom items via ${feedUrl}`,
+      `[BASE-POOL] ${config.provider}: ${uniqueClashLinks.length} Clash-links gevonden.`,
     );
 
-    for (const entry of entries) {
+    for (const baseLink of uniqueClashLinks) {
       if (
         result.length >=
         MAX_CANDIDATES_PER_SOURCE
@@ -505,89 +647,71 @@ async function collectReddit(
         return result;
       }
 
-      const title =
-        rssField(entry, "title");
-      const content =
-        rssField(entry, "content");
-      const summary =
-        rssField(entry, "summary");
-      const description =
-        rssField(entry, "description");
-
-      const combined = [
-        title,
-        content,
-        summary,
-        description,
-      ].join(" ");
-
-      if (!looksLikeTh18(combined)) {
+      if (seenLinks.has(baseLink)) {
         continue;
       }
 
-      if (!isAllowedBaseText(combined)) {
+      seenLinks.add(baseLink);
+
+      const linkIndex =
+        raw.indexOf(baseLink);
+
+      const contextStart =
+        Math.max(0, linkIndex - 1800);
+
+      const contextEnd =
+        Math.min(
+          raw.length,
+          linkIndex + 1200,
+        );
+
+      const context =
+        raw.slice(
+          contextStart,
+          contextEnd,
+        );
+
+      if (!looksLikeTh18(context)) {
         continue;
       }
 
-      const dateText =
-        rssField(entry, "updated") ||
-        rssField(entry, "published") ||
-        rssField(entry, "pubDate") ||
-        rssField(entry, "date");
+      if (!isAllowedBaseText(context)) {
+        continue;
+      }
 
       const sourcePublishedAt =
-        parseDate(dateText);
+        extractDateNear(context);
 
       if (!sourcePublishedAt) {
         console.log(
-          `[BASE-POOL] ${config.provider}: item zonder datum`,
+          `[BASE-POOL] ${config.provider}: Clash-link zonder aantoonbare datum: ${baseLink}`,
         );
         continue;
       }
 
       if (
-        sourcePublishedAt < oldestAllowed ||
+        sourcePublishedAt <
+          oldestAllowed ||
         sourcePublishedAt > now
       ) {
         continue;
       }
 
-      const clashLinks =
-        extractRssClashLinks(entry);
-
-      if (!clashLinks.length) {
-        continue;
-      }
+      const title =
+        extractTitleNear(context);
 
       const imageUrl =
-        extractRssImage(entry) ??
+        extractImageNear(context) ??
         "https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png";
 
-      for (const baseLink of clashLinks) {
-        if (seenLinks.has(baseLink)) {
-          continue;
-        }
-
-        seenLinks.add(baseLink);
-
-        result.push({
-          name:
-            title.slice(0, 180) ||
-            `TH18 Base via ${config.provider}`,
-          imageUrl,
-          baseLink,
-          sourceUrl: feedUrl,
-          sourceProvider: config.provider,
-          sourcePublishedAt,
-        });
-
-        if (
-          result.length >=
-          MAX_CANDIDATES_PER_SOURCE
-        ) {
-          return result;
-        }
-      }
+      result.push({
+        name: title,
+        imageUrl,
+        baseLink,
+        sourceUrl: feedUrl,
+        sourceProvider: config.provider,
+        sourcePublishedAt,
+      });
     }
   }
 
