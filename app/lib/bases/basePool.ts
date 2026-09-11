@@ -84,13 +84,13 @@ const SOURCES: SourceConfig[] = [
   {
     provider: "RedditCoCBaseLink",
     listingUrls: [
-      "https://www.reddit.com/r/cocbaselink/new/.json?limit=100",
+      "https://www.reddit.com/r/cocbaselink/new/.rss?limit=100",
     ],
   },
   {
     provider: "RedditCOCBaseLayouts",
     listingUrls: [
-      "https://www.reddit.com/r/COCBaseLayouts/new/.json?limit=100",
+      "https://www.reddit.com/r/COCBaseLayouts/new/.rss?limit=100",
     ],
   },
 ];
@@ -324,7 +324,12 @@ function isRejectedCategory(text: string): boolean {
 }
 
 function isAllowedCategory(text: string): boolean {
-  return /\b(?:war|cwl|trophy|trophy[ -]?defen[cs]e|legend|ranked|anti[ -]?(?:1|2|3)[ -]?star|anti[ -]?(?:everything|air|dragon|hydra|smash|thrower)|defen[cs]e)\b/i.test(text);
+  const value = text
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return /\b(?:war|cwl|trophy|trophy\s+defen[cs]e|legend|ranked|defen[cs]e|anti\s+(?:1|2|3)\s+star|anti\s+(?:everything|air|dragon|hydra|smash|thrower|electro\s+dragon))\b/i.test(value);
 }
 
 function normalizeUrl(value: string, baseUrl: string): string | null {
@@ -735,12 +740,23 @@ async function scrapeDetail(
   const title =
     extractName(html) ?? "";
 
+  /*
+   * Categorie bepalen op basis van de concrete detail-URL en titel.
+   * De volledige pagina mag NIET gebruikt worden voor de categorie:
+   * BaseMelon/ClanWarden bevatten op iedere pagina algemene teksten
+   * over Farm, Progress enzovoort.
+   */
   const categoryText =
-    `${sourceUrl} ${title} ${visibleText.slice(0, 12000)}`;
+    `${sourceUrl} ${title}`;
+
+  const normalizedCategoryText = categoryText
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   if (
     /\b(?:farm|farming|progress|progression|resource|loot)\b/i.test(
-      title,
+      normalizedCategoryText,
     )
   ) {
     console.log(
@@ -749,7 +765,7 @@ async function scrapeDetail(
     return null;
   }
 
-  if (!categoryIsAllowed(categoryText)) {
+  if (!categoryIsAllowed(normalizedCategoryText)) {
     console.log(
       `[BASE-POOL] ${provider}: geen toegestane basecategorie: ${sourceUrl}`,
     );
