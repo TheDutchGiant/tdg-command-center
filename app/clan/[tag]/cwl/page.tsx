@@ -1,6 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import { PHOENIX } from "@/app/lib/config";
 import { getCwlDisplaySeason } from "@/app/lib/getCwlDisplaySeason";
+import { checkForNewCWL } from "@/app/lib/checkForNewCWL";
 
 type Props = {
   params: Promise<{
@@ -21,18 +22,44 @@ function getResult(
   return "🤝 Draw";
 }
 
-export default async function CWLPage({ params }: Props) {
+export default async function CWLPage({
+  params,
+}: Props) {
   const { tag } = await params;
-  const clan = PHOENIX.clans.find((c) => c.tag === tag);
 
-  // De actuele CWL hoort bij de huidige kalendermaand.
-  // getCwlDisplaySeason() wordt hieronder bewust apart
-  // gebruikt voor de bestaande selectie-logica.
-  const season = getCwlDisplaySeason();
+  const clan = PHOENIX.clans.find(
+    (c) => c.tag === tag
+  );
 
-  const now = new Date();
-  const currentCwlSeason =
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  /*
+   * ---------------------------------------------------------
+   * ACTIEVE CWL
+   * ---------------------------------------------------------
+   *
+   * De actieve CWL wordt niet meer bepaald aan de hand
+   * van de kalendermaand.
+   *
+   * Clash is leidend:
+   * - actieve leaguegroup -> actieve CWL
+   * - geen leaguegroup -> geen actieve CWL
+   *
+   * De bestaande display-season logica blijft intact voor
+   * de koppeling met de selectie.
+   */
+  const cwl = await checkForNewCWL();
+
+  const activeCwlSeason =
+    cwl.active && cwl.league?.season
+      ? cwl.league.season.slice(0, 7)
+      : null;
+
+  /*
+   * Dit blijft bewust de bestaande selectie-logica.
+   * Daarmee blijft de first-week/februari-achtige overgang
+   * intact die eerder is aangepast.
+   */
+  const displaySeason =
+    getCwlDisplaySeason();
 
   const wars = await prisma.war.findMany({
     where: {
@@ -65,71 +92,112 @@ export default async function CWLPage({ params }: Props) {
   >();
 
   if (wars.length > 0) {
-    const matchups = await prisma.cwlMatchup.findMany({
-      where: {
-        warTag: {
-          in: wars.map((war) => war.warTag),
+    const matchups =
+      await prisma.cwlMatchup.findMany({
+        where: {
+          warTag: {
+            in: wars.map(
+              (war) => war.warTag
+            ),
+          },
         },
-      },
-    });
+      });
 
     for (const matchup of matchups) {
-      const isClanA = matchup.clanATag === tag;
+      const isClanA =
+        matchup.clanATag === tag;
 
-      matchupMap.set(matchup.warTag, {
-        clanName: isClanA ? matchup.clanAName : matchup.clanBName,
-        opponentName: isClanA
-          ? matchup.clanBName
-          : matchup.clanAName,
-      });
+      matchupMap.set(
+        matchup.warTag,
+        {
+          clanName: isClanA
+            ? matchup.clanAName
+            : matchup.clanBName,
+
+          opponentName: isClanA
+            ? matchup.clanBName
+            : matchup.clanAName,
+        }
+      );
     }
   }
 
-  const normalizedClanTag = `#${tag.replace("#", "")}`;
+  const normalizedClanTag =
+    `#${tag.replace("#", "")}`;
 
-  const currentPlan = season
-    ? await prisma.cwlPlan.findUnique({
-        where: {
-          season,
-        },
-        include: {
-      clanPlans: {
-        where: {
-          clanTag: normalizedClanTag,
-        },
-        include: {
-          assignments: {
-            orderBy: {
-              position: "asc",
+  /*
+   * Alleen wanneer er daadwerkelijk een actieve CWL is,
+   * mag een definitieve selectie als "Huidige CWL"
+   * worden getoond.
+   *
+   * De selectie-season blijft displaySeason, zodat de
+   * bestaande overgangslogica behouden blijft.
+   */
+  const currentPlan =
+    activeCwlSeason && displaySeason
+      ? await prisma.cwlPlan.findUnique({
+          where: {
+            season: displaySeason,
+          },
+          include: {
+            clanPlans: {
+              where: {
+                clanTag:
+                  normalizedClanTag,
+              },
+              include: {
+                assignments: {
+                  orderBy: {
+                    position: "asc",
+                  },
+                },
+              },
             },
           },
-        },
-        },
-      },
-    })
-    : null;
+        })
+      : null;
 
   const currentClanPlan =
+    activeCwlSeason &&
     currentPlan?.status === "FINAL"
       ? currentPlan.clanPlans[0]
       : null;
 
   /*
-   * De actuele CWL is de CWL van de huidige kalendermaand.
-   * Ook wanneer er op dit exacte moment geen war day loopt,
-   * blijven de rondes van deze CWL onder "Actuele CWL" staan.
+   * Alleen wars uit de daadwerkelijk actieve CWL
+   * vallen onder "Actuele CWL".
+   *
+   * Is de leaguegroup weg?
+   * Dan is currentWars leeg en verhuist alles automatisch
+   * naar de geschiedenis.
    */
-  const currentWars = wars.filter(
-    (war) => war.season.season === currentCwlSeason
-  );
+  const currentWars =
+    activeCwlSeason
+      ? wars.filter(
+          (war) =>
+            war.season.season ===
+            activeCwlSeason
+        )
+      : [];
 
-  const historyWars = wars.filter(
-    (war) => war.season.season !== currentCwlSeason
-  );
+  const historyWars =
+    activeCwlSeason
+      ? wars.filter(
+          (war) =>
+            war.season.season !==
+            activeCwlSeason
+        )
+      : wars;
 
-  const historySeasons = Array.from(
-    new Set(historyWars.map((war) => war.season.season))
-  );
+  const historySeasons =
+    Array.from(
+      new Set(
+        historyWars.map(
+          (war) =>
+            war.season.season
+        )
+      )
+    );
 
   const clashClanLink =
     `https://link.clashofclans.com/en?action=OpenClanProfile&tag=%23${tag}`;
@@ -180,20 +248,25 @@ export default async function CWLPage({ params }: Props) {
           </p>
 
           <h2 className="mt-1 text-2xl font-bold">
-            CWL-selectie · {season}
+            CWL-selectie · {displaySeason}
           </h2>
 
           {currentClanPlan ? (
             <div className="mt-5">
               <div className="mb-4 flex flex-wrap gap-2 text-xs font-semibold text-white/60">
                 <span className="rounded-full bg-white/[0.06] px-3 py-1.5">
-                  {currentClanPlan.format === "V15"
+                  {currentClanPlan.format ===
+                  "V15"
                     ? "15v15"
                     : "30v30"}
                 </span>
 
                 <span className="rounded-full bg-white/[0.06] px-3 py-1.5">
-                  {currentClanPlan.assignments.length} geselecteerd
+                  {
+                    currentClanPlan
+                      .assignments.length
+                  }{" "}
+                  geselecteerd
                 </span>
               </div>
 
@@ -205,7 +278,9 @@ export default async function CWLPage({ params }: Props) {
                       className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/10 px-4 py-3"
                     >
                       <span className="w-7 shrink-0 text-sm font-bold text-orange-400">
-                        {assignment.position}
+                        {
+                          assignment.position
+                        }
                       </span>
 
                       <div className="min-w-0">
@@ -216,7 +291,10 @@ export default async function CWLPage({ params }: Props) {
 
                         {assignment.townHall ? (
                           <p className="text-xs text-white/40">
-                            TH{assignment.townHall}
+                            TH
+                            {
+                              assignment.townHall
+                            }
                           </p>
                         ) : null}
                       </div>
@@ -227,7 +305,7 @@ export default async function CWLPage({ params }: Props) {
             </div>
           ) : (
             <p className="mt-5 text-sm text-white/45">
-              De definitieve CWL-selectie is nog niet gepubliceerd.
+              Er is momenteel geen definitieve CWL-selectie gepubliceerd.
             </p>
           )}
         </div>
@@ -250,52 +328,76 @@ export default async function CWLPage({ params }: Props) {
             <table className="w-full min-w-[700px] border-collapse">
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.02]">
-                  <th className="p-3 text-left">Ronde</th>
-                  <th className="p-3 text-left">Tegenstander</th>
-                  <th className="p-3 text-left">Score</th>
-                  <th className="p-3 text-left">Resultaat</th>
-                  <th className="p-3 text-left">Destruction</th>
+                  <th className="p-3 text-left">
+                    Ronde
+                  </th>
+
+                  <th className="p-3 text-left">
+                    Tegenstander
+                  </th>
+
+                  <th className="p-3 text-left">
+                    Score
+                  </th>
+
+                  <th className="p-3 text-left">
+                    Resultaat
+                  </th>
+
+                  <th className="p-3 text-left">
+                    Destruction
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
-                {currentWars.map((war) => {
-                  const matchup = matchupMap.get(war.warTag);
+                {currentWars.map(
+                  (war) => {
+                    const matchup =
+                      matchupMap.get(
+                        war.warTag
+                      );
 
-                  return (
-                    <tr
-                      key={war.warTag}
-                      className="border-b border-white/10 last:border-0 hover:bg-white/[0.03]"
-                    >
-                      <td className="p-3">
-                        {war.round}
-                      </td>
+                    return (
+                      <tr
+                        key={war.warTag}
+                        className="border-b border-white/10 last:border-0 hover:bg-white/[0.03]"
+                      >
+                        <td className="p-3">
+                          {war.round}
+                        </td>
 
-                      <td className="p-3">
-                        {matchup?.opponentName ??
-                          "Tegenstander"}
-                      </td>
+                        <td className="p-3">
+                          {matchup?.opponentName ??
+                            "Tegenstander"}
+                        </td>
 
-                      <td className="p-3 font-semibold">
-                        {war.clanStars} -{" "}
-                        {war.opponentStars}
-                      </td>
+                        <td className="p-3 font-semibold">
+                          {war.clanStars} -{" "}
+                          {
+                            war.opponentStars
+                          }
+                        </td>
 
-                      <td className="p-3">
-                        {getResult(
-                          war.clanStars,
-                          war.opponentStars,
-                          war.clanDestruction,
-                          war.opponentDestruction
-                        )}
-                      </td>
+                        <td className="p-3">
+                          {getResult(
+                            war.clanStars,
+                            war.opponentStars,
+                            war.clanDestruction,
+                            war.opponentDestruction
+                          )}
+                        </td>
 
-                      <td className="p-3">
-                        {war.clanDestruction.toFixed(1)}%
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <td className="p-3">
+                          {war.clanDestruction.toFixed(
+                            1
+                          )}
+                          %
+                        </td>
+                      </tr>
+                    );
+                  }
+                )}
               </tbody>
             </table>
           </div>
@@ -320,105 +422,125 @@ export default async function CWLPage({ params }: Props) {
 
         {historySeasons.length > 0 ? (
           <div className="space-y-3">
-            {historySeasons.map((historySeason) => {
-              const seasonWars = historyWars.filter(
-                (war) =>
-                  war.season.season === historySeason
-              );
+            {historySeasons.map(
+              (historySeason) => {
+                const seasonWars =
+                  historyWars.filter(
+                    (war) =>
+                      war.season.season ===
+                      historySeason
+                  );
 
-              return (
-                <details
-                  key={historySeason}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
-                >
-                  <summary className="cursor-pointer list-none px-5 py-4 font-bold transition hover:bg-white/[0.04]">
-                    <span className="mr-3 text-orange-400">
-                      ▶
-                    </span>
+                return (
+                  <details
+                    key={historySeason}
+                    className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+                  >
+                    <summary className="cursor-pointer list-none px-5 py-4 font-bold transition hover:bg-white/[0.04]">
+                      <span className="mr-3 text-orange-400">
+                        ▶
+                      </span>
 
-                    {historySeason}
+                      {historySeason}
 
-                    <span className="ml-2 text-sm font-normal text-white/40">
-                      {seasonWars.length} rondes
-                    </span>
-                  </summary>
+                      <span className="ml-2 text-sm font-normal text-white/40">
+                        {
+                          seasonWars.length
+                        }{" "}
+                        rondes
+                      </span>
+                    </summary>
 
-                  <div className="overflow-x-auto border-t border-white/10">
-                    <table className="w-full min-w-[700px] border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/10 bg-black/10">
-                          <th className="p-3 text-left">
-                            Ronde
-                          </th>
+                    <div className="overflow-x-auto border-t border-white/10">
+                      <table className="w-full min-w-[700px] border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-black/10">
+                            <th className="p-3 text-left">
+                              Ronde
+                            </th>
 
-                          <th className="p-3 text-left">
-                            Tegenstander
-                          </th>
+                            <th className="p-3 text-left">
+                              Tegenstander
+                            </th>
 
-                          <th className="p-3 text-left">
-                            Score
-                          </th>
+                            <th className="p-3 text-left">
+                              Score
+                            </th>
 
-                          <th className="p-3 text-left">
-                            Resultaat
-                          </th>
+                            <th className="p-3 text-left">
+                              Resultaat
+                            </th>
 
-                          <th className="p-3 text-left">
-                            Destruction
-                          </th>
-                        </tr>
-                      </thead>
+                            <th className="p-3 text-left">
+                              Destruction
+                            </th>
+                          </tr>
+                        </thead>
 
-                      <tbody>
-                        {seasonWars.map((war) => {
-                          const matchup =
-                            matchupMap.get(
-                              war.warTag
-                            );
+                        <tbody>
+                          {seasonWars.map(
+                            (war) => {
+                              const matchup =
+                                matchupMap.get(
+                                  war.warTag
+                                );
 
-                          return (
-                            <tr
-                              key={war.warTag}
-                              className="border-b border-white/10 last:border-0"
-                            >
-                              <td className="p-3">
-                                {war.round}
-                              </td>
+                              return (
+                                <tr
+                                  key={
+                                    war.warTag
+                                  }
+                                  className="border-b border-white/10 last:border-0"
+                                >
+                                  <td className="p-3">
+                                    {
+                                      war.round
+                                    }
+                                  </td>
 
-                              <td className="p-3">
-                                {matchup?.opponentName ??
-                                  "Tegenstander"}
-                              </td>
+                                  <td className="p-3">
+                                    {
+                                      matchup?.opponentName ??
+                                      "Tegenstander"
+                                    }
+                                  </td>
 
-                              <td className="p-3">
-                                {war.clanStars} -{" "}
-                                {war.opponentStars}
-                              </td>
+                                  <td className="p-3">
+                                    {
+                                      war.clanStars
+                                    }{" "}
+                                    -{" "}
+                                    {
+                                      war.opponentStars
+                                    }
+                                  </td>
 
-                              <td className="p-3">
-                                {getResult(
-                                  war.clanStars,
-                                  war.opponentStars,
-                                  war.clanDestruction,
-                                  war.opponentDestruction
-                                )}
-                              </td>
+                                  <td className="p-3">
+                                    {getResult(
+                                      war.clanStars,
+                                      war.opponentStars,
+                                      war.clanDestruction,
+                                      war.opponentDestruction
+                                    )}
+                                  </td>
 
-                              <td className="p-3">
-                                {war.clanDestruction.toFixed(
-                                  1
-                                )}
-                                %
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              );
-            })}
+                                  <td className="p-3">
+                                    {war.clanDestruction.toFixed(
+                                      1
+                                    )}
+                                    %
+                                  </td>
+                                </tr>
+                              );
+                            }
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                );
+              }
+            )}
           </div>
         ) : (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/45">
