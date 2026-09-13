@@ -38,7 +38,7 @@ export default async function ClanPage({
           🏠 Dashboard
         </h2>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
           <StatusCard
             icon="🟢"
             title="API Status"
