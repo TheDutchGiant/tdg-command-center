@@ -405,7 +405,29 @@ export async function POST(
      * -----------------------------------------------------
      * HISTORISCHE DATA
      * -----------------------------------------------------
+     *
+     * Gewone CW-waarschuwingen zijn maandgebonden.
+     *
+     * De historie blijft volledig in de database staan,
+     * maar voor de indeling gebruiken we uitsluitend
+     * de gewone CW-data van de huidige kalendermaand.
+     *
+     * Daardoor begint de waarschuwing iedere maand opnieuw.
      */
+
+    const now = new Date();
+
+    const monthStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    );
+
+    const nextMonthStart = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1
+    );
 
     const [
       applications,
@@ -423,6 +445,14 @@ export async function POST(
         ),
 
         prisma.attack.findMany({
+          where: {
+            war: {
+              warStartTime: {
+                gte: monthStart,
+                lt: nextMonthStart,
+              },
+            },
+          },
           include: {
             war: {
               include: {
@@ -439,6 +469,12 @@ export async function POST(
         }),
 
         prisma.missedAttack.findMany({
+          where: {
+            warEndTime: {
+              gte: monthStart,
+              lt: nextMonthStart,
+            },
+          },
           orderBy: {
             warEndTime:
               "desc",
