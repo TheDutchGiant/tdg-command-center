@@ -429,6 +429,38 @@ export async function POST(
       1
     );
 
+    /*
+     * -----------------------------------------------------
+     * MAANDELIJKE RESET GEWONE CW-DATA
+     * -----------------------------------------------------
+     *
+     * Gewone CW-data is alleen tijdelijke input voor
+     * de waarschuwing bij de CWL-indeling.
+     *
+     * Alles van vóór de huidige kalendermaand wordt
+     * daarom verwijderd.
+     *
+     * De echte CWL-history blijft volledig behouden.
+     */
+
+    await prisma.$transaction([
+      prisma.regularWar.deleteMany({
+        where: {
+          warEndTime: {
+            lt: monthStart,
+          },
+        },
+      }),
+
+      prisma.missedAttack.deleteMany({
+        where: {
+          warEndTime: {
+            lt: monthStart,
+          },
+        },
+      }),
+    ]);
+
     const [
       applications,
       attacks,
