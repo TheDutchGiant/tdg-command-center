@@ -22,10 +22,6 @@ const menuItems = [
     href: "cwl",
   },
   {
-    name: "⚔️ Wars",
-    href: "wars",
-  },
-  {
     name: "🏰 Bases",
     href: "bases",
   },
@@ -36,10 +32,6 @@ const menuItems = [
   {
     name: "🔥 Lore",
     href: "lore",
-  },
-  {
-    name: "⚙️ Instellingen",
-    href: "settings",
   },
 ];
 
