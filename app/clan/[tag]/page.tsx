@@ -27,21 +27,7 @@ export default async function ClanPage({
   const now = new Date();
 
   const availableBases =
-    await prisma.base.count({
-      where: {
-        isActive: true,
-        OR: [
-          {
-            expiresAt: null,
-          },
-          {
-            expiresAt: {
-              gt: now,
-            },
-          },
-        ],
-      },
-    });
+    await prisma.base.count();
 
   const apiOnline = true;
 
