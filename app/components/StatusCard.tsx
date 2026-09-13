@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
+
 type StatusCardProps = {
   title: string;
-  value: string;
+  value: ReactNode;
   icon: string;
   detail?: string;
 };

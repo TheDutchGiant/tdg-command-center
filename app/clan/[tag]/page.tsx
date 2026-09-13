@@ -1,7 +1,9 @@
 import MemberGrid from "@/app/components/MemberGrid";
 import StatusCard from "@/app/components/StatusCard";
+import CwlCountdown from "@/app/components/CwlCountdown";
 import getClan from "@/app/lib/getClan";
 import { fetchClash } from "@/app/lib/clash";
+import { prisma } from "@/app/lib/prisma";
 
 export default async function ClanPage({
   params,
@@ -22,14 +24,33 @@ export default async function ClanPage({
     currentWar = null;
   }
 
+  const now = new Date();
+
+  const availableBases =
+    await prisma.base.count({
+      where: {
+        isActive: true,
+        OR: [
+          {
+            expiresAt: null,
+          },
+          {
+            expiresAt: {
+              gt: now,
+            },
+          },
+        ],
+      },
+    });
+
   const apiOnline = true;
 
   const warValue =
     currentWar?.state === "inWar"
       ? `${currentWar.opponent?.name ?? "Tegenstander"} · ${currentWar.clan?.stars ?? 0} ⭐ - ⭐ ${currentWar.opponent?.stars ?? 0}`
       : currentWar?.state === "preparation"
-      ? "War begint binnenkort"
-      : "Geen actieve oorlog";
+        ? "War begint binnenkort"
+        : "Geen actieve oorlog";
 
   return (
     <>
@@ -42,7 +63,11 @@ export default async function ClanPage({
           <StatusCard
             icon="🟢"
             title="API Status"
-            value="Online"
+            value={
+              apiOnline
+                ? "Online"
+                : "Offline"
+            }
             detail="Clash API bereikbaar"
           />
 
@@ -55,25 +80,31 @@ export default async function ClanPage({
           <StatusCard
             icon="🏆"
             title="CWL"
-            value="Nog geen data"
+            value={
+              <CwlCountdown />
+            }
+            detail="Tot de volgende CWL"
           />
 
           <StatusCard
             icon="🏰"
             title="Bases"
-            value="0 beschikbaar"
+            value={`${availableBases} beschikbaar`}
+            detail="Wekelijkse refresh"
           />
 
           <StatusCard
             icon="🤖"
             title="Phoenix Intelligence"
-            value="Wordt gebouwd..."
+            value="Actief"
+            detail="CWL Intelligence operationeel"
           />
 
           <StatusCard
             icon="📅"
             title="Events"
-            value="Geen events"
+            value="Event Hub"
+            detail="Actuele events niet beschikbaar via de officiële API"
           />
         </div>
       </section>
