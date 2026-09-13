@@ -42,30 +42,34 @@ export default function MemberGrid({
   };
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
       {members.map((member) => {
         const role = roleInfo(member.role);
 
         return (
           <div
             key={member.tag}
-            className="rounded-xl bg-neutral-900 p-4 shadow transition hover:bg-neutral-800"
+            className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2.5 transition hover:border-neutral-700 hover:bg-neutral-800 sm:px-3.5 sm:py-3"
           >
-            <div className="flex items-center justify-between">
-              <div className="font-semibold text-base">
-                {member.name}
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-white sm:text-base">
+                  {member.name}
+                </div>
+
+                <div
+                  className={`mt-0.5 truncate text-[10px] font-medium sm:text-xs ${role.color}`}
+                >
+                  {role.label}
+                </div>
               </div>
 
-              <div className="rounded bg-yellow-500 px-2 py-1 text-xs font-bold text-black">
+              <div className="shrink-0 rounded-md bg-yellow-500 px-1.5 py-1 text-[10px] font-bold text-black sm:px-2 sm:text-xs">
                 TH{member.townHallLevel}
               </div>
             </div>
 
-            <div className={`mt-2 text-sm font-medium ${role.color}`}>
-              {role.label}
-            </div>
-
-            <div className="mt-2 text-sm">
+            <div className="mt-2 text-xs font-medium text-neutral-300 sm:text-sm">
               🏆 {member.trophies}
             </div>
           </div>
