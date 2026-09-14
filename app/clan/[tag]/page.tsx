@@ -100,7 +100,7 @@ export default async function ClanPage({
           👥 Laatste leden
         </h2>
 
-        <MemberGrid members={clan.memberList} />
+        <MemberGrid members={clan.memberList} clanTag={tag} />
       </section>
     </>
   );

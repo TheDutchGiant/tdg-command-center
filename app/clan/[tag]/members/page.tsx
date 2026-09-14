@@ -16,7 +16,7 @@ export default async function MembersPage({
         👥 Leden
       </h1>
 
-      <MemberGrid members={clan.memberList} />
+      <MemberGrid members={clan.memberList} clanTag={tag} />
     </section>
   );
 }

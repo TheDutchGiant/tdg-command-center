@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 type Member = {
   tag: string;
   name: string;
@@ -8,10 +10,12 @@ type Member = {
 
 type MemberGridProps = {
   members: Member[];
+  clanTag: string;
 };
 
 export default function MemberGrid({
   members,
+  clanTag,
 }: MemberGridProps) {
   const roleInfo = (role: string) => {
     switch (role) {
@@ -47,8 +51,9 @@ export default function MemberGrid({
         const role = roleInfo(member.role);
 
         return (
-          <div
+          <Link
             key={member.tag}
+            href={`/clan/${clanTag}/members/${encodeURIComponent(member.tag)}`}
             className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2.5 transition hover:border-neutral-700 hover:bg-neutral-800 sm:px-3.5 sm:py-3"
           >
             <div className="flex items-center justify-between gap-2">
@@ -69,10 +74,11 @@ export default function MemberGrid({
               </div>
             </div>
 
-            <div className="mt-2 text-xs font-medium text-neutral-300 sm:text-sm">
-              🏆 {member.trophies}
+            <div className="mt-2 flex items-center justify-between text-xs font-medium text-neutral-300 sm:text-sm">
+              <span>🏆 {member.trophies}</span>
+              <span className="text-neutral-600">→</span>
             </div>
-          </div>
+          </Link>
         );
       })}
     </div>
