@@ -45,7 +45,7 @@ export default async function PlayerPage({ params }: PageProps) {
 
   const [
     regularWarRows,
-    legacyCwlHistoryRows,
+    cwlHistoryRows,
     careerEvents,
     cwlApplications,
     cwlAssignments,
@@ -147,158 +147,6 @@ export default async function PlayerPage({ params }: PageProps) {
     }),
   ]);
 
-
-  /*
-   * CWL-profieldata
-   *
-   * Nieuwe CWL-opslag:
-   *   War + Attack
-   *
-   * Oude historische opslag:
-   *   CwlHistoricalPlayer
-   *
-   * De nieuwe opslag is leidend. Oude historie wordt alleen gebruikt
-   * voor wars die nog niet in War staan, zodat oudere CWL-seizoenen
-   * behouden blijven zonder dubbele telling.
-   */
-
-  const tdgClanTags = clanRecords.map((clanRecord) => clanRecord.tag);
-
-  const genericCwlWarRows = await prisma.war.findMany({
-    where: {
-      clan: {
-        tag: {
-          in: tdgClanTags,
-        },
-      },
-      attacks: {
-        some: {
-          OR: [
-            {
-              playerTag: decodedPlayerTag,
-              isOwnAttack: true,
-            },
-            {
-              defenderTag: decodedPlayerTag,
-              isOwnAttack: false,
-            },
-          ],
-        },
-      },
-    },
-    select: {
-      warTag: true,
-      round: true,
-      importedAt: true,
-      season: {
-        select: {
-          season: true,
-        },
-      },
-      clan: {
-        select: {
-          tag: true,
-        },
-      },
-      attacks: {
-        select: {
-          playerTag: true,
-          defenderTag: true,
-          stars: true,
-          destruction: true,
-          attackerTownHall: true,
-          isOwnAttack: true,
-        },
-      },
-    },
-    orderBy: {
-      importedAt: 'desc',
-    },
-  });
-
-  const genericCwlWarTags = genericCwlWarRows.map((row) => row.warTag);
-
-  const cwlMatchupRows =
-    genericCwlWarTags.length > 0
-      ? await prisma.cwlMatchup.findMany({
-          where: {
-            warTag: {
-              in: genericCwlWarTags,
-            },
-          },
-          select: {
-            warTag: true,
-            clanATag: true,
-            clanBTag: true,
-          },
-        })
-      : [];
-
-  const cwlOpponentByWarTag = new Map(
-    cwlMatchupRows.map((matchup) => {
-      const war = genericCwlWarRows.find(
-        (row) => row.warTag === matchup.warTag
-      );
-
-      if (!war) {
-        return [matchup.warTag, ''];
-      }
-
-      return [
-        matchup.warTag,
-        matchup.clanATag === war.clan.tag
-          ? matchup.clanBTag
-          : matchup.clanATag,
-      ];
-    })
-  );
-
-  const cwlProfileRows = [
-    ...genericCwlWarRows.map((war) => ({
-      warId: 0,
-      attacks: war.attacks.filter(
-        (attack) =>
-          attack.isOwnAttack === true &&
-          attack.playerTag === decodedPlayerTag
-      ),
-      opponentAttacks: war.attacks.filter(
-        (attack) =>
-          attack.isOwnAttack === false &&
-          attack.defenderTag === decodedPlayerTag
-      ),
-      war: {
-        warTag: war.warTag,
-        importedAt: war.importedAt,
-        season: war.season.season,
-        round: war.round,
-        clanTag: war.clan.tag,
-        opponentTag: cwlOpponentByWarTag.get(war.warTag) ?? '',
-      },
-    })),
-
-    ...legacyCwlHistoryRows
-      .filter(
-        (row) => !genericCwlWarTags.includes(row.war.warTag)
-      )
-      .map((row) => ({
-        warId: row.warId,
-        attacks: row.attacks,
-        opponentAttacks: row.opponentAttacks,
-        war: {
-          warTag: row.war.warTag,
-          importedAt: row.war.importedAt,
-          season: row.war.season,
-          round: row.war.round,
-          clanTag: row.war.clanTag,
-          opponentTag: row.war.opponentTag,
-        },
-      })),
-  ].sort(
-    (a, b) =>
-      new Date(b.war.importedAt).getTime() -
-      new Date(a.war.importedAt).getTime()
-  ) as typeof legacyCwlHistoryRows;
-
   const regularWarStats = regularWarRows.reduce(
     (stats, row) => {
       stats.wars++;
@@ -339,7 +187,7 @@ export default async function PlayerPage({ params }: PageProps) {
 
   const cwlAttacks: CwlAttackData[] = [];
 
-  for (const row of cwlProfileRows) {
+  for (const row of cwlHistoryRows) {
     if (Array.isArray(row.attacks)) {
       for (const attack of row.attacks) {
         if (
@@ -408,7 +256,7 @@ export default async function PlayerPage({ params }: PageProps) {
     attackerTownHalls: [] as number[],
   };
 
-  for (const row of cwlProfileRows) {
+  for (const row of cwlHistoryRows) {
     if (!Array.isArray(row.opponentAttacks)) {
       continue;
     }
@@ -488,7 +336,7 @@ export default async function PlayerPage({ params }: PageProps) {
 
   const cwlSeasons = new Map<string, CwlSeasonSummary>();
 
-  for (const row of cwlProfileRows) {
+  for (const row of cwlHistoryRows) {
     const season = row.war.season;
     const clanTag = row.war.clanTag;
     const key = `${season}:${clanTag}`;
@@ -721,7 +569,7 @@ export default async function PlayerPage({ params }: PageProps) {
       warEndTime: row.war.warEndTime,
     }));
 
-  const recentCwlWars = cwlProfileRows
+  const recentCwlWars = cwlHistoryRows
     .slice(0, 8)
     .map((row) => {
       let stars = 0;
@@ -763,7 +611,7 @@ export default async function PlayerPage({ params }: PageProps) {
     });
 
   const opponentNameByTag = new Map(
-    cwlProfileRows.map((row) => [
+    cwlHistoryRows.map((row) => [
       row.war.opponentTag,
       row.war.opponentTag,
     ])
@@ -777,7 +625,7 @@ export default async function PlayerPage({ params }: PageProps) {
     }
   }
 
-  for (const row of cwlProfileRows) {
+  for (const row of cwlHistoryRows) {
     if (row.war.importedAt) {
       activityDates.push(new Date(row.war.importedAt));
     }
@@ -809,7 +657,7 @@ export default async function PlayerPage({ params }: PageProps) {
     : null;
 
   const knownWarCount =
-    regularWarRows.length + cwlProfileRows.length;
+    regularWarRows.length + cwlHistoryRows.length;
 
   const cwlClanHistoryMap = new Map<
     string,
@@ -986,7 +834,7 @@ export default async function PlayerPage({ params }: PageProps) {
       {/* CWL */}
       <ProfileSection title="🏆 CWL">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-          <MiniStat label="Ronden" value={cwlProfileRows.length} />
+          <MiniStat label="Ronden" value={cwlHistoryRows.length} />
           <MiniStat label="Aanvallen" value={cwlStats.attacks} />
           <MiniStat label="Gem. sterren" value={cwlAverageStars} />
           <MiniStat label="Gem. vernietiging" value={`${cwlAverageDestruction}%`} />
@@ -1277,7 +1125,7 @@ export default async function PlayerPage({ params }: PageProps) {
       <ProfileSection title="🟢 Activiteit & aanwezigheid">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <MiniStat label="CW wars" value={regularWarRows.length} />
-          <MiniStat label="CWL ronden" value={cwlProfileRows.length} />
+          <MiniStat label="CWL ronden" value={cwlHistoryRows.length} />
           <MiniStat label="CWL aanmeld." value={cwlApplications.length} />
           <MiniStat label="Bekende wars" value={knownWarCount} />
           <MiniStat
