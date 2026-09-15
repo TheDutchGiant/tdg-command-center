@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureActiveChallenge } from "@/app/lib/challenge/ensureActiveChallenge";
+import { scheduleChallengeCheck } from "@/app/lib/challenge/scheduleChallengeCheck";
 
 export async function GET(request: Request) {
   const internalKey =
@@ -14,12 +15,22 @@ export async function GET(request: Request) {
         success: false,
         error: "Unauthorized",
       },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
   try {
     const challenge = await ensureActiveChallenge();
+
+    /*
+     * Iedere interne lifecycle-check plant de volgende
+     * controle opnieuw op basis van de daadwerkelijke endsAt.
+     *
+     * Daardoor werkt dit ook als de server tussendoor reboot.
+     */
+    await scheduleChallengeCheck(
+      challenge.endsAt,
+    );
 
     return NextResponse.json({
       success: true,
@@ -34,7 +45,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error(
       "Automatic Challenge start failed:",
-      error
+      error,
     );
 
     return NextResponse.json(
@@ -45,7 +56,7 @@ export async function GET(request: Request) {
             ? error.message
             : "Onbekende fout.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
