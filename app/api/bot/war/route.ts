@@ -82,9 +82,9 @@ export async function GET(request: Request) {
     request.headers.get("x-tdg-bot-key");
 
   if (
-    !process.env.PHOENIX_BOT_API_KEY ||
+    !process.env.TDG_BOT_API_KEY ||
     internalKey !==
-      process.env.PHOENIX_BOT_API_KEY
+      process.env.TDG_BOT_API_KEY
   ) {
     return NextResponse.json(
       {
