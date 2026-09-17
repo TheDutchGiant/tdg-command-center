@@ -250,6 +250,10 @@ export async function GET(request: Request) {
         state: war.state,
         teamSize:
           Number(war.teamSize ?? 0),
+        attacksPerMember:
+          Number(war.attacksPerMember ?? 0),
+        battleModifier:
+          war.battleModifier ?? null,
         startTime:
           war.startTime ?? null,
         endTime:
