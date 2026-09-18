@@ -308,8 +308,22 @@ export async function GET(request: Request) {
             opponentMembers,
         },
 
+        /*
+         * Laatste 5:
+         * gebruikt door /war voor het compacte overzicht.
+         */
         recentOffence,
         recentDefence,
+
+        /*
+         * Alle aanvallen:
+         * gebruikt door de live war monitor.
+         * Hierdoor kunnen we geen aanval missen
+         * als er tussen twee polls meer dan 5
+         * aanvallen plaatsvinden.
+         */
+        allOffence: offence,
+        allDefence: defence,
       },
     });
   } catch (error) {
