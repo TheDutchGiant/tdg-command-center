@@ -80,6 +80,7 @@ model Player {
   cwlApplications    CwlApplication[]
   cwlAssignments     CwlAssignment[]
   defensiveOverrides CwlDefensiveStrengthOverride[]
+  discordLinks       DiscordAccountLink[]
 }
 
 model Attack {
@@ -186,6 +187,7 @@ model AdminUser {
   auditLogs         AuditLog[]
   permissions       AdminUserPermission[]
   finalizedCwlPlans CwlPlan[]             @relation("CwlPlanFinalizedBy")
+  verifiedDiscordLinks DiscordAccountLink[]
 }
 
 model AdminPermission {
@@ -772,4 +774,36 @@ model GameArmyCodeMap {
   @@index([source])
   @@index([type])
   @@index([catalogItemId])
+}
+
+
+/**
+ * --------------------------------------------------------------------------
+ * TDG DISCORD ACCOUNT LINKS
+ * --------------------------------------------------------------------------
+ * Handmatige koppeling tussen een Discord-gebruiker en één of meerdere
+ * Clash of Clans-accounts.
+ *
+ * Discord User ID en CoC playerTag zijn de stabiele identifiers.
+ * Namen worden alleen opgeslagen als herkenbare momentopname.
+ * --------------------------------------------------------------------------
+ */
+
+model DiscordAccountLink {
+  id                 Int      @id @default(autoincrement())
+  discordUserId      String
+  discordUsername    String?
+  discordDisplayName String?
+  playerTag          String
+  verifiedByAdminId  Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  player     Player     @relation(fields: [playerTag], references: [playerTag], onDelete: Cascade)
+  verifiedBy AdminUser? @relation(fields: [verifiedByAdminId], references: [id], onDelete: SetNull)
+
+  @@unique([discordUserId, playerTag])
+  @@unique([playerTag])
+  @@index([discordUserId])
+  @@index([verifiedByAdminId])
 }
