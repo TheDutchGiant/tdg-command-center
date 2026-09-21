@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { fetchClashPlayer } from "@/app/lib/clash";
 
 function normalizeTag(tag: string) {
   return tag.replace(/^#/, "").trim().toUpperCase();
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
       );
     }
 
-    let player = await prisma.player.findUnique({
+    const player = await prisma.player.findUnique({
       where: {
         playerTag,
       },
@@ -73,76 +72,14 @@ export async function POST(request: Request) {
       },
     });
 
-    /*
-     * Bestaat de speler nog niet in Phoenix?
-     *
-     * Dan halen we hem rechtstreeks uit de Clash API.
-     * Daardoor kunnen ook spelers van buiten TDG
-     * gewoon aan een Discord-account gekoppeld worden.
-     */
     if (!player) {
-      let clashPlayer;
-
-      try {
-        clashPlayer =
-          await fetchClashPlayer(playerTag);
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Onbekende Clash API-fout.";
-
-        if (message.includes("Clash API fout (404)")) {
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                `CoC-account ${playerTag} bestaat niet volgens de Clash API.`,
-            },
-            { status: 404 },
-          );
-        }
-
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              `CoC-account ${playerTag} kon niet uit Clash worden opgehaald.`,
-          },
-          { status: 502 },
-        );
-      }
-
-      const clashTag =
-        normalizeTag(
-          typeof clashPlayer?.tag === "string"
-            ? clashPlayer.tag
-            : playerTag,
-        );
-
-      const clashName =
-        typeof clashPlayer?.name === "string" &&
-        clashPlayer.name.trim()
-          ? clashPlayer.name.trim()
-          : "Onbekend";
-
-      player =
-        await prisma.player.upsert({
-          where: {
-            playerTag: clashTag,
-          },
-          create: {
-            playerTag: clashTag,
-            currentName: clashName,
-          },
-          update: {
-            currentName: clashName,
-          },
-          select: {
-            playerTag: true,
-            currentName: true,
-          },
-        });
+      return NextResponse.json(
+        {
+          success: false,
+          error: `CoC-account ${playerTag} bestaat niet in Phoenix.`,
+        },
+        { status: 404 },
+      );
     }
 
     const existingLink =
