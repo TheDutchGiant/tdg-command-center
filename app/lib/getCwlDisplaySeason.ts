@@ -5,25 +5,21 @@ export function getCwlDisplaySeason(): string {
   let month = now.getMonth() + 1;
 
   /*
+   * De selectie is zichtbaar zodra deze FINAL is gemaakt.
+   *
    * 1 t/m 10:
-   * toon de selectie van de zojuist afgelopen CWL-maand.
+   * toon de CWL die op dat moment wordt gespeeld.
    *
    * Vanaf de 11e:
-   * toon de selectie voor de volgende CWL.
+   * die CWL is afgelopen en tonen we de volgende CWL.
    *
    * Voorbeeld:
-   * 15 september 2026 -> 2026-10
-   * 5 september 2026  -> 2026-08
+   * 23 september 2026 -> 2026-10
+   * 5 oktober 2026    -> 2026-10
+   * 11 oktober 2026   -> 2026-11
    */
 
-  if (now.getDate() <= 10) {
-    month -= 1;
-
-    if (month === 0) {
-      month = 12;
-      year -= 1;
-    }
-  } else {
+  if (now.getDate() > 10) {
     month += 1;
 
     if (month === 13) {

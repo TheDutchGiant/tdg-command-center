@@ -1,6 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
 import { requireAdmin } from "@/app/lib/auth/session";
-import { getCwlWorkingSeason } from "@/app/lib/getCwlWorkingSeason";
 import CwlProposalGenerator from "./CwlProposalGenerator";
 import CwlDraftEditor from "./CwlDraftEditor";
 import CwlApplicationCard from "./CwlApplicationCard";
@@ -56,14 +55,8 @@ function getDifficultyBonus(
 export default async function AdminCwlPage() {
   const current = await requireAdmin();
 
-  /*
-   * De admin-selectie is altijd voor de KOMENDE CWL.
-   *
-   * Voorbeeld:
-   * 23 september 2026 -> CWL 2026-10
-   */
   const season =
-    await getCwlWorkingSeason();
+    new Date().toISOString().slice(0, 7);
 
   const [
     applications,
@@ -349,7 +342,7 @@ export default async function AdminCwlPage() {
           </h1>
 
           <p className="mt-1 text-xs text-white/40">
-            Selectiepool voor de komende CWL ·{" "}
+            Selectiepool voor CWL{" "}
             {season}.
           </p>
         </header>
@@ -367,7 +360,7 @@ export default async function AdminCwlPage() {
                   </h2>
 
                   <p className="mt-0.5 text-[9px] text-white/30">
-                    Aanmeldingen voor de komende CWL · {season}.
+                    Aangemelde spelers voor CWL {season}.
                   </p>
                 </div>
 

@@ -83,56 +83,12 @@ export async function POST(request: Request) {
     const clashName =
       clashPlayer.name;
 
-    /*
-     * CWL-aanmeldingen zijn ALTIJD voor de komende CWL.
-     *
-     * Voorbeeld:
-     * 23 september 2026 -> CWL 2026-10
-     * 5 oktober 2026    -> CWL 2026-11
-     *
-     * getCwlWorkingSeason() is hiervoor de centrale bron.
-     */
-    const { getCwlWorkingSeason } =
-      await import("@/app/lib/getCwlWorkingSeason");
-
-    const season =
-      await getCwlWorkingSeason();
-
-    /*
-     * Nieuwe CWL-aanmeldingen zijn beschikbaar vanaf de 20e.
-     *
-     * Daarnaast sluiten we nieuwe aanmeldingen direct zodra
-     * de selectie voor deze CWL definitief (FINAL) is.
-     */
     const now = new Date();
 
-    if (now.getDate() < 20) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "De CWL-aanmeldingen zijn momenteel gesloten. Aanmelden voor de volgende CWL kan vanaf de 20e.",
-        },
-        { status: 409 }
-      );
-    }
-
-    const plan =
-      await prisma.cwlPlan.findUnique({
-        where: { season },
-        select: { status: true },
-      });
-
-    if (plan?.status === "FINAL") {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "De indeling voor deze CWL is definitief. Nieuwe aanmeldingen zijn gesloten.",
-        },
-        { status: 409 }
-      );
-    }
+    const season =
+      `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+      ).padStart(2, "0")}`;
 
     /*
      * =====================================================

@@ -138,7 +138,7 @@ export default function CwlApplicationPage() {
       }
 
       setMessage(
-        "✅ Je CWL-aanmelding voor de komende CWL is opgeslagen!"
+        "✅ Je CWL-aanmelding is opgeslagen!"
       );
     } catch {
       setError(
@@ -166,8 +166,7 @@ export default function CwlApplicationPage() {
 
           <p className="mx-auto mt-2 max-w-md text-sm text-white/45">
             Meld je aan voor de komende CWL
-            binnen de TDG Family. Je aanmelding geldt
-            altijd voor de volgende CWL-maand.
+            binnen de TDG Family.
           </p>
         </header>
 

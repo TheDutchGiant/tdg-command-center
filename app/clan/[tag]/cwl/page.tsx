@@ -126,15 +126,15 @@ export default async function CWLPage({
     `#${tag.replace("#", "")}`;
 
   /*
-   * Alleen wanneer er daadwerkelijk een actieve CWL is,
-   * mag een definitieve selectie als "Huidige CWL"
-   * worden getoond.
+   * De definitieve selectie wordt bepaald door de
+   * displaySeason, niet door een momenteel actieve
+   * Clash leaguegroup.
    *
-   * De selectie-season blijft displaySeason, zodat de
-   * bestaande overgangslogica behouden blijft.
+   * Een admin-selectie wordt namelijk al definitief
+   * gemaakt vóórdat de daadwerkelijke CWL begint.
    */
   const currentPlan =
-    activeCwlSeason && displaySeason
+    displaySeason
       ? await prisma.cwlPlan.findUnique({
           where: {
             season: displaySeason,
@@ -158,7 +158,6 @@ export default async function CWLPage({
       : null;
 
   const currentClanPlan =
-    activeCwlSeason &&
     currentPlan?.status === "FINAL"
       ? currentPlan.clanPlans[0]
       : null;
