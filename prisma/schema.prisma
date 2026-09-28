@@ -807,3 +807,69 @@ model DiscordAccountLink {
   @@index([discordUserId])
   @@index([verifiedByAdminId])
 }
+
+/**
+ * |--------------------------------------------------------------------------
+ * | TDG SHOWCASE LEGENDS
+ * |--------------------------------------------------------------------------
+ */
+
+model ShowcaseBase {
+  id                     Int                        @id @default(autoincrement())
+  baseFingerprint        String
+  baseLink               String
+  townHall               Int
+  type                   String
+  createdByDiscordUserId String
+  createdByDisplayName   String
+  channelId              String
+  sourceMessageId        String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  results         ShowcaseLegendsResult[]
+  pendingUploads  ShowcasePendingUpload[]
+
+  @@index([baseFingerprint, createdAt])
+  @@index([createdByDiscordUserId])
+}
+
+model ShowcaseLegendsResult {
+  id                  Int          @id @default(autoincrement())
+  showcaseId          Int
+  discordUserId       String
+  discordDisplayName  String
+  screenshotUrl       String
+  screenshotMessageId String
+  createdAt           DateTime     @default(now())
+
+  showcase ShowcaseBase @relation(fields: [showcaseId], references: [id], onDelete: Cascade)
+
+  @@index([showcaseId])
+  @@index([discordUserId])
+}
+
+model ShowcasePendingUpload {
+  id                 Int      @id @default(autoincrement())
+  discordUserId      String
+  discordDisplayName String
+  channelId          String
+  showcaseId         Int
+  sourceMessageId    String?
+  createdAt          DateTime @default(now())
+  expiresAt          DateTime
+
+  showcase ShowcaseBase @relation(fields: [showcaseId], references: [id], onDelete: Cascade)
+
+  @@unique([discordUserId, channelId])
+  @@index([showcaseId])
+  @@index([expiresAt])
+}
+
+model PlayingWithNeon {
+  id    Int    @id
+  name  String
+  value Float
+
+  @@map("playing_with_neon")
+}
