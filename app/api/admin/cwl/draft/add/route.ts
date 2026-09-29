@@ -6,9 +6,15 @@ import { requireAdmin } from "@/app/lib/auth/session";
 function normalizeTag(
   tag: string
 ) {
-  return tag
-    .replace(/^#/, "")
-    .toUpperCase();
+  const value =
+    tag
+      .trim()
+      .replace(/^#/, "")
+      .toUpperCase();
+
+  return value
+    ? `#${value}`
+    : "";
 }
 
 export async function POST(
