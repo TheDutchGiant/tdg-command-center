@@ -136,7 +136,36 @@ export async function POST(request: Request) {
 
     /*
      * =====================================================
-     * 3. STATUS
+     * 3. PLAYER RECORD VEILIGSTELLEN
+     * =====================================================
+     *
+     * De CWL Application heeft een foreign key naar Player.
+     *
+     * Een geldige externe Clash-speler hoeft niet vooraf in
+     * Phoenix te bestaan. Zodra de Clash API de speler heeft
+     * gevalideerd, zorgen we er daarom voor dat het exacte
+     * Player-record bestaat voordat de CWL-aanmelding wordt
+     * opgeslagen.
+     *
+     * knownInPhoenix is hierboven al bepaald en blijft
+     * leidend voor AUTO_APPROVED versus PENDING.
+     */
+    await prisma.player.upsert({
+      where: {
+        playerTag,
+      },
+      create: {
+        playerTag,
+        currentName: clashName,
+      },
+      update: {
+        currentName: clashName,
+      },
+    });
+
+    /*
+     * =====================================================
+     * 4. STATUS
      * =====================================================
      */
 
@@ -239,6 +268,22 @@ export async function POST(request: Request) {
       "CWL application error:",
       error
     );
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2003"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "De speler is geldig, maar de CWL-aanmelding kon niet worden opgeslagen. Probeer het opnieuw.",
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       {
